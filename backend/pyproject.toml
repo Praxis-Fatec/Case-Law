@@ -1,0 +1,27 @@
+[project]
+name = "case-law-backend"
+version = "0.1.0"
+description = "Case Law API — consolidation and analysis of judicial precedents"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "psycopg[binary]>=3.3.5",
+    "pydantic-settings>=2.15.0",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[tool.uv]
+# Application, not a distributable library: uv should not try to build it.
+package = false
+
+[tool.pytest.ini_options]
+# Lets pytest import `app` without installing the project.
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "ruff>=0.16.7",
+]
