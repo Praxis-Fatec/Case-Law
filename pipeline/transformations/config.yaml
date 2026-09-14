@@ -1,0 +1,15 @@
+gateways:
+  local:
+    connection:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') }}"
+      database: "{{ env_var('POSTGRES_DB', 'caselaw') }}"
+      user: "{{ env_var('POSTGRES_USER', 'postgres') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', 'postgres') }}"
+
+default_gateway: local
+
+model_defaults:
+  dialect: postgres
+  start: 2026-01-01
