@@ -9,6 +9,7 @@
   <a href="#sprints">Sprint Schedule</a> •
   <a href="#sprintdor">DoR and DoD</a> •
   <a href="#technologies">Technologies</a> •
+  <a href="#environment">Environment</a> •
   <a href="#branches">Branches and Commits</a> •
   <a href="#burndown">Burn Down</a> •
   <a href="#team">Team</a> •
@@ -20,6 +21,42 @@
 **Project Status** 🚧 In progress  
 **Documentation Folder** 📄 Available in the repository  
 **Project Video** 📽️ Not started  
+
+---
+
+## Development Environment <a id="environment"></a>
+
+Only the database runs in Docker. The backend, the frontend and the pipeline run
+natively, so hot reload and the debugger keep working.
+
+```bash
+docker compose up -d      # start the database
+docker compose down       # stop it, keeping the data
+docker compose down -v    # stop it and erase the data
+```
+
+It works with no setup: every value has a default. Copy `.env.example` to `.env`
+only if you need to change the port or the credentials.
+
+| Service | Port | Image |
+|---|---|---|
+| PostgreSQL | 5432 | `pgvector/pgvector:pg17` |
+
+The image is not the official `postgres:17` on purpose — that one does not ship
+`pgvector`. On first start, `infra/postgres/init.sql` creates three extensions:
+
+| Extension | What it gives us |
+|---|---|
+| `pg_trgm` | search that tolerates typing errors: *usucapiao* finds *usucapião* |
+| `unaccent` | accents stop mattering: *acao* finds *ação* |
+| `vector` | vector column and distance operators, for semantic search later |
+
+The init script only runs when the database is created. If you already have the
+volume and need to replay it, run `docker compose down -v` first — that erases
+the data.
+
+Each part has its own instructions: [backend](backend/README.md) ·
+[pipeline](pipeline/README.md)
 
 ---
 
