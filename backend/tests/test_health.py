@@ -32,3 +32,30 @@ def test_openapi_schema_is_published(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert "/health" in response.json()["paths"]
+
+
+def test_cors_allows_the_configured_origin(client: TestClient) -> None:
+    response = client.get("/health", headers={"Origin": "http://localhost:5173"})
+
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_does_not_allow_an_unknown_origin(client: TestClient) -> None:
+    response = client.get(
+        "/health", headers={"Origin": "http://nao-autorizado.example"}
+    )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_cors_answers_the_browser_preflight(client: TestClient) -> None:
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"

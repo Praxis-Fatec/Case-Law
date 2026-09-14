@@ -82,9 +82,25 @@ backend/
 Every value that differs between a laptop and a server lives in `app/config.py`
 and is read from the environment. Never hardcode a URL, port or password.
 
-| Variable | Default |
-|---|---|
-| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/caselaw` |
-| `ENVIRONMENT` | `development` |
+| Variable | Default | What it does |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/caselaw` | where the data lives |
+| `ENVIRONMENT` | `development` | reported by `/health`, so you know which environment answered |
+| `CORS_ORIGINS` | `http://localhost:5173` | which origins the browser may call the API from |
 
 `.env.example` is versioned as a template. The real `.env` is ignored by git.
+
+### CORS_ORIGINS
+
+The browser blocks a page on one origin from calling an API on another unless the
+API says otherwise. The frontend runs on port 5173 and the API on 8000 — different
+origins — so the frontend address has to be listed here.
+
+Accepts several, separated by commas:
+
+```
+CORS_ORIGINS=http://localhost:5173,https://caselaw.example.com
+```
+
+Never use `*`. It would let any page on the internet call the API on behalf of
+whoever is logged in.
