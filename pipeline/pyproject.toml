@@ -1,0 +1,13 @@
+[project]
+name = "case-law-pipeline"
+version = "0.1.0"
+description = "Extraction and transformation of judicial decision data"
+requires-python = ">=3.12"
+dependencies = [
+    "dlt[postgres]>=1.30.0",
+    "psycopg2-binary>=2.9.13",
+    "sqlmesh>=0.236.2",
+]
+
+[tool.uv]
+package = false
