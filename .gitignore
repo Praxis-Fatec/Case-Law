@@ -1,0 +1,36 @@
+# Environment — never commit real credentials.
+# The .env.example template IS versioned, so anyone can set up their own.
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Data files — the pipeline output does not belong in git
+*.dump
+*.sqlite3
+data/raw/
+data/processed/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
