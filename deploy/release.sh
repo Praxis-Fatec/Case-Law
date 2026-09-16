@@ -21,7 +21,9 @@ docker compose up -d --remove-orphans
 for _ in $(seq 1 30); do
     if curl -fsS "http://${BACKEND_BIND}:8000/health" | grep -q '"status":"ok"'; then
         echo "health ok"
-        docker image prune -f > /dev/null
+        if [ "${PRUNE_IMAGES:-true}" = "true" ]; then
+            docker image prune -f > /dev/null
+        fi
         exit 0
     fi
     sleep 2
