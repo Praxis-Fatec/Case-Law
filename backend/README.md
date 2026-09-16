@@ -49,6 +49,11 @@ uv run mypy app tests        # type checking
 uv run pytest                # tests
 ```
 
+The scope, scenarios, unit/integration distinction and DevOps handoff are
+documented in [the repository testing process](../TESTING.md). Run only one
+layer while diagnosing a failure with `uv run pytest -m unit -v` or
+`uv run pytest -m integration -v`.
+
 To fix formatting instead of only reporting it:
 
 ```bash

@@ -22,6 +22,8 @@
 **Documentation Folder** 📄 Available in the repository  
 **Project Video** 📽️ Not started  
 
+Testing process: [unit and integration tests](TESTING.md).
+
 ---
 
 ## Development Environment <a id="environment"></a>
