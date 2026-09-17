@@ -33,25 +33,35 @@ ts_headline(
 
 COUNT_SQL = f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}"
 
-PAGE_SQL = f"""
-SELECT
-    fonte_codigo,
-    identificador_fonte,
-    tribunal_sigla,
-    processo,
-    orgao_julgador,
-    relator,
-    data_referencia,
-    turma_recursal,
-    url_fonte,
-    {SNIPPET} AS snippet
-FROM core.decisao
-WHERE {MATCH}
+ORDERING = f"""
 ORDER BY
     ts_rank(ementa_busca, {QUERY}) DESC,
     data_referencia DESC,
     identificador_fonte DESC
-LIMIT %(limit)s OFFSET %(offset)s
+"""
+
+PAGE_SQL = f"""
+WITH pagina AS (
+    SELECT fonte_codigo, identificador_fonte
+    FROM core.decisao
+    WHERE {MATCH}
+    {ORDERING}
+    LIMIT %(limit)s OFFSET %(offset)s
+)
+SELECT
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.data_referencia,
+    decisao.turma_recursal,
+    decisao.url_fonte,
+    {SNIPPET} AS snippet
+FROM pagina
+JOIN core.decisao USING (fonte_codigo, identificador_fonte)
+{ORDERING}
 """
 
 DETAIL_SQL = """
