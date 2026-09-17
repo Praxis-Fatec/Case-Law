@@ -60,7 +60,7 @@ SELECT
   REPLACE(f.url_documento_template, '{identificador}', b.identificador) AS url_fonte,
   b.carga_id                                            AS carga_id,
   NOW()                                                 AS carregado_em,
-  TO_TSVECTOR('portuguese', core.sem_acento(b.ementa))  AS ementa_busca
+  TO_TSVECTOR('portugues_sem_acento', b.ementa)         AS ementa_busca
 FROM bruto AS b
 CROSS JOIN core.fonte AS f
 WHERE f.codigo = 'tjdft-jurisdf'
@@ -68,6 +68,7 @@ WHERE f.codigo = 'tjdft-jurisdf'
 ;
 
 JINJA_STATEMENT_BEGIN;
+CREATE UNIQUE INDEX IF NOT EXISTS decisao_chave_idx ON {{ this_model }} (fonte_codigo, identificador_fonte);
 CREATE INDEX IF NOT EXISTS decisao_ementa_idx   ON {{ this_model }} USING gin (ementa_busca);
 CREATE INDEX IF NOT EXISTS decisao_data_idx     ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
 CREATE INDEX IF NOT EXISTS decisao_tribunal_idx ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
