@@ -68,12 +68,19 @@ WHERE f.codigo = 'tjdft-jurisdf'
 ;
 
 JINJA_STATEMENT_BEGIN;
-CREATE UNIQUE INDEX IF NOT EXISTS decisao_chave_idx ON {{ this_model }} (fonte_codigo, identificador_fonte);
-CREATE INDEX IF NOT EXISTS decisao_ementa_idx   ON {{ this_model }} USING gin (ementa_busca);
-CREATE INDEX IF NOT EXISTS decisao_data_idx     ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
-CREATE INDEX IF NOT EXISTS decisao_tribunal_idx ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
-CREATE INDEX IF NOT EXISTS decisao_orgao_idx    ON {{ this_model }} (tribunal_sigla, orgao_julgador);
-CREATE INDEX IF NOT EXISTS decisao_relator_idx  ON {{ this_model }} (tribunal_sigla, relator);
-CREATE INDEX IF NOT EXISTS decisao_processo_idx ON {{ this_model }} (processo);
-CREATE INDEX IF NOT EXISTS decisao_classe_idx   ON {{ this_model }} (classe_cnj);
+/*
+  Sem nome fixo de propósito. O SQLMesh cria uma tabela física nova a cada
+  mudança do modelo, e no Postgres o nome do índice é único por SCHEMA, não por
+  tabela: com nome fixo, o IF NOT EXISTS encontrava o índice preso à tabela
+  anterior e pulava a criação, deixando a tabela em uso sem índice nenhum.
+  Sem nome, o Postgres gera um por tabela e a colisão deixa de existir.
+*/
+CREATE UNIQUE INDEX ON {{ this_model }} (fonte_codigo, identificador_fonte);
+CREATE INDEX ON {{ this_model }} USING gin (ementa_busca);
+CREATE INDEX ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
+CREATE INDEX ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
+CREATE INDEX ON {{ this_model }} (tribunal_sigla, orgao_julgador);
+CREATE INDEX ON {{ this_model }} (tribunal_sigla, relator);
+CREATE INDEX ON {{ this_model }} (processo);
+CREATE INDEX ON {{ this_model }} (classe_cnj);
 JINJA_END;
