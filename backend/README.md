@@ -104,3 +104,22 @@ CORS_ORIGINS=http://localhost:5173,https://caselaw.example.com
 
 Never use `*`. It would let any page on the internet call the API on behalf of
 whoever is logged in.
+
+## Tests that need PostgreSQL
+
+Most tests run anywhere: the database connection is injected, so they never open
+a socket. The ones that check search behaviour do need a real PostgreSQL, because
+what they verify — accent folding, the query syntax, the text index — lives in the
+database, not in Python.
+
+They are skipped unless `TEST_DATABASE_URL` points at a database:
+
+```bash
+docker compose exec postgres psql -U postgres -c "CREATE DATABASE caselaw_test"
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/caselaw_test uv run pytest
+```
+
+Use a database of its own. The fixture drops and recreates the `core` schema, and
+pointing it at the development database would take the loaded data with it.
+
+CI sets the variable itself, so every pull request runs them.
