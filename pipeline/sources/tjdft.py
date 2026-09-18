@@ -1,10 +1,12 @@
+import calendar
 import os
 import time
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 import dlt
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.sources.helpers import requests
 
 SEARCH_URL = "https://jurisdf.tjdft.jus.br/api/v1/pesquisa"
@@ -45,9 +47,7 @@ def _payload(
 
 
 def _clean(record: dict[str, Any]) -> dict[str, Any]:
-    cleaned = {
-        key: value for key, value in record.items() if key not in DROPPED_FIELDS
-    }
+    cleaned = {key: value for key, value in record.items() if key not in DROPPED_FIELDS}
 
     for field, inner_fields in DROPPED_NESTED_FIELDS.items():
         entries = cleaned.get(field)
@@ -136,12 +136,45 @@ def _float_from_env(name: str, default: float) -> float:
     return float(value) if value else default
 
 
+def _windows(
+    start: date,
+    end: date,
+    granularity: str,
+) -> Iterator[tuple[date, date]]:
+    cursor = start
+    while cursor <= end:
+        if granularity == "day":
+            last = cursor
+        else:
+            days = calendar.monthrange(cursor.year, cursor.month)[1]
+            last = cursor.replace(day=days)
+        yield cursor, min(last, end)
+        cursor = min(last, end) + timedelta(days=1)
+
+
+def _already_loaded(pipeline: dlt.Pipeline, first: date, last: date) -> int:
+    statement = (
+        "SELECT COUNT(*) FROM raw.acordao_tjdft "
+        'WHERE "dataJulgamento"::date BETWEEN %s AND %s'
+    )
+    try:
+        with (
+            pipeline.sql_client() as client,
+            client.execute_query(statement, first, last) as rows,
+        ):
+            found = rows.fetchone()
+            return int(found[0]) if found else 0
+    except DatabaseUndefinedRelation:
+        return 0
+
+
 def run() -> None:
     start = _date_from_env("TJDFT_START_DATE")
     end = _date_from_env("TJDFT_END_DATE")
     subject = os.getenv("TJDFT_SUBJECT", "").strip()
     max_pages = _int_from_env("TJDFT_MAX_PAGES")
     interval = _float_from_env("TJDFT_REQUEST_INTERVAL", REQUEST_INTERVAL)
+    granularity = os.getenv("TJDFT_WINDOW", "month").strip() or "month"
 
     pipeline = dlt.pipeline(
         pipeline_name="case_law",
@@ -149,18 +182,60 @@ def run() -> None:
         dataset_name="raw",
     )
 
-    print(f"available at the source: {total_available(start, end, subject)}")
-    print(
-        pipeline.run(
-            acordaos(
-                start=start,
-                end=end,
-                subject=subject,
-                max_pages=max_pages,
-                interval=interval,
+    if not (start and end):
+        print(f"available at the source: {total_available(start, end, subject)}")
+        print(
+            pipeline.run(
+                acordaos(
+                    start=start,
+                    end=end,
+                    subject=subject,
+                    max_pages=max_pages,
+                    interval=interval,
+                )
             )
         )
-    )
+        return
+
+    collected = 0
+    skipped = 0
+    failures: list[tuple[str, str]] = []
+
+    for first, last in _windows(start, end, granularity):
+        label = f"{first}..{last}"
+        available = total_available(first, last, subject)
+        loaded = _already_loaded(pipeline, first, last)
+
+        if loaded >= available:
+            skipped += 1
+            continue
+
+        print(f"{label}  {loaded}/{available} loaded, fetching", flush=True)
+        try:
+            pipeline.run(
+                acordaos(
+                    start=first,
+                    end=last,
+                    subject=subject,
+                    max_pages=max_pages,
+                    interval=interval,
+                )
+            )
+        except Exception as error:  # noqa: BLE001
+            print(f"{label}  FAILED: {error}", flush=True)
+            failures.append((label, str(error)))
+            continue
+
+        now_loaded = _already_loaded(pipeline, first, last)
+        collected += now_loaded - loaded
+        print(f"{label}  now {now_loaded}/{available}", flush=True)
+
+    print(f"\ncollected {collected} new records, {skipped} windows already complete")
+    if failures:
+        print(f"{len(failures)} windows failed and can be retried by running again:")
+        for label, error in failures:
+            print(f"  {label}: {error[:120]}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
