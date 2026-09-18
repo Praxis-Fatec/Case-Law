@@ -1,53 +1,73 @@
-import { useEffect, useState } from 'react';
-import { fetchHealth } from '../api/client';
+import { useState } from 'react';
+import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 
 function HomePage() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Checking backend status...');
+  const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
+  const [mode, setMode] = useState<'free' | 'exact'>('free');
 
-  const requestHealth = async () => {
-    try {
-      const data = await fetchHealth();
-      setStatus('success');
-      setMessage(JSON.stringify(data, null, 2));
-    } catch (error) {
-      setStatus('error');
-      setMessage(
-        error instanceof Error ? error.message : 'Unable to reach the backend health endpoint.',
-      );
-    }
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
   };
-
-  const checkHealth = () => {
-    setStatus('loading');
-    setMessage('Checking backend status...');
-    requestHealth();
-  };
-
-  useEffect(() => {
-    const runInitialCheck = async () => {
-      await requestHealth();
-    };
-
-    runInitialCheck();
-  }, []);
 
   return (
-    <main className="page">
-      <h1>API health check</h1>
-      <p>
-        This frontend reads the backend URL from <strong>import.meta.env.VITE_API_URL</strong>.
-      </p>
+    <main className="search-page">
+      <form className="legal-search" onSubmit={handleSubmit}>
+        <div className="legal-search__field">
+          <MagnifyingGlass size={20} aria-hidden="true" />
 
-      <button type="button" disabled={status === 'loading'} onClick={checkHealth}>
-        {status === 'loading' ? 'Checking...' : 'Check backend'}
-      </button>
+          <label className="sr-only" htmlFor="legal-search-input">
+            Pesquisar decisões
+          </label>
 
-      <div
-        className={`status ${status === 'error' ? 'error' : status === 'success' ? 'success' : ''}`}
-      >
-        {status === 'idle' ? 'Waiting for validation...' : message}
-      </div>
+          <input
+            id="legal-search-input"
+            type="search"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="Pesquise um assunto, fundamento ou frase exata"
+            autoComplete="off"
+          />
+        </div>
+
+        <div className="legal-search__actions">
+          <div className="search-mode" role="group" aria-label="Modalidade da pesquisa">
+            <span
+              className="search-mode__indicator"
+              style={{
+                transform: mode === 'free' ? 'translateX(0%)' : 'translateX(100%)',
+              }}
+            />
+
+            <button
+              type="button"
+              className={mode === 'free' ? 'is-active' : ''}
+              aria-pressed={mode === 'free'}
+              onClick={() => setMode('free')}
+            >
+              Termo livre
+            </button>
+
+            <button
+              type="button"
+              className={mode === 'exact' ? 'is-active' : ''}
+              aria-pressed={mode === 'exact'}
+              onClick={() => setMode('exact')}
+            >
+              Frase exata
+            </button>
+          </div>
+
+          <button type="button" className="filter-button" aria-label="Abrir filtros">
+            <SlidersHorizontal size={17} aria-hidden="true" />
+            <span>Filtros</span>
+            <span className="filter-button__count">4</span>
+          </button>
+
+          <button type="submit" className="search-button">
+            Pesquisar
+          </button>
+        </div>
+      </form>
     </main>
   );
 }
