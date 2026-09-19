@@ -32,3 +32,15 @@ CREATE TABLE core.decisao (
 
 CREATE UNIQUE INDEX ON core.decisao (fonte_codigo, identificador_fonte);
 CREATE INDEX ON core.decisao USING gin (ementa_busca);
+
+CREATE TABLE core.fonte (
+    codigo                 TEXT NOT NULL,
+    nome                   TEXT NOT NULL,
+    tribunal_sigla         TEXT NOT NULL,
+    url_documento_template TEXT NOT NULL
+);
+
+INSERT INTO core.fonte VALUES (
+    'tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
+    'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'
+);
