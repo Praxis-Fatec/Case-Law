@@ -1,0 +1,77 @@
+from typing import Self
+
+import psycopg
+import pytest
+from fastapi.testclient import TestClient
+from psycopg.errors import UndefinedTable
+from psycopg_pool import PoolTimeout
+
+from app.db import get_connection
+from app.errors import NOT_PUBLISHED, UNAVAILABLE
+from app.main import app
+
+
+class FailingConnection:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+
+    def cursor(self) -> Self:
+        return self
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def execute(self, *_: object, **__: object) -> None:
+        raise self.error
+
+
+@pytest.fixture
+def client_failing_with() -> object:
+    def build(error: Exception) -> TestClient:
+        app.dependency_overrides[get_connection] = lambda: FailingConnection(error)
+        return TestClient(app, raise_server_exceptions=False)
+
+    yield build
+    app.dependency_overrides.clear()
+
+
+def test_a_missing_dataset_answers_503_and_says_so(client_failing_with) -> None:
+    client = client_failing_with(
+        UndefinedTable('relation "core.decisao" does not exist')
+    )
+
+    response = client.get("/decisions", params={"q": "dano moral"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == NOT_PUBLISHED
+
+
+def test_a_database_that_is_down_answers_503(client_failing_with) -> None:
+    client = client_failing_with(psycopg.OperationalError("connection refused"))
+
+    response = client.get("/decisions", params={"q": "dano moral"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == UNAVAILABLE
+
+
+def test_a_pool_timeout_answers_503(client_failing_with) -> None:
+    client = client_failing_with(PoolTimeout("no connection available"))
+
+    response = client.get("/decisions", params={"q": "dano moral"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == UNAVAILABLE
+
+
+def test_the_detail_endpoint_is_covered_too(client_failing_with) -> None:
+    client = client_failing_with(
+        UndefinedTable('relation "core.decisao" does not exist')
+    )
+
+    response = client.get("/decisions/tjdft-jurisdf/2164119")
+
+    assert response.status_code == 503
