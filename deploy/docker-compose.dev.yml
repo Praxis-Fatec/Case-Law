@@ -31,5 +31,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/praxis-fatec/case-law-frontend:dev}
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:8001:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   pgdata:
