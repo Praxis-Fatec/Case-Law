@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import errors
 from app.api import decisions, health
 from app.config import settings
 from app.db import pool
@@ -46,6 +47,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+errors.register(app)
 
 app.include_router(health.router)
 app.include_router(decisions.router)
