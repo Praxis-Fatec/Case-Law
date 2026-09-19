@@ -125,3 +125,48 @@ pipeline/
 
 Credentials (`.dlt/secrets.toml`, `.env`), the loaded data, and the caches and
 logs both tools write while running.
+
+## Publishing to the servers
+
+The pipeline runs on a development machine and the servers only host. This is the
+step that carries the treated layer across.
+
+```bash
+uv run python -m publish dev producao
+```
+
+Targets are named, and each one needs three variables — see `.env.example`.
+
+### What travels
+Only `core`. The raw layer stays where it was collected: it holds the original
+documents, including the ones under seal, and nothing outside this machine needs
+them.
+
+`core` is five SQLMesh views over physical tables, so a plain dump would carry
+definitions and no rows. The script materialises them into real tables first,
+rebuilds the eight indexes, and sends that.
+
+### How the swap avoids a half-loaded state
+The restore lands in a schema nobody reads. Only then, in a single transaction,
+the old schema is dropped and the new one renamed into its place. Two instant
+statements, so a search either sees the previous dataset or the new one — never
+a mixture, and never an error.
+
+### What the target gets prepared with
+The `unaccent` extension and the `portugues_sem_acento` configuration are created
+if missing. Without them the search raises on the server rather than returning
+results.
+
+### What is recorded
+`meta.publicacao` keeps one row per publication, with the timestamp, the number of
+decisions and which machine sent them. It lives outside `core` on purpose —
+inside, the next swap would erase it. This is where the "last updated" shown to
+the user comes from.
+
+### Measured
+107,828 decisions, over the private network:
+
+```
+development server   56s
+production server    73s
+```
