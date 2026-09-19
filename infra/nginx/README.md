@@ -56,9 +56,11 @@ The addresses live on the private network and are deliberately not in this
 repository, which is public — take them from the team's internal notes:
 
 ```bash
-sed "s|__PRODUCTION_BACKEND__|<address:port>|" jurisfonte.conf \
+sed -e "s|__PRODUCTION_BACKEND__|<address:8000>|" \
+    -e "s|__PRODUCTION_FRONTEND__|<address:8001>|" jurisfonte.conf \
   | sudo tee /etc/nginx/sites-available/jurisfonte > /dev/null
-sed "s|__DEVELOPMENT_BACKEND__|<address:port>|" dev.jurisfonte.conf \
+sed -e "s|__DEVELOPMENT_BACKEND__|<address:8000>|" \
+    -e "s|__DEVELOPMENT_FRONTEND__|<address:8001>|" dev.jurisfonte.conf \
   | sudo tee /etc/nginx/sites-available/dev.jurisfonte > /dev/null
 sudo ln -s /etc/nginx/sites-available/jurisfonte     /etc/nginx/sites-enabled/
 sudo ln -s /etc/nginx/sites-available/dev.jurisfonte /etc/nginx/sites-enabled/
@@ -78,8 +80,9 @@ sudo nginx -t && sudo systemctl reload nginx
 The environment goes back to being reachable only over the private network. The
 same works for production.
 
-## What is still missing
+## How the two halves fit
 
-`/` answers 503 saying so. The interface is not published yet — no image builds
-it and no compose file includes it. When that lands, the `location /` block points
-at the container instead of returning a message.
+`/` reaches the interface container and `/api` reaches the API, both on the same
+host. The browser therefore sees a single origin: CORS never applies, and the
+interface is built with a relative `/api`, so the same image serves whichever
+environment it lands in.

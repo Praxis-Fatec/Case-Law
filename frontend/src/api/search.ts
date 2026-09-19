@@ -27,7 +27,7 @@ export async function searchDecisions(params: {
 }): Promise<SearchDecisionResponse> {
   assertApiConfiguration();
 
-  const url = new URL(`${apiBaseUrl}/decisions`);
+  const url = new URL(`${apiBaseUrl}/decisions`, window.location.origin);
   url.searchParams.set('q', params.q);
 
   if (params.page) {
