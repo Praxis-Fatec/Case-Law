@@ -12,8 +12,6 @@ class Settings(BaseSettings):
     database_pool_size: int = 10
     search_max_page_size: int = 100
     cors_origins: Annotated[list[str], NoDecode] = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
         "https://jurisfonte.pedrohenribeiro.com",
     ]
 
