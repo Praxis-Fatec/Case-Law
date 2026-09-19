@@ -32,7 +32,7 @@ function HomePage() {
 
       if (response.total === 0) {
         setErrorMessage(
-          'Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma sintaxe diferente.'
+          'Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma sintaxe diferente.',
         );
       }
     } catch (requestError) {
@@ -99,7 +99,12 @@ function HomePage() {
               </button>
             </div>
 
-            <button type="button" className="filter-button" aria-label="Abrir filtros" disabled={isLoading}>
+            <button
+              type="button"
+              className="filter-button"
+              aria-label="Abrir filtros"
+              disabled={isLoading}
+            >
               <SlidersHorizontal size={17} aria-hidden="true" />
               <span>Filtros</span>
               <span className="filter-button__count">4</span>
@@ -112,7 +117,9 @@ function HomePage() {
         </form>
 
         <section className="search-results" aria-live="polite">
-          {isLoading && <div className="search-state search-state--loading">Carregando resultados...</div>}
+          {isLoading && (
+            <div className="search-state search-state--loading">Carregando resultados...</div>
+          )}
 
           {!isLoading && totalResults !== null && (
             <div className="search-summary">
@@ -123,7 +130,8 @@ function HomePage() {
 
           {!isLoading && !errorMessage && totalResults === 0 && (
             <div className="search-state search-state--empty">
-              Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma sintaxe diferente.
+              Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma
+              sintaxe diferente.
             </div>
           )}
 
