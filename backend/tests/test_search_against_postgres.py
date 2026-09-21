@@ -110,7 +110,7 @@ def test_exact_phrase_snippet_groups_the_whole_phrase_in_one_mark(
             SELECT ts_headline(
                 'portugues_sem_acento', ementa,
                 websearch_to_tsquery('portugues_sem_acento', %(term)s),
-                'StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, MaxFragments=2, FragmentDelimiter= … '
+                'StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, MaxFragments=2, FragmentDelimiter='' … '''
             ) AS snippet
             FROM core.decisao
             WHERE ementa_busca @@ websearch_to_tsquery('portugues_sem_acento', %(term)s)
@@ -136,7 +136,7 @@ def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
             SELECT ts_headline(
                 'portugues_sem_acento', ementa,
                 websearch_to_tsquery('portugues_sem_acento', %(term)s),
-                'StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, MaxFragments=2, FragmentDelimiter= … '
+                'StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, MaxFragments=2, FragmentDelimiter='' … '''
             ) AS snippet
             FROM core.decisao
             WHERE ementa_busca @@ websearch_to_tsquery('portugues_sem_acento', %(term)s)

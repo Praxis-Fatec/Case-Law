@@ -289,7 +289,12 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
         if "<mark>" in normalized:
             return normalized
 
-    return _fallback_ementa_start(ementa)
+    text = (ementa or "").strip()
+    if not text:
+        return ""
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    return " ".join(sentences[:2])
 
 
 @router.get("/decisions", summary="Search decisions by term")
