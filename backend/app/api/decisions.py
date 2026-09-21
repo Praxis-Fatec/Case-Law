@@ -19,24 +19,22 @@ SEARCH_CONFIG = "portugues_sem_acento"
 MAX_SNIPPET_WORDS = 38
 MAX_SNIPPET_FRAGMENTS = 2
 SNIPPET_DELIMITER = " … "
-SNIPPET_DELIMITER_SQL = SNIPPET_DELIMITER.replace("'", "''")
 
 QUERY = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(term)s)"
 MATCH = f"ementa_busca @@ {QUERY}"
 
 SNIPPET_OPTIONS = (
-    "StartSel=<mark>, "
-    "StopSel=</mark>, "
+    f"StartSel=<mark>, StopSel=</mark>, "
     f"MaxWords={MAX_SNIPPET_WORDS}, "
     f"MinWords={MAX_SNIPPET_WORDS - 16}, "
     f"MaxFragments={MAX_SNIPPET_FRAGMENTS}, "
-    f"FragmentDelimiter='{SNIPPET_DELIMITER_SQL}'"
+    "FragmentDelimiter=' … '"
 )
 
 SNIPPET = f"""
 ts_headline(
     '{SEARCH_CONFIG}', ementa, {QUERY},
-    '{SNIPPET_OPTIONS}'
+    %(snippet_options)s
 )
 """
 
@@ -336,6 +334,7 @@ def search_decisions(
     page_size = min(page_size, settings.search_max_page_size)
     parameters = {
         "term": q,
+        "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": (page - 1) * page_size,
     }
