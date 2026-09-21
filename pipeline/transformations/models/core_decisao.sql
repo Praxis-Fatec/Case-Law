@@ -33,15 +33,16 @@ WITH bruto AS (
     NULLIF(TRIM(decisao), '')            AS decisao_texto,
     COALESCE("turmaRecursal", FALSE)     AS turma_recursal,
     COALESCE("possuiInteiroTeor", FALSE) AS possui_inteiro_teor,
-    _dlt_load_id                         AS carga_id
+    _dlt_load_id                         AS carga_id,
+    'tjdft-jurisdf'                      AS fonte_codigo
   FROM raw.acordao_tjdft
   WHERE NOT COALESCE("segredoJustica", FALSE)
 )
 
 SELECT
-  'tjdft-jurisdf'                                       AS fonte_codigo,
+  b.fonte_codigo                                        AS fonte_codigo,
   b.identificador                                       AS identificador_fonte,
-  'TJDFT'                                               AS tribunal_sigla,
+  f.tribunal_sigla                                      AS tribunal_sigla,
   b.processo                                            AS processo,
   b.orgao_julgador                                      AS orgao_julgador,
   b.relator                                             AS relator,
@@ -62,8 +63,7 @@ SELECT
   NOW()                                                 AS carregado_em,
   TO_TSVECTOR('portugues_sem_acento', b.ementa)         AS ementa_busca
 FROM bruto AS b
-CROSS JOIN core.fonte AS f
-WHERE f.codigo = 'tjdft-jurisdf'
+JOIN core.fonte AS f ON f.codigo = b.fonte_codigo
 
 ;
 
