@@ -59,11 +59,13 @@ SELECT
   b.turma_recursal                                      AS turma_recursal,
   b.possui_inteiro_teor                                 AS possui_inteiro_teor,
   REPLACE(f.url_documento_template, '{identificador}', b.identificador) AS url_fonte,
+  v.valido                                              AS link_valido,
   b.carga_id                                            AS carga_id,
   NOW()                                                 AS carregado_em,
   TO_TSVECTOR('portugues_sem_acento', b.ementa)         AS ementa_busca
 FROM bruto AS b
 JOIN core.fonte AS f ON f.codigo = b.fonte_codigo
+LEFT JOIN verificacao.link AS v ON v.identificador = b.identificador
 
 ;
 

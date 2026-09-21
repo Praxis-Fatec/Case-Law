@@ -47,3 +47,15 @@ INSERT INTO raw.acordao_tjdft VALUES
  '1ª TURMA CÍVEL', 'ANA CANTARINO', 198,
  'PROCESSUAL CIVIL. Prescricao intercorrente reconhecida de oficio.',
  'APELACAO PROVIDA.', FALSE, TRUE, NULL, '1789000000.0');
+
+-- dlt keeps this table itself. The load record model reads it, so the fixture
+-- carries the two loads the records above belong to.
+CREATE TABLE raw._dlt_loads (
+    load_id     TEXT,
+    status      BIGINT,
+    inserted_at TIMESTAMPTZ
+);
+
+INSERT INTO raw._dlt_loads VALUES
+('1789000000.0', 0, '2026-03-16 02:00:00+00'),
+('1789000001.0', 0, '2026-03-17 02:00:00+00');

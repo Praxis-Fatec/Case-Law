@@ -82,6 +82,47 @@ Field names are preserved exactly as the API returns them, camel case included,
 which is why the SQL models quote `"dataJulgamento"`. The raw layer mirrors the
 source; renaming belongs to the transformation.
 
+## Checking the links
+
+Each decision carries a link back to the court. Whether that link still reaches
+a document is checked here, at load time, and written down — never while
+answering a search, which would make the search as slow and as available as the
+court's own site.
+
+```bash
+uv run python verify_links.py
+```
+
+It takes the records nobody has checked yet, newest first, and asks the source
+about each one. `VERIFY_MAX` bounds a run (default 1000) and `VERIFY_INTERVAL`
+paces it (default 0.5s, the same courtesy the connector uses). Runs are
+incremental and resumable: interrupting one keeps everything it had already
+written, and the next run picks up where it stopped.
+
+### Why it asks the API and not the page
+
+`detalhes/{identificador}` cannot answer the question. It is a single-page
+application: a real identifier and an invented one both come back 200, both
+62.758 bytes, because the document arrives later over the API. Checking the page
+would mark every link valid, including the broken ones.
+
+So the check queries the same API the connector loads from, by the identifier
+the link is built from, and asks whether the document is still there.
+
+### Three states, not two
+
+| `link_valido` | Means |
+|---|---|
+| `TRUE` | the source still holds the document |
+| `FALSE` | the source no longer answers for this identifier |
+| `NULL` | nobody has checked it yet |
+
+`NULL` is not `FALSE`. A court portal that is down produces unchecked records,
+never broken ones — the run stops after ten failures in a row rather than asking
+once per remaining record, and nothing is written. `core.carga` reports
+`links_nao_verificados` beside `links_invalidos` for the same reason: zero
+invalid means little when nobody looked.
+
 ## Running the transformation
 
 ```bash
@@ -106,6 +147,8 @@ Everything comes from the environment. Nothing is hardcoded.
 | `TJDFT_SUBJECT` | TJDFT connector | none — every subject |
 | `TJDFT_MAX_PAGES` | TJDFT connector | none — until the source runs out |
 | `TJDFT_REQUEST_INTERVAL` | TJDFT connector | `0.5` seconds between requests |
+| `VERIFY_MAX` | link check | `1000` records per run |
+| `VERIFY_INTERVAL` | link check | `0.5` seconds between requests |
 
 dlt uses its own variable name because that is the convention it reads by
 default. Keeping it avoids a translation layer that would only be one more thing

@@ -121,6 +121,34 @@ def total_available(
     return int(response.json()["hits"]["value"])
 
 
+def document_exists(identificador: str) -> bool:
+    """
+    Whether the source still holds this document.
+
+    The portal page cannot answer this: `detalhes/{id}` is a single-page
+    application that returns the same 200 and the same 62.758 bytes for a real
+    identifier and for an invented one, because the document arrives later over
+    this very API. So the check asks the API, by the identifier the link is
+    built from.
+
+    Raises whatever the request raised. The caller decides what an unreachable
+    portal means; here it is not an answer of "invalid".
+    """
+    terms = [
+        {"campo": "base", "valor": COLLECTION},
+        {"campo": "identificador", "valor": identificador},
+    ]
+    response = requests.post(
+        SEARCH_URL,
+        json={**_payload(terms, 0, ""), "tamanho": 1},
+        timeout=REQUEST_TIMEOUT,
+    )
+    response.raise_for_status()
+
+    records = response.json().get("registros") or []
+    return any(str(r.get("identificador")) == str(identificador) for r in records)
+
+
 def _date_from_env(name: str) -> date | None:
     value = os.getenv(name, "").strip()
     return date.fromisoformat(value) if value else None

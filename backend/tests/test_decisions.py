@@ -28,6 +28,7 @@ MATCHING_ROW = {
     "data_referencia": date(2026, 1, 28),
     "turma_recursal": False,
     "url_fonte": "https://jurisdf.tjdft.jus.br/detalhes/2084700",
+    "link_valido": True,
     "ementa": "Ilícito contratual. Dano moral. Ação procedente. Recurso não provido.",
     "snippet": "Ilícito contratual. <mark>Dano</mark> <mark>moral</mark>.",
 }
