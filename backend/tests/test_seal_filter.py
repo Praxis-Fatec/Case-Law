@@ -123,3 +123,54 @@ def test_removing_the_filter_would_let_a_sealed_record_through(
 
 def test_the_model_still_carries_the_filter(db: psycopg.Connection[DictRow]) -> None:
     assert 'WHERE NOT COALESCE("segredoJustica", FALSE)' in transformation()
+
+
+def test_a_record_sealed_after_publication_disappears_on_the_next_build(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    """
+    A case can be sealed after it was already published. Nothing deletes it from
+    the servers directly: the core layer is rebuilt from the raw layer, and
+    `publish.py` replaces the published schema wholesale, so the record is simply
+    not in the next one.
+    """
+    db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
+    db.execute("DROP TABLE IF EXISTS core.decisao_antes")
+    db.execute(f"CREATE TABLE core.decisao_antes AS {transformation()}")
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT identificador_fonte FROM core.decisao_antes")
+        published = {row["identificador_fonte"] for row in cursor.fetchall()}
+
+    assert "9000001" in published
+
+    db.execute(
+        'UPDATE raw.acordao_tjdft SET "segredoJustica" = TRUE '
+        "WHERE identificador = '9000001'"
+    )
+    db.execute("DROP TABLE IF EXISTS core.decisao_depois")
+    db.execute(f"CREATE TABLE core.decisao_depois AS {transformation()}")
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT identificador_fonte FROM core.decisao_depois")
+        republished = {row["identificador_fonte"] for row in cursor.fetchall()}
+
+    assert "9000001" not in republished
+    assert published - republished == {"9000001"}
+
+
+def test_publishing_replaces_the_schema_rather_than_adding_to_it(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    """
+    Guards the mechanism the test above relies on. An incremental publication
+    would leave the sealed record behind on the servers.
+    """
+    source = (
+        Path(__file__).resolve().parents[2] / "pipeline" / "publish.py"
+    ).read_text(encoding="utf-8")
+    swap = source.split("SWAP = ", 1)[1].split('"""', 2)[1]
+
+    assert "DROP SCHEMA IF EXISTS" in swap
+    assert "ALTER SCHEMA" in swap
+    assert "RENAME TO" in swap

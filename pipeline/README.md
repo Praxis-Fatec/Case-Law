@@ -157,6 +157,29 @@ The `unaccent` extension and the `portugues_sem_acento` configuration are create
 if missing. Without them the search raises on the server rather than returning
 results.
 
+### A case sealed after it was published
+
+Courts seal cases after the fact, and a decision already on the servers can stop
+being public. Nothing deletes it there directly.
+
+It does not need to. The core layer is rebuilt from the raw layer on every run,
+and the filter drops sealed records on the way through; publication then replaces
+the published schema wholesale rather than adding to it. The record is simply
+absent from the next one.
+
+Two things have to stay true for that to hold, and both are pinned by tests in
+`backend/tests/test_seal_filter.py`:
+
+- the transformation drops anything flagged as sealed, every time it runs
+- publication replaces the schema instead of merging into it
+
+Changing publication to an incremental strategy would break this quietly: sealed
+records would keep answering searches on the servers while disappearing locally.
+If that day comes, removal has to become explicit.
+
+The window is the gap between the court sealing a case and the next publication.
+Closing it further means publishing more often, not a different mechanism.
+
 ### What is recorded
 `meta.publicacao` keeps one row per publication, with the timestamp, the number of
 decisions and which machine sent them. It lives outside `core` on purpose —
