@@ -278,15 +278,16 @@ def _normalize_highlighted_text(value: str | None, query: str | None = None) -> 
 
 
 def _fallback_ementa_start(ementa: str | None) -> str:
-    text = (ementa or "").strip()
-    if not text:
-        return ""
+    """
+    The opening of the ementa, for when the match is by stem and there is no
+    literal term for `ts_headline` to mark.
 
-    words = text.split()
-    if len(words) <= MAX_SNIPPET_WORDS:
-        return " ".join(words)
-
-    return " ".join(words[:MAX_SNIPPET_WORDS])
+    Trimmed by word count, not by sentence. These ementas open with short
+    headnote sentences in caps, so the first two sentences come to under 80
+    characters in 91% of the collection — a card with nothing to read — while a
+    single long sentence runs to 3.590.
+    """
+    return " ".join((ementa or "").split()[:MAX_SNIPPET_WORDS])
 
 
 def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None) -> str:
@@ -296,12 +297,7 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
         if "<mark>" in normalized:
             return normalized
 
-    text = (ementa or "").strip()
-    if not text:
-        return ""
-
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    return " ".join(sentences[:2])
+    return _fallback_ementa_start(ementa)
 
 
 @router.get("/decisions", summary="Search decisions by term")

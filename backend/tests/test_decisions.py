@@ -9,7 +9,9 @@ from app.api.decisions import (
     COUNT_SQL,
     DETAIL_SQL,
     HIGHLIGHT_SQL,
+    MAX_SNIPPET_WORDS,
     PAGE_SQL,
+    _fallback_ementa_start,
     _normalize_highlighted_text,
     _safe_snippet,
 )
@@ -148,13 +150,45 @@ def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
     assert _safe_snippet(
         "Sem destaque aqui.", "Direito do consumidor. Dano moral configurado."
     ) == ("Direito do consumidor. Dano moral configurado.")
-    assert (
-        _safe_snippet(
-            "Sem destaque aqui.",
-            "Direito do consumidor. Dano moral configurado. Recurso improcedente.",
-        )
-        == "Direito do consumidor. Dano moral configurado."
+
+
+def test_fallback_keeps_reading_past_the_opening_headnotes() -> None:
+    """
+    Ementas open with short headnote sentences in caps. Stopping at the second
+    one leaves the card with a couple of words, which is what a sentence-based
+    trim did: under 80 characters in 91% of the collection.
+    """
+    ementa = (
+        "DIREITO DO CONSUMIDOR. APELAÇÃO CÍVEL. "
+        "Contrato de transporte com atraso na entrega da mercadoria, "
+        "reconhecida a falha na prestação do serviço e o dever de indenizar."
     )
+
+    snippet = _safe_snippet(None, ementa)
+
+    assert snippet.startswith("DIREITO DO CONSUMIDOR. APELAÇÃO CÍVEL.")
+    assert "transporte" in snippet
+    assert len(snippet) > 80
+
+
+def test_fallback_trims_a_long_ementa_without_cutting_a_word() -> None:
+    ementa = " ".join(f"palavra{n}" for n in range(200))
+
+    snippet = _safe_snippet(None, ementa)
+
+    assert len(snippet.split()) == MAX_SNIPPET_WORDS
+    assert snippet.endswith(f"palavra{MAX_SNIPPET_WORDS - 1}")
+    assert ementa.startswith(snippet)
+
+
+def test_the_search_and_the_detail_trim_the_ementa_the_same_way() -> None:
+    """
+    Two rules for the same text drift apart. The detail endpoint builds its
+    summary from the same helper the search falls back to.
+    """
+    ementa = " ".join(f"palavra{n}" for n in range(200))
+
+    assert _safe_snippet(None, ementa) == _fallback_ementa_start(ementa)
 
 
 def test_empty_and_none_ementas_return_empty_snippet() -> None:
