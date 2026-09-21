@@ -1,4 +1,8 @@
+import html
+import re
+import unicodedata
 from datetime import date
+from html.parser import HTMLParser
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -185,10 +189,92 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
     }
 
 
-def _safe_snippet(raw: str | None, ementa: str | None) -> str:
+class _MarkHTMLNormalizer(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "mark":
+            self._parts.append("<mark>")
+        else:
+            self._parts.append(f"&lt;{tag}&gt;")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "mark":
+            self._parts.append("</mark>")
+        else:
+            self._parts.append(f"&lt;/{tag}&gt;")
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(html.escape(data, quote=False))
+
+    def handle_entityref(self, name: str) -> None:
+        self._parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._parts.append(f"&#{name};")
+
+    def get_value(self) -> str:
+        return "".join(self._parts)
+
+
+def _fold_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value)
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn").lower()
+
+
+def _is_exact_phrase_query(query: str | None) -> bool:
+    if query is None:
+        return False
+    stripped = query.strip()
+    return len(stripped) >= 2 and stripped.startswith('"') and stripped.endswith('"')
+
+
+def _normalize_highlighted_text(value: str | None, query: str | None = None) -> str:
+    if value is None:
+        return ""
+
+    text = value.strip()
+    if not text:
+        return ""
+
+    parser = _MarkHTMLNormalizer()
+    parser.feed(text)
+    parser.close()
+    normalized = parser.get_value()
+    normalized = re.sub(r"<mark>\s*</mark>", "", normalized)
+
+    if _is_exact_phrase_query(query):
+        phrase = query.strip()[1:-1].strip()
+        if phrase:
+            goal = _fold_text(phrase)
+            pattern = re.compile(r"(<mark>.*?</mark>(?:\s*<mark>.*?</mark>)*)")
+            for match in pattern.finditer(normalized):
+                content = re.sub(r"</?mark>", "", match.group(1)).strip()
+                if _fold_text(content) == goal:
+                    normalized = (
+                        normalized[: match.start()]
+                        + f"<mark>{content}</mark>"
+                        + normalized[match.end() :]
+                    )
+                    break
+        else:
+            return normalized
+
+        normalized = re.sub(r"</mark>\s*<mark>", " ", normalized)
+        normalized = re.sub(r"<mark>\s+", "<mark>", normalized)
+        normalized = re.sub(r"\s+</mark>", "</mark>", normalized)
+
+    return normalized
+
+
+def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None) -> str:
     snippet = (raw or "").strip()
-    if snippet and "<mark>" in snippet:
-        return snippet
+    if snippet:
+        normalized = _normalize_highlighted_text(snippet, query)
+        if "<mark>" in normalized:
+            return normalized
 
     text = (ementa or "").strip()
     if not text:
@@ -251,7 +337,7 @@ def search_decisions(
         results=[
             DecisionMatch(
                 **_base_fields(row),
-                snippet=_safe_snippet(row.get("snippet"), row.get("ementa")),
+                snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
             )
             for row in rows
         ],
@@ -291,7 +377,7 @@ def read_decision(
             cursor.execute(HIGHLIGHT_SQL, {**parameters, "term": q})
             highlighted = cursor.fetchone()
             if highlighted:
-                summary = highlighted["highlighted"]
+                summary = _normalize_highlighted_text(highlighted["highlighted"], q)
 
     return Decision(
         **_base_fields(row),

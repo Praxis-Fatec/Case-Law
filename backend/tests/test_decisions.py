@@ -5,7 +5,13 @@ from typing import Any, Self
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.decisions import COUNT_SQL, DETAIL_SQL, HIGHLIGHT_SQL, PAGE_SQL
+from app.api.decisions import (
+    COUNT_SQL,
+    DETAIL_SQL,
+    HIGHLIGHT_SQL,
+    PAGE_SQL,
+    _normalize_highlighted_text,
+)
 from app.db import get_connection
 from app.main import app
 
@@ -96,6 +102,23 @@ def database() -> Iterator[FakeDatabase]:
 @pytest.fixture
 def client(database: FakeDatabase) -> TestClient:
     return TestClient(app)
+
+
+def test_exact_phrase_highlight_is_grouped_in_one_mark() -> None:
+    value = "Discussão sobre <mark>prescrição</mark> <mark>intercorrente</mark> no caso."
+
+    assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == (
+        "Discussão sobre <mark>prescrição intercorrente</mark> no caso."
+    )
+
+
+def test_marked_output_escapes_raw_html_but_keeps_controlled_marks() -> None:
+    value = '<script>alert("x")</script> <mark>prescrição</mark> & <b>falso</b>'
+
+    assert _normalize_highlighted_text(value) == (
+        '&lt;script&gt;alert("x")&lt;/script&gt; '
+        '<mark>prescrição</mark> &amp; &lt;b&gt;falso&lt;/b&gt;'
+    )
 
 
 def test_search_returns_the_total_and_the_page(
