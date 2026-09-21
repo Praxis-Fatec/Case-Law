@@ -12,6 +12,9 @@ from app.db import get_connection
 router = APIRouter(tags=["search"])
 
 SEARCH_CONFIG = "portugues_sem_acento"
+MAX_SNIPPET_WORDS = 38
+MAX_SNIPPET_FRAGMENTS = 2
+SNIPPET_DELIMITER = " … "
 
 QUERY = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(term)s)"
 MATCH = f"ementa_busca @@ {QUERY}"
@@ -19,8 +22,8 @@ MATCH = f"ementa_busca @@ {QUERY}"
 SNIPPET = f"""
 ts_headline(
     '{SEARCH_CONFIG}', ementa, {QUERY},
-    'StartSel=<mark>, StopSel=</mark>, MaxWords=38, MinWords=22,
-     MaxFragments=2, FragmentDelimiter= … '
+    'StartSel=<mark>, StopSel=</mark>, MaxWords={MAX_SNIPPET_WORDS}, MinWords={MAX_SNIPPET_WORDS - 16},
+     MaxFragments={MAX_SNIPPET_FRAGMENTS}, FragmentDelimiter={SNIPPET_DELIMITER!r}
 )
 """
 
@@ -58,6 +61,7 @@ SELECT
     decisao.data_referencia,
     decisao.turma_recursal,
     decisao.url_fonte,
+    decisao.ementa,
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
@@ -181,6 +185,22 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
     }
 
 
+def _safe_snippet(raw: str | None, ementa: str | None) -> str:
+    snippet = (raw or "").strip()
+    if snippet and "<mark>" in snippet:
+        return snippet
+
+    text = (ementa or "").strip()
+    if not text:
+        return ""
+
+    words = text.split()
+    if len(words) <= MAX_SNIPPET_WORDS:
+        return " ".join(words)
+
+    return " ".join(words[:MAX_SNIPPET_WORDS])
+
+
 @router.get("/decisions", summary="Search decisions by term")
 def search_decisions(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
@@ -229,7 +249,11 @@ def search_decisions(
         page=page,
         page_size=page_size,
         results=[
-            DecisionMatch(**_base_fields(row), snippet=row["snippet"]) for row in rows
+            DecisionMatch(
+                **_base_fields(row),
+                snippet=_safe_snippet(row.get("snippet"), row.get("ementa")),
+            )
+            for row in rows
         ],
     )
 

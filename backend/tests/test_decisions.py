@@ -19,6 +19,7 @@ MATCHING_ROW = {
     "data_referencia": date(2026, 1, 28),
     "turma_recursal": False,
     "url_fonte": "https://jurisdf.tjdft.jus.br/detalhes/2084700",
+    "ementa": "Ilícito contratual. Dano moral. Ação procedente. Recurso não provido.",
     "snippet": "Ilícito contratual. <mark>Dano</mark> <mark>moral</mark>.",
 }
 
@@ -115,6 +116,34 @@ def test_search_result_carries_the_highlighted_snippet(client: TestClient) -> No
 
     assert body["results"][0]["snippet"] == MATCHING_ROW["snippet"]
     assert "summary" not in body["results"][0]
+
+
+def test_search_returns_the_start_of_the_ementa_when_no_highlight_is_found(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 1
+    database.answer = lambda statement, parameters: (
+        [{"total": 1}] if statement == COUNT_SQL else [
+            {
+                **MATCHING_ROW,
+                "ementa": MATCHING_ROW["ementa"],
+                "snippet": "Ilícito contratual. Dano moral. Ação procedente.",
+            }
+        ]
+        if statement == PAGE_SQL else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral"}).json()
+
+    assert "<mark>" not in body["results"][0]["snippet"]
+    assert body["results"][0]["snippet"].startswith("Ilícito contratual. Dano moral.")
+
+
+def test_search_handles_short_and_empty_ementas(client: TestClient) -> None:
+    body = client.get("/decisions", params={"q": "dano moral"}).json()
+
+    assert "" != body["results"][0]["snippet"]
+    assert "<mark>" in body["results"][0]["snippet"]
 
 
 def test_search_maps_every_column_the_screen_needs(client: TestClient) -> None:
