@@ -11,6 +11,7 @@ from app.api.decisions import (
     HIGHLIGHT_SQL,
     PAGE_SQL,
     _normalize_highlighted_text,
+    _safe_snippet,
 )
 from app.db import get_connection
 from app.main import app
@@ -110,6 +111,30 @@ def test_exact_phrase_highlight_is_grouped_in_one_mark() -> None:
     assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == (
         "Discussão sobre <mark>prescrição intercorrente</mark> no caso."
     )
+
+
+def test_simple_terms_stay_separate_when_they_do_not_form_the_same_phrase() -> None:
+    value = "Discussão sobre <mark>prescrição</mark> e <mark>intercorrente</mark> no caso."
+
+    assert _normalize_highlighted_text(value, "prescrição intercorrente") == value
+
+
+def test_words_separated_by_text_do_not_merge_into_a_phrase() -> None:
+    value = "Discussão sobre <mark>prescrição</mark> qualquer coisa <mark>intercorrente</mark> no caso."
+
+    assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == value
+
+
+def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
+    assert _normalize_highlighted_text("Sem destaque aqui.", "dano moral") == "Sem destaque aqui."
+    assert _safe_snippet("Sem destaque aqui.", "Direito do consumidor. Dano moral configurado.") == (
+        "Direito do consumidor. Dano moral configurado."
+    )
+
+
+def test_empty_and_none_ementas_return_empty_snippet() -> None:
+    assert _safe_snippet(None, None) == ""
+    assert _safe_snippet(None, "") == ""
 
 
 def test_marked_output_escapes_raw_html_but_keeps_controlled_marks() -> None:
