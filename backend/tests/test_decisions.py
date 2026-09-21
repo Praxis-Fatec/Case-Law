@@ -106,7 +106,9 @@ def client(database: FakeDatabase) -> TestClient:
 
 
 def test_exact_phrase_highlight_is_grouped_in_one_mark() -> None:
-    value = "Discussão sobre <mark>prescrição</mark> <mark>intercorrente</mark> no caso."
+    value = (
+        "Discussão sobre <mark>prescrição</mark> <mark>intercorrente</mark> no caso."
+    )
 
     assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == (
         "Discussão sobre <mark>prescrição intercorrente</mark> no caso."
@@ -114,7 +116,9 @@ def test_exact_phrase_highlight_is_grouped_in_one_mark() -> None:
 
 
 def test_simple_terms_stay_separate_when_they_do_not_form_the_same_phrase() -> None:
-    value = "Discussão sobre <mark>prescrição</mark> e <mark>intercorrente</mark> no caso."
+    value = (
+        "Discussão sobre <mark>prescrição</mark> e <mark>intercorrente</mark> no caso."
+    )
 
     assert _normalize_highlighted_text(value, "prescrição intercorrente") == value
 
@@ -126,10 +130,13 @@ def test_words_separated_by_text_do_not_merge_into_a_phrase() -> None:
 
 
 def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
-    assert _normalize_highlighted_text("Sem destaque aqui.", "dano moral") == "Sem destaque aqui."
-    assert _safe_snippet("Sem destaque aqui.", "Direito do consumidor. Dano moral configurado.") == (
-        "Direito do consumidor. Dano moral configurado."
+    assert (
+        _normalize_highlighted_text("Sem destaque aqui.", "dano moral")
+        == "Sem destaque aqui."
     )
+    assert _safe_snippet(
+        "Sem destaque aqui.", "Direito do consumidor. Dano moral configurado."
+    ) == ("Direito do consumidor. Dano moral configurado.")
 
 
 def test_empty_and_none_ementas_return_empty_snippet() -> None:
@@ -142,7 +149,7 @@ def test_marked_output_escapes_raw_html_but_keeps_controlled_marks() -> None:
 
     assert _normalize_highlighted_text(value) == (
         '&lt;script&gt;alert("x")&lt;/script&gt; '
-        '<mark>prescrição</mark> &amp; &lt;b&gt;falso&lt;/b&gt;'
+        "<mark>prescrição</mark> &amp; &lt;b&gt;falso&lt;/b&gt;"
     )
 
 
@@ -171,14 +178,17 @@ def test_search_returns_the_start_of_the_ementa_when_no_highlight_is_found(
 ) -> None:
     database.total = 1
     database.answer = lambda statement, parameters: (
-        [{"total": 1}] if statement == COUNT_SQL else [
+        [{"total": 1}]
+        if statement == COUNT_SQL
+        else [
             {
                 **MATCHING_ROW,
                 "ementa": MATCHING_ROW["ementa"],
                 "snippet": "Ilícito contratual. Dano moral. Ação procedente.",
             }
         ]
-        if statement == PAGE_SQL else []
+        if statement == PAGE_SQL
+        else []
     )
 
     body = client.get("/decisions", params={"q": "dano moral"}).json()

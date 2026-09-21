@@ -121,7 +121,10 @@ def test_exact_phrase_snippet_groups_the_whole_phrase_in_one_mark(
         row = cursor.fetchone()
 
     assert row is not None
-    assert "<mark>Dano moral</mark>" in row["snippet"] or "<mark>dano moral</mark>" in row["snippet"].lower()
+    assert (
+        "<mark>Dano moral</mark>" in row["snippet"]
+        or "<mark>dano moral</mark>" in row["snippet"].lower()
+    )
 
 
 def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
