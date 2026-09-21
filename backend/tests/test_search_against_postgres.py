@@ -123,7 +123,10 @@ def test_exact_phrase_snippet_groups_the_whole_phrase_in_one_mark(
 
     assert row is not None
     normalized = _normalize_highlighted_text(row["snippet"], '"dano moral"')
-    assert "<mark>Dano moral</mark>" in normalized or "<mark>dano moral</mark>" in normalized.lower()
+    assert (
+        "<mark>Dano moral</mark>" in normalized
+        or "<mark>dano moral</mark>" in normalized.lower()
+    )
 
 
 def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
