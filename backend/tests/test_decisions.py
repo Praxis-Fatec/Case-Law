@@ -132,6 +132,12 @@ def test_words_separated_by_text_do_not_merge_into_a_phrase() -> None:
     assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == value
 
 
+def test_stem_match_without_the_literal_term_is_kept_as_real_highlight_when_available() -> None:
+    value = "<mark>Dano</mark> moral configurado. Danos materiais afastados."
+
+    assert _normalize_highlighted_text(value, '"dano moral"') == value
+
+
 def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
     assert (
         _normalize_highlighted_text("Sem destaque aqui.", "dano moral")
@@ -140,6 +146,9 @@ def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
     assert _safe_snippet(
         "Sem destaque aqui.", "Direito do consumidor. Dano moral configurado."
     ) == ("Direito do consumidor. Dano moral configurado.")
+    assert _safe_snippet(
+        "Sem destaque aqui.", "Direito do consumidor. Dano moral configurado. Recurso improcedente."
+    ) == "Direito do consumidor. Dano moral configurado."
 
 
 def test_empty_and_none_ementas_return_empty_snippet() -> None:

@@ -247,20 +247,21 @@ def _normalize_highlighted_text(value: str | None, query: str | None = None) -> 
 
     if query is not None and _is_exact_phrase_query(query):
         phrase = query.strip()[1:-1].strip()
-        if phrase:
-            goal = _fold_text(phrase)
-            pattern = re.compile(r"(<mark>.*?</mark>(?:\s*<mark>.*?</mark>)*)")
-            for match in pattern.finditer(normalized):
-                content = re.sub(r"</?mark>", "", match.group(1)).strip()
-                if _fold_text(content) == goal:
-                    normalized = (
-                        normalized[: match.start()]
-                        + f"<mark>{content}</mark>"
-                        + normalized[match.end() :]
-                    )
-                    break
-        else:
+        if not phrase:
             return normalized
+
+        goal = _fold_text(phrase)
+        pattern = re.compile(r"(?s)(<mark>.*?</mark>(?:\s*<mark>.*?</mark>)*)")
+        for match in pattern.finditer(normalized):
+            content = re.sub(r"</?mark>", "", match.group(1)).strip()
+            content = re.sub(r"\s+", " ", content)
+            if _fold_text(content) == goal:
+                normalized = (
+                    normalized[: match.start()]
+                    + f"<mark>{content}</mark>"
+                    + normalized[match.end() :]
+                )
+                break
 
         normalized = re.sub(r"</mark>\s*<mark>", " ", normalized)
         normalized = re.sub(r"<mark>\s+", "<mark>", normalized)
@@ -269,13 +270,7 @@ def _normalize_highlighted_text(value: str | None, query: str | None = None) -> 
     return normalized
 
 
-def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None) -> str:
-    snippet = (raw or "").strip()
-    if snippet:
-        normalized = _normalize_highlighted_text(snippet, query)
-        if "<mark>" in normalized:
-            return normalized
-
+def _fallback_ementa_start(ementa: str | None) -> str:
     text = (ementa or "").strip()
     if not text:
         return ""
@@ -285,6 +280,16 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
         return " ".join(words)
 
     return " ".join(words[:MAX_SNIPPET_WORDS])
+
+
+def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None) -> str:
+    snippet = (raw or "").strip()
+    if snippet:
+        normalized = _normalize_highlighted_text(snippet, query)
+        if "<mark>" in normalized:
+            return normalized
+
+    return _fallback_ementa_start(ementa)
 
 
 @router.get("/decisions", summary="Search decisions by term")
@@ -378,6 +383,10 @@ def read_decision(
             highlighted = cursor.fetchone()
             if highlighted:
                 summary = _normalize_highlighted_text(highlighted["highlighted"], q)
+                if "<mark>" not in summary:
+                    summary = _fallback_ementa_start(row["ementa"])
+            else:
+                summary = _fallback_ementa_start(row["ementa"])
 
     return Decision(
         **_base_fields(row),
