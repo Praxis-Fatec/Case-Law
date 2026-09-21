@@ -245,7 +245,7 @@ def _normalize_highlighted_text(value: str | None, query: str | None = None) -> 
     normalized = parser.get_value()
     normalized = re.sub(r"<mark>\s*</mark>", "", normalized)
 
-    if _is_exact_phrase_query(query):
+    if query is not None and _is_exact_phrase_query(query):
         phrase = query.strip()[1:-1].strip()
         if phrase:
             goal = _fold_text(phrase)

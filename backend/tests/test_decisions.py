@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import date
 from typing import Any, Self
 
@@ -70,8 +70,11 @@ class FakeDatabase:
         self.found = found
         self.statements: list[str] = []
         self.parameters: list[dict[str, Any]] = []
+        self.answer: Callable[
+            [str, dict[str, Any]], list[dict[str, Any]]
+        ] = self._default_answer
 
-    def answer(
+    def _default_answer(
         self, statement: str, parameters: dict[str, Any]
     ) -> list[dict[str, Any]]:
         if statement == COUNT_SQL:
