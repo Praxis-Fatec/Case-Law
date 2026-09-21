@@ -2,7 +2,7 @@ INSERT INTO core.decisao (
     fonte_codigo, identificador_fonte, tribunal_sigla, processo,
     orgao_julgador, relator, classe_cnj, data_julgamento, data_publicacao,
     data_referencia, ementa, tipo_texto, decisao_texto,
-    turma_recursal, possui_inteiro_teor, url_fonte, ementa_busca
+    turma_recursal, possui_inteiro_teor, url_fonte, link_valido, ementa_busca
 )
 VALUES
 (
@@ -12,7 +12,7 @@ VALUES
     'DIREITO DO CONSUMIDOR. Inscrição indevida em cadastro de inadimplentes. '
     'Dano moral in re ipsa. Ação procedente. Recurso não provido.',
     'ementa_completa', 'RECURSO NÃO PROVIDO. UNÂNIME.',
-    FALSE, TRUE, 'https://jurisdf.tjdft.jus.br/detalhes/1000001',
+    FALSE, TRUE, 'https://jurisdf.tjdft.jus.br/detalhes/1000001', TRUE,
     TO_TSVECTOR('portugues_sem_acento',
         'DIREITO DO CONSUMIDOR. Inscrição indevida em cadastro de inadimplentes. '
         'Dano moral in re ipsa. Ação procedente. Recurso não provido.')
@@ -24,7 +24,7 @@ VALUES
     'PENAL. Usucapião extraordinário não se confunde com posse precária. '
     'Sentença mantida por seus próprios fundamentos.',
     'ementa_completa', 'APELAÇÃO CONHECIDA E DESPROVIDA.',
-    FALSE, FALSE, 'https://jurisdf.tjdft.jus.br/detalhes/1000002',
+    FALSE, FALSE, 'https://jurisdf.tjdft.jus.br/detalhes/1000002', FALSE,
     TO_TSVECTOR('portugues_sem_acento',
         'PENAL. Usucapião extraordinário não se confunde com posse precária. '
         'Sentença mantida por seus próprios fundamentos.')
@@ -36,7 +36,7 @@ VALUES
     'CIVIL. Responsabilidade civil por falha na prestação de serviço. '
     'Dano moral configurado. Danos materiais afastados.',
     'ementa_completa', 'RECURSO PARCIALMENTE PROVIDO.',
-    TRUE, TRUE, 'https://jurisdf.tjdft.jus.br/detalhes/1000003',
+    TRUE, TRUE, 'https://jurisdf.tjdft.jus.br/detalhes/1000003', NULL,
     TO_TSVECTOR('portugues_sem_acento',
         'CIVIL. Responsabilidade civil por falha na prestação de serviço. '
         'Dano moral configurado. Danos materiais afastados.')

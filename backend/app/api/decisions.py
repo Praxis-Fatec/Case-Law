@@ -72,6 +72,7 @@ SELECT
     decisao.data_referencia,
     decisao.turma_recursal,
     decisao.url_fonte,
+    decisao.link_valido,
     decisao.ementa,
     {SNIPPET} AS snippet
 FROM pagina
@@ -95,7 +96,8 @@ SELECT
     decisao_texto,
     turma_recursal,
     possui_inteiro_teor,
-    url_fonte
+    url_fonte,
+    link_valido
 FROM core.decisao
 WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
 """
@@ -140,6 +142,14 @@ class DecisionBase(BaseModel):
     source_url: str = Field(
         description="The decision on the court's own site, which always prevails.",
         examples=["https://jurisdf.tjdft.jus.br/detalhes/2084700"],
+    )
+    source_url_reachable: bool | None = Field(
+        description=(
+            "Whether the link was found to reach a document the last time the "
+            "load checked. `null` means nobody has checked it yet, which is not "
+            "the same as broken. Never checked while answering this request."
+        ),
+        examples=[True],
     )
 
 
@@ -193,6 +203,7 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
         "decided_on": row["data_referencia"],
         "small_claims": row["turma_recursal"],
         "source_url": row["url_fonte"],
+        "source_url_reachable": row["link_valido"],
     }
 
 

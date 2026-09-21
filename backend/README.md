@@ -75,16 +75,26 @@ docker compose exec -T postgres pg_dump -U postgres -d caselaw \
   --schema amostra --no-owner --format custom --compress 9 > amostra.dump
 ```
 
-Loading it, on the machine that received the file:
+Loading it, on the machine that received the file. Copy it into the container
+first and restore from there: PowerShell has no `<` redirection, so feeding the
+file through standard input works on some shells and not others, while this runs
+the same everywhere.
 
 ```bash
+docker compose cp amostra.dump postgres:/tmp/amostra.dump
+
 docker compose exec -T postgres pg_restore -U postgres -d caselaw \
-  --no-owner --clean --if-exists < amostra.dump
+  --no-owner --no-privileges /tmp/amostra.dump
 
 docker compose exec -T postgres psql -U postgres -d caselaw \
   -c "DROP SCHEMA IF EXISTS core CASCADE" \
   -c "ALTER SCHEMA amostra RENAME TO core"
+
+docker compose exec -T postgres rm /tmp/amostra.dump
 ```
+
+`docker compose` has to run from the repository root, where `docker-compose.yml`
+is. The dump itself can be anywhere — pass its full path to `cp`.
 
 The search index is not carried by the sample. Create it after loading, or the
 first search will scan the whole table:

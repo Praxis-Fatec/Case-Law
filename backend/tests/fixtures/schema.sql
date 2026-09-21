@@ -27,6 +27,7 @@ CREATE TABLE core.decisao (
     turma_recursal       BOOLEAN NOT NULL,
     possui_inteiro_teor  BOOLEAN NOT NULL,
     url_fonte            TEXT    NOT NULL,
+    link_valido          BOOLEAN,
     ementa_busca         TSVECTOR
 );
 
@@ -43,4 +44,13 @@ CREATE TABLE core.fonte (
 INSERT INTO core.fonte VALUES (
     'tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
     'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'
+);
+
+-- Written by the pipeline's link check, read by the core model.
+DROP SCHEMA IF EXISTS verificacao CASCADE;
+CREATE SCHEMA verificacao;
+CREATE TABLE verificacao.link (
+    identificador TEXT        PRIMARY KEY,
+    valido        BOOLEAN     NOT NULL,
+    verificado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
