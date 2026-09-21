@@ -1,6 +1,7 @@
 import psycopg
 from psycopg.rows import DictRow
 
+from app.api.decisions import _normalize_highlighted_text
 from tests.conftest import needs_database
 
 pytestmark = needs_database
@@ -99,6 +100,62 @@ def test_the_snippet_marks_the_match_and_keeps_the_accents(
 
     assert row is not None
     assert "<mark>Usucapião</mark>" in row["snippet"]
+
+
+def test_exact_phrase_snippet_groups_the_whole_phrase_in_one_mark(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    with db.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ts_headline(
+                'portugues_sem_acento', ementa,
+                websearch_to_tsquery('portugues_sem_acento', %(term)s),
+                'StartSel=<mark>, StopSel=</mark>, MaxWords=20, MinWords=10, MaxFragments=2, FragmentDelimiter='' … '''
+            ) AS snippet
+            FROM core.decisao
+            WHERE ementa_busca @@ websearch_to_tsquery('portugues_sem_acento', %(term)s)
+            LIMIT 1
+            """,
+            {"term": '"dano moral"'},
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    normalized = _normalize_highlighted_text(row["snippet"], '"dano moral"')
+    assert (
+        "<mark>Dano moral</mark>" in normalized
+        or "<mark>dano moral</mark>" in normalized.lower()
+    )
+
+
+def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    with db.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ts_headline(
+                'portugues_sem_acento', ementa,
+                websearch_to_tsquery('portugues_sem_acento', %(term)s),
+                %(snippet_options)s
+            ) AS snippet
+            FROM core.decisao
+            WHERE ementa_busca @@ websearch_to_tsquery('portugues_sem_acento', %(term)s)
+            LIMIT 1
+            """,
+            {
+                "term": '"moral dano"',
+                "snippet_options": (
+                    "StartSel=<mark>, StopSel=</mark>, "
+                    "MaxWords=20, MinWords=10, "
+                    "MaxFragments=2, FragmentDelimiter=' … '"
+                ),
+            },
+        )
+        row = cursor.fetchone()
+
+    assert row is None
 
 
 def test_the_text_index_is_used_instead_of_a_sequential_scan(

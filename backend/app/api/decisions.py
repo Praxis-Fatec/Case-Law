@@ -1,4 +1,8 @@
+import html
+import re
+import unicodedata
 from datetime import date
+from html.parser import HTMLParser
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -12,15 +16,25 @@ from app.db import get_connection
 router = APIRouter(tags=["search"])
 
 SEARCH_CONFIG = "portugues_sem_acento"
+MAX_SNIPPET_WORDS = 38
+MAX_SNIPPET_FRAGMENTS = 2
+SNIPPET_DELIMITER = " … "
 
 QUERY = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(term)s)"
 MATCH = f"ementa_busca @@ {QUERY}"
 
+SNIPPET_OPTIONS = (
+    f"StartSel=<mark>, StopSel=</mark>, "
+    f"MaxWords={MAX_SNIPPET_WORDS}, "
+    f"MinWords={MAX_SNIPPET_WORDS - 16}, "
+    f"MaxFragments={MAX_SNIPPET_FRAGMENTS}, "
+    "FragmentDelimiter=' … '"
+)
+
 SNIPPET = f"""
 ts_headline(
     '{SEARCH_CONFIG}', ementa, {QUERY},
-    'StartSel=<mark>, StopSel=</mark>, MaxWords=38, MinWords=22,
-     MaxFragments=2, FragmentDelimiter= … '
+    %(snippet_options)s
 )
 """
 
@@ -58,6 +72,7 @@ SELECT
     decisao.data_referencia,
     decisao.turma_recursal,
     decisao.url_fonte,
+    decisao.ementa,
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
@@ -181,6 +196,110 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
     }
 
 
+class _MarkHTMLNormalizer(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "mark":
+            self._parts.append("<mark>")
+        else:
+            self._parts.append(f"&lt;{tag}&gt;")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "mark":
+            self._parts.append("</mark>")
+        else:
+            self._parts.append(f"&lt;/{tag}&gt;")
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(html.escape(data, quote=False))
+
+    def handle_entityref(self, name: str) -> None:
+        self._parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self._parts.append(f"&#{name};")
+
+    def get_value(self) -> str:
+        return "".join(self._parts)
+
+
+def _fold_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFD", value)
+    return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn").lower()
+
+
+def _is_exact_phrase_query(query: str | None) -> bool:
+    if query is None:
+        return False
+    stripped = query.strip()
+    return len(stripped) >= 2 and stripped.startswith('"') and stripped.endswith('"')
+
+
+def _normalize_highlighted_text(value: str | None, query: str | None = None) -> str:
+    if value is None:
+        return ""
+
+    text = value.strip()
+    if not text:
+        return ""
+
+    parser = _MarkHTMLNormalizer()
+    parser.feed(text)
+    parser.close()
+    normalized = parser.get_value()
+    normalized = re.sub(r"<mark>\s*</mark>", "", normalized)
+
+    if query is not None and _is_exact_phrase_query(query):
+        phrase = query.strip()[1:-1].strip()
+        if not phrase:
+            return normalized
+
+        goal = _fold_text(phrase)
+        pattern = re.compile(r"(?s)(<mark>.*?</mark>(?:\s*<mark>.*?</mark>)*)")
+        for match in pattern.finditer(normalized):
+            content = re.sub(r"</?mark>", "", match.group(1)).strip()
+            content = re.sub(r"\s+", " ", content)
+            if _fold_text(content) == goal:
+                normalized = (
+                    normalized[: match.start()]
+                    + f"<mark>{content}</mark>"
+                    + normalized[match.end() :]
+                )
+                break
+
+        normalized = re.sub(r"</mark>\s*<mark>", " ", normalized)
+        normalized = re.sub(r"<mark>\s+", "<mark>", normalized)
+        normalized = re.sub(r"\s+</mark>", "</mark>", normalized)
+
+    return normalized
+
+
+def _fallback_ementa_start(ementa: str | None) -> str:
+    """
+    The opening of the ementa, for when the match is by stem and there is no
+    literal term for `ts_headline` to mark.
+
+    Trimmed by word count, not by sentence. These ementas open with short
+    headnote sentences in caps, so the first two sentences come to under 80
+    characters in 91% of the collection — a card with nothing to read — while a
+    single long sentence runs to 3.590.
+    """
+    return " ".join((ementa or "").split()[:MAX_SNIPPET_WORDS])
+
+
+def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None) -> str:
+    snippet = (raw or "").strip()
+    if snippet:
+        normalized = _normalize_highlighted_text(snippet, query)
+        if "<mark>" in normalized:
+            return normalized
+
+    return _fallback_ementa_start(ementa)
+
+
 @router.get("/decisions", summary="Search decisions by term")
 def search_decisions(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
@@ -211,6 +330,7 @@ def search_decisions(
     page_size = min(page_size, settings.search_max_page_size)
     parameters = {
         "term": q,
+        "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": (page - 1) * page_size,
     }
@@ -229,7 +349,11 @@ def search_decisions(
         page=page,
         page_size=page_size,
         results=[
-            DecisionMatch(**_base_fields(row), snippet=row["snippet"]) for row in rows
+            DecisionMatch(
+                **_base_fields(row),
+                snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
+            )
+            for row in rows
         ],
     )
 
@@ -267,7 +391,11 @@ def read_decision(
             cursor.execute(HIGHLIGHT_SQL, {**parameters, "term": q})
             highlighted = cursor.fetchone()
             if highlighted:
-                summary = highlighted["highlighted"]
+                summary = _normalize_highlighted_text(highlighted["highlighted"], q)
+                if "<mark>" not in summary:
+                    summary = _fallback_ementa_start(row["ementa"])
+            else:
+                summary = _fallback_ementa_start(row["ementa"])
 
     return Decision(
         **_base_fields(row),

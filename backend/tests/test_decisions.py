@@ -1,11 +1,20 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import date
 from typing import Any, Self
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.decisions import COUNT_SQL, DETAIL_SQL, HIGHLIGHT_SQL, PAGE_SQL
+from app.api.decisions import (
+    COUNT_SQL,
+    DETAIL_SQL,
+    HIGHLIGHT_SQL,
+    MAX_SNIPPET_WORDS,
+    PAGE_SQL,
+    _fallback_ementa_start,
+    _normalize_highlighted_text,
+    _safe_snippet,
+)
 from app.db import get_connection
 from app.main import app
 
@@ -19,6 +28,7 @@ MATCHING_ROW = {
     "data_referencia": date(2026, 1, 28),
     "turma_recursal": False,
     "url_fonte": "https://jurisdf.tjdft.jus.br/detalhes/2084700",
+    "ementa": "Ilícito contratual. Dano moral. Ação procedente. Recurso não provido.",
     "snippet": "Ilícito contratual. <mark>Dano</mark> <mark>moral</mark>.",
 }
 
@@ -62,8 +72,11 @@ class FakeDatabase:
         self.found = found
         self.statements: list[str] = []
         self.parameters: list[dict[str, Any]] = []
+        self.answer: Callable[[str, dict[str, Any]], list[dict[str, Any]]] = (
+            self._default_answer
+        )
 
-    def answer(
+    def _default_answer(
         self, statement: str, parameters: dict[str, Any]
     ) -> list[dict[str, Any]]:
         if statement == COUNT_SQL:
@@ -97,6 +110,101 @@ def client(database: FakeDatabase) -> TestClient:
     return TestClient(app)
 
 
+def test_exact_phrase_highlight_is_grouped_in_one_mark() -> None:
+    value = (
+        "Discussão sobre <mark>prescrição</mark> <mark>intercorrente</mark> no caso."
+    )
+
+    assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == (
+        "Discussão sobre <mark>prescrição intercorrente</mark> no caso."
+    )
+
+
+def test_simple_terms_stay_separate_when_they_do_not_form_the_same_phrase() -> None:
+    value = (
+        "Discussão sobre <mark>prescrição</mark> e <mark>intercorrente</mark> no caso."
+    )
+
+    assert _normalize_highlighted_text(value, "prescrição intercorrente") == value
+
+
+def test_words_separated_by_text_do_not_merge_into_a_phrase() -> None:
+    value = "Discussão sobre <mark>prescrição</mark> qualquer coisa <mark>intercorrente</mark> no caso."
+
+    assert _normalize_highlighted_text(value, '"prescrição intercorrente"') == value
+
+
+def test_stem_match_without_the_literal_term_is_kept_as_real_highlight_when_available() -> (
+    None
+):
+    value = "<mark>Dano</mark> moral configurado. Danos materiais afastados."
+
+    assert _normalize_highlighted_text(value, '"dano moral"') == value
+
+
+def test_fallback_returns_the_ementa_start_when_no_mark_is_available() -> None:
+    assert (
+        _normalize_highlighted_text("Sem destaque aqui.", "dano moral")
+        == "Sem destaque aqui."
+    )
+    assert _safe_snippet(
+        "Sem destaque aqui.", "Direito do consumidor. Dano moral configurado."
+    ) == ("Direito do consumidor. Dano moral configurado.")
+
+
+def test_fallback_keeps_reading_past_the_opening_headnotes() -> None:
+    """
+    Ementas open with short headnote sentences in caps. Stopping at the second
+    one leaves the card with a couple of words, which is what a sentence-based
+    trim did: under 80 characters in 91% of the collection.
+    """
+    ementa = (
+        "DIREITO DO CONSUMIDOR. APELAÇÃO CÍVEL. "
+        "Contrato de transporte com atraso na entrega da mercadoria, "
+        "reconhecida a falha na prestação do serviço e o dever de indenizar."
+    )
+
+    snippet = _safe_snippet(None, ementa)
+
+    assert snippet.startswith("DIREITO DO CONSUMIDOR. APELAÇÃO CÍVEL.")
+    assert "transporte" in snippet
+    assert len(snippet) > 80
+
+
+def test_fallback_trims_a_long_ementa_without_cutting_a_word() -> None:
+    ementa = " ".join(f"palavra{n}" for n in range(200))
+
+    snippet = _safe_snippet(None, ementa)
+
+    assert len(snippet.split()) == MAX_SNIPPET_WORDS
+    assert snippet.endswith(f"palavra{MAX_SNIPPET_WORDS - 1}")
+    assert ementa.startswith(snippet)
+
+
+def test_the_search_and_the_detail_trim_the_ementa_the_same_way() -> None:
+    """
+    Two rules for the same text drift apart. The detail endpoint builds its
+    summary from the same helper the search falls back to.
+    """
+    ementa = " ".join(f"palavra{n}" for n in range(200))
+
+    assert _safe_snippet(None, ementa) == _fallback_ementa_start(ementa)
+
+
+def test_empty_and_none_ementas_return_empty_snippet() -> None:
+    assert _safe_snippet(None, None) == ""
+    assert _safe_snippet(None, "") == ""
+
+
+def test_marked_output_escapes_raw_html_but_keeps_controlled_marks() -> None:
+    value = '<script>alert("x")</script> <mark>prescrição</mark> & <b>falso</b>'
+
+    assert _normalize_highlighted_text(value) == (
+        '&lt;script&gt;alert("x")&lt;/script&gt; '
+        "<mark>prescrição</mark> &amp; &lt;b&gt;falso&lt;/b&gt;"
+    )
+
+
 def test_search_returns_the_total_and_the_page(
     client: TestClient, database: FakeDatabase
 ) -> None:
@@ -115,6 +223,37 @@ def test_search_result_carries_the_highlighted_snippet(client: TestClient) -> No
 
     assert body["results"][0]["snippet"] == MATCHING_ROW["snippet"]
     assert "summary" not in body["results"][0]
+
+
+def test_search_returns_the_start_of_the_ementa_when_no_highlight_is_found(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 1
+    database.answer = lambda statement, parameters: (
+        [{"total": 1}]
+        if statement == COUNT_SQL
+        else [
+            {
+                **MATCHING_ROW,
+                "ementa": MATCHING_ROW["ementa"],
+                "snippet": "Ilícito contratual. Dano moral. Ação procedente.",
+            }
+        ]
+        if statement == PAGE_SQL
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral"}).json()
+
+    assert "<mark>" not in body["results"][0]["snippet"]
+    assert body["results"][0]["snippet"].startswith("Ilícito contratual. Dano moral.")
+
+
+def test_search_handles_short_and_empty_ementas(client: TestClient) -> None:
+    body = client.get("/decisions", params={"q": "dano moral"}).json()
+
+    assert "" != body["results"][0]["snippet"]
+    assert "<mark>" in body["results"][0]["snippet"]
 
 
 def test_search_maps_every_column_the_screen_needs(client: TestClient) -> None:
