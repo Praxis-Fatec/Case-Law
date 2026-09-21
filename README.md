@@ -71,4 +71,4 @@ The profiles represent who receives value from the feature. They do not indicate
 | Member | Role | GitHub | LinkedIn |
 |---|---|---|---|
 | **Giovana Zucareli** | Product Owner | [View Profile](//github.com/GiovanaZucareli) | [View Profile](//linkedin.com/in/giovana-zucareli-1aa205202) |
-| **Pedro Ribeiro** | Developer | [View Profile](//github.com/pedrohenribeiro) | [View Profile](//linkedin.com/in/pedrohenribeiro1) |
+| **Pedro Ribeiro** | Scrum Master | [View Profile](//github.com/pedrohenribeiro) | [View Profile](//linkedin.com/in/pedrohenribeiro1) |
