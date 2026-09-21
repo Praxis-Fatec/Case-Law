@@ -19,6 +19,7 @@ SEARCH_CONFIG = "portugues_sem_acento"
 MAX_SNIPPET_WORDS = 38
 MAX_SNIPPET_FRAGMENTS = 2
 SNIPPET_DELIMITER = " … "
+SNIPPET_DELIMITER_SQL = SNIPPET_DELIMITER.replace("'", "''")
 
 QUERY = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(term)s)"
 MATCH = f"ementa_busca @@ {QUERY}"
@@ -27,7 +28,7 @@ SNIPPET = f"""
 ts_headline(
     '{SEARCH_CONFIG}', ementa, {QUERY},
     'StartSel=<mark>, StopSel=</mark>, MaxWords={MAX_SNIPPET_WORDS}, MinWords={MAX_SNIPPET_WORDS - 16},
-     MaxFragments={MAX_SNIPPET_FRAGMENTS}, FragmentDelimiter={SNIPPET_DELIMITER!r}
+     MaxFragments={MAX_SNIPPET_FRAGMENTS}, FragmentDelimiter='{SNIPPET_DELIMITER_SQL}'
 )
 """
 

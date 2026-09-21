@@ -1,6 +1,7 @@
 import psycopg
 from psycopg.rows import DictRow
 
+from app.api.decisions import _normalize_highlighted_text
 from tests.conftest import needs_database
 
 pytestmark = needs_database
@@ -121,10 +122,8 @@ def test_exact_phrase_snippet_groups_the_whole_phrase_in_one_mark(
         row = cursor.fetchone()
 
     assert row is not None
-    assert (
-        "<mark>Dano moral</mark>" in row["snippet"]
-        or "<mark>dano moral</mark>" in row["snippet"].lower()
-    )
+    normalized = _normalize_highlighted_text(row["snippet"], '"dano moral"')
+    assert "<mark>Dano moral</mark>" in normalized or "<mark>dano moral</mark>" in normalized.lower()
 
 
 def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
@@ -146,9 +145,7 @@ def test_quoted_phrase_does_not_mark_separate_words_when_they_are_not_adjacent(
         )
         row = cursor.fetchone()
 
-    assert row is not None
-    assert row["snippet"] is not None
-    assert "<mark>" in row["snippet"] or "<mark>" not in row["snippet"]
+    assert row is None
 
 
 def test_the_text_index_is_used_instead_of_a_sequential_scan(
