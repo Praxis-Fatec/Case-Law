@@ -27,8 +27,11 @@ MATCH = f"ementa_busca @@ {QUERY}"
 SNIPPET = f"""
 ts_headline(
     '{SEARCH_CONFIG}', ementa, {QUERY},
-    'StartSel=<mark>, StopSel=</mark>, MaxWords={MAX_SNIPPET_WORDS}, MinWords={MAX_SNIPPET_WORDS - 16},
-     MaxFragments={MAX_SNIPPET_FRAGMENTS}, FragmentDelimiter='{SNIPPET_DELIMITER_SQL}'
+    'StartSel=<mark>, StopSel=</mark>,
+     MaxWords={MAX_SNIPPET_WORDS},
+     MinWords={MAX_SNIPPET_WORDS - 16},
+     MaxFragments={MAX_SNIPPET_FRAGMENTS},
+     FragmentDelimiter='{SNIPPET_DELIMITER_SQL}'
 )
 """
 
