@@ -5,6 +5,7 @@ Written before touching the endpoint, so the behaviour that already holds cannot
 quietly change while the rest of the card is built.
 """
 
+import re
 from collections.abc import Iterator
 
 import psycopg
@@ -101,6 +102,9 @@ def test_no_shape_of_bad_identifier_reaches_a_500(client: TestClient) -> None:
         "nao-e-numero",
         "'; DROP TABLE core.decisao; --",
         "../../etc/passwd",
+        # percent-encoded, which is how a NUL byte actually arrives
+        "%00",
+        "2071373%00",
         "1" * 500,
         "2071373 OR 1=1",
         "ção-com-acento",
@@ -135,3 +139,44 @@ def test_the_decision_still_survives_a_lookup_that_should_work(
 
     assert response.status_code == 200
     assert response.json()["identifier"] == PRESENT
+
+
+def test_the_whole_ementa_survives_a_term_that_does_not_appear_in_it(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    A search matches by stem, so the reader can arrive from a term that is
+    nowhere in the text. The detail is a reading screen: it answers with the
+    judgement, highlighted or not, never with its first few lines.
+    """
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT ementa FROM core.decisao WHERE identificador_fonte = %s",
+            (LONG,),
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    body = client.get(f"/decisions/{SOURCE}/{LONG}", params={"q": "xyzabc"}).json()
+
+    assert "<mark>" not in body["summary"]
+    assert len(body["summary"].split()) == len(row["ementa"].split())
+
+
+def test_a_term_that_does_appear_still_marks_without_losing_the_rest(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT ementa FROM core.decisao WHERE identificador_fonte = %s",
+            (LONG,),
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    body = client.get(f"/decisions/{SOURCE}/{LONG}", params={"q": "prescrição"}).json()
+    summary = body["summary"]
+
+    assert "<mark>" in summary
+    stripped = re.sub(r"</?mark>", "", summary)
+    assert len(stripped.split()) == len(row["ementa"].split())

@@ -388,6 +388,12 @@ def read_decision(
     Pass the search term that led here and the ementa comes back with every hit
     wrapped in `<mark>`, so the reader lands on what they were looking for.
     """
+    # A NUL byte cannot be sent to PostgreSQL as text, and an identifier arrives
+    # from the URL, so it is whatever the caller typed. Refusing it here is the
+    # difference between "no such decision" and a stack trace.
+    if "\x00" in source or "\x00" in identifier:
+        raise HTTPException(status_code=404, detail="Decision not found.")
+
     parameters = {"source": source, "identifier": identifier}
 
     with connection.cursor() as cursor:
@@ -397,16 +403,16 @@ def read_decision(
         if row is None:
             raise HTTPException(status_code=404, detail="Decision not found.")
 
+        # `HighlightAll=TRUE` returns the ementa entire, marked where the term
+        # hit and untouched where it did not, so there is nothing to fall back
+        # to. Trimming here would hand a reading screen the first few lines of a
+        # judgement, which is what the search snippet is for.
         summary = row["ementa"]
         if q:
             cursor.execute(HIGHLIGHT_SQL, {**parameters, "term": q})
             highlighted = cursor.fetchone()
             if highlighted:
                 summary = _normalize_highlighted_text(highlighted["highlighted"], q)
-                if "<mark>" not in summary:
-                    summary = _fallback_ementa_start(row["ementa"])
-            else:
-                summary = _fallback_ementa_start(row["ementa"])
 
     return Decision(
         **_base_fields(row),

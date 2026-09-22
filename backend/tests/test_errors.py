@@ -7,7 +7,7 @@ from psycopg.errors import UndefinedTable
 from psycopg_pool import PoolTimeout
 
 from app.db import get_connection
-from app.errors import NOT_PUBLISHED, UNAVAILABLE
+from app.errors import MALFORMED, NOT_PUBLISHED, UNAVAILABLE
 from app.main import app
 
 
@@ -75,3 +75,19 @@ def test_the_detail_endpoint_is_covered_too(client_failing_with) -> None:
     response = client.get("/decisions/tjdft-jurisdf/2164119")
 
     assert response.status_code == 503
+
+
+def test_a_value_postgres_cannot_read_answers_400_not_500(client_failing_with) -> None:
+    """
+    Every parameter comes from the caller, so a value the database refuses is a
+    bad request. Handled centrally: an endpoint added later inherits it instead
+    of having to remember.
+    """
+    client = client_failing_with(
+        psycopg.DataError("PostgreSQL text fields cannot contain NUL (0x00) bytes")
+    )
+
+    response = client.get("/decisions", params={"q": "dano moral"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == MALFORMED
