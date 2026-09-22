@@ -40,4 +40,14 @@ VALUES
     TO_TSVECTOR('portugues_sem_acento',
         'CIVIL. Responsabilidade civil por falha na prestação de serviço. '
         'Dano moral configurado. Danos materiais afastados.')
+),
+(
+    'tjdft-jurisdf', '1000004', 'TJDFT', '0700004-44.2026.8.07.0001',
+    '3ª TURMA CÍVEL', 'JOÃO EGMONT', 1116, '2026-06-11', '2026-06-18',
+    '2026-06-11',
+    'PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE. I. CASO EM EXAME 1. Apelação interposta contra sentença que julgou extinta a execução fiscal, ao reconhecer a prescrição intercorrente após longo período de suspensão do feito sem localização de bens penhoráveis do devedor. II. QUESTÃO EM DISCUSSÃO 2. A controvérsia consiste em definir se o termo inicial da suspensão se conta da ciência da primeira diligência infrutífera ou do despacho que a determinou. III. RAZÕES DE DECIDIR 3. A prescrição intercorrente rege-se pelo artigo 40 da Lei de Execuções Fiscais, cujo prazo corre automaticamente da ciência da primeira tentativa frustrada. 4. O mero peticionamento nos autos não interrompe o prazo, conforme entendimento consolidado. IV. DISPOSITIVO 5. Apelação conhecida e desprovida, mantida a sentença por seus próprios fundamentos.',
+    'ementa_completa', 'APELAÇÃO CONHECIDA E DESPROVIDA.',
+    FALSE, TRUE, 'https://jurisdf.tjdft.jus.br/detalhes/1000004', TRUE,
+    TO_TSVECTOR('portugues_sem_acento',
+        'PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE. I. CASO EM EXAME 1. Apelação interposta contra sentença que julgou extinta a execução fiscal, ao reconhecer a prescrição intercorrente após longo período de suspensão do feito sem localização de bens penhoráveis do devedor. II. QUESTÃO EM DISCUSSÃO 2. A controvérsia consiste em definir se o termo inicial da suspensão se conta da ciência da primeira diligência infrutífera ou do despacho que a determinou. III. RAZÕES DE DECIDIR 3. A prescrição intercorrente rege-se pelo artigo 40 da Lei de Execuções Fiscais, cujo prazo corre automaticamente da ciência da primeira tentativa frustrada. 4. O mero peticionamento nos autos não interrompe o prazo, conforme entendimento consolidado. IV. DISPOSITIVO 5. Apelação conhecida e desprovida, mantida a sentença por seus próprios fundamentos.')
 );
