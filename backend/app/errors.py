@@ -1,8 +1,11 @@
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from psycopg import DataError, OperationalError
 from psycopg.errors import UndefinedObject, UndefinedTable
 from psycopg_pool import PoolTimeout
+from pydantic import BaseModel, Field
 
 NOT_PUBLISHED = (
     "The decisions have not been published to this environment yet. "
@@ -15,6 +18,50 @@ MALFORMED = (
     "Part of the request is not text the database can read. Check for stray "
     "control characters, such as %00, in the query or the identifier."
 )
+
+
+class ErrorResponse(BaseModel):
+    """What every failure on this API looks like, whatever went wrong."""
+
+    detail: str = Field(
+        description="One sentence a person can act on.",
+        examples=[UNAVAILABLE],
+    )
+
+
+def _example(detail: str) -> dict[str, Any]:
+    return {"application/json": {"example": {"detail": detail}}}
+
+
+# Both endpoints read the same database, so they fail the same ways. Declared
+# once and shared, so a new endpoint documents itself by reusing this.
+DATABASE_RESPONSES: dict[int | str, dict[str, Any]] = {
+    400: {
+        "model": ErrorResponse,
+        "description": "A parameter carries something the database cannot read.",
+        "content": _example(MALFORMED),
+    },
+    503: {
+        "model": ErrorResponse,
+        "description": (
+            "The decisions are not published here yet, or the database is not "
+            "answering. Neither means the request was wrong."
+        ),
+        "content": _example(NOT_PUBLISHED),
+    },
+}
+
+NOT_FOUND_RESPONSE: dict[int | str, dict[str, Any]] = {
+    404: {
+        "model": ErrorResponse,
+        "description": (
+            "No decision with this identifier in this collection. A decision "
+            "under seal answers the same way: it never enters the collection, "
+            "so there is nothing to tell apart from one that never existed."
+        ),
+        "content": _example("Decision not found."),
+    }
+}
 
 
 def _unavailable(detail: str) -> JSONResponse:

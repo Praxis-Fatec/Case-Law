@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow
 
+from app.api.decisions import Decision
 from app.db import get_connection
 from app.main import app
 from tests.conftest import needs_database
@@ -180,3 +181,72 @@ def test_the_documented_shape_matches_what_is_served(client: TestClient) -> None
     assert set(schema["DecisionMatch"]["properties"]) == MATCH
     assert set(schema["Decision"]["properties"]) == DETAIL
     assert set(schema["SearchResults"]["properties"]) == ENVELOPE
+
+
+def documented(client: TestClient, path: str) -> dict[str, Any]:
+    return client.get("/openapi.json").json()["paths"][path]["get"]["responses"]
+
+
+def test_both_endpoints_document_how_they_fail(client: TestClient) -> None:
+    """
+    A caller writes error handling from the spec. An undocumented 503 reads as
+    a bug in their code rather than a database that has not been published to.
+    """
+    search = documented(client, "/decisions")
+    detail = documented(client, "/decisions/{source}/{identifier}")
+
+    assert {"400", "503"} <= set(search)
+    assert {"400", "404", "503"} <= set(detail)
+
+
+def test_every_documented_failure_shows_what_the_body_looks_like(
+    client: TestClient,
+) -> None:
+    for path in ("/decisions", "/decisions/{source}/{identifier}"):
+        for status, described in documented(client, path).items():
+            if status.startswith(("4", "5")) and status != "422":
+                body = described["content"]["application/json"]
+                assert "example" in body, f"{path} {status} has no example"
+                assert isinstance(body["example"]["detail"], str)
+
+
+def test_the_documented_404_is_the_one_the_endpoint_sends(client: TestClient) -> None:
+    """
+    Pins the example against reality. Documentation that drifts from the code is
+    worse than none: it is trusted.
+    """
+    described = documented(client, "/decisions/{source}/{identifier}")["404"]
+    promised = described["content"]["application/json"]["example"]
+
+    actual = client.get("/decisions/tjdft-jurisdf/000000").json()
+
+    assert actual == promised
+
+
+def test_the_response_example_carries_every_field_the_schema_has(
+    client: TestClient,
+) -> None:
+    """
+    An example that lost a field as the response grew teaches the wrong shape.
+    The last field added to this response reached production before anything
+    noticed it was missing from the documentation.
+    """
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    decision = schemas["Decision"]
+    example = decision.get("example")
+
+    assert example is not None, "Decision has no response example"
+    assert set(example) == set(decision["properties"])
+
+
+def test_the_documented_example_would_pass_the_response_model(
+    client: TestClient,
+) -> None:
+    """
+    The example is hand written, so nothing stops it carrying a type the API
+    never sends. This reads it back through the model that serves the endpoint.
+    """
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    example = schemas["Decision"]["example"]
+
+    assert Decision.model_validate(example)

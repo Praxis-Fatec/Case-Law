@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db import get_connection
+from app.errors import DATABASE_RESPONSES, NOT_FOUND_RESPONSE
 
 router = APIRouter(tags=["search"])
 
@@ -171,7 +172,23 @@ class Decision(DecisionBase):
     judged_on: date | None = Field(description="When the panel decided.")
     published_on: date | None = Field(description="When it reached the gazette.")
     summary: str = Field(
-        description="The ementa in full: the legal thesis, as the court wrote it."
+        description=(
+            "The ementa in full: the legal thesis, as the court wrote it. "
+            "Always the whole text — a search term that matched by stem and "
+            "appears nowhere literally still gets the judgement, not an "
+            "opening. With `q`, hits come wrapped in `<mark>` and the rest is "
+            "HTML-escaped, so render it as HTML; without `q` it is the court's "
+            "own text, unescaped. 146 of 107.828 ementas carry a character that "
+            "escaping changes, so a screen that renders one path as HTML must "
+            "render the other as text."
+        ),
+        examples=[
+            (
+                "PROCESSUAL CIVIL. EXECUÇÃO FISCAL. <mark>PRESCRIÇÃO</mark> "
+                "INTERCORRENTE. I. CASO EM EXAME 1. Apelação interposta contra "
+                "sentença que julgou extinta a execução fiscal."
+            )
+        ],
     )
     outcome: str | None = Field(
         description="The operative part, when the court records it separately.",
@@ -180,6 +197,37 @@ class Decision(DecisionBase):
     full_text_available: bool = Field(
         description="Whether the court offers the complete document."
     )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "source": "tjdft-jurisdf",
+                "identifier": "2119440",
+                "court": "TJDFT",
+                "case_number": "0712598-03.2019.8.07.0003",
+                "judging_body": "3ª TURMA CÍVEL",
+                "reporting_judge": "JOÃO EGMONT",
+                "decided_on": "2026-06-11",
+                "small_claims": False,
+                "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
+                "source_url_reachable": True,
+                "class_code": 1116,
+                "judged_on": "2026-06-11",
+                "published_on": "2026-06-18",
+                "summary": (
+                    "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. "
+                    "<mark>PRESCRIÇÃO</mark> INTERCORRENTE. I. CASO EM EXAME 1. "
+                    "Apelação interposta contra sentença que julgou extinta a "
+                    "execução fiscal. II. QUESTÃO EM DISCUSSÃO 2. Definir o termo "
+                    "inicial da suspensão. III. RAZÕES DE DECIDIR 3. O prazo corre "
+                    "da ciência da primeira diligência infrutífera. IV. DISPOSITIVO "
+                    "4. Apelação conhecida e desprovida."
+                ),
+                "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
+                "full_text_available": True,
+            }
+        }
+    }
 
 
 class SearchResults(BaseModel):
@@ -311,7 +359,11 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
     return _fallback_ementa_start(ementa)
 
 
-@router.get("/decisions", summary="Search decisions by term")
+@router.get(
+    "/decisions",
+    summary="Search decisions by term",
+    responses=DATABASE_RESPONSES,
+)
 def search_decisions(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
     q: Annotated[
@@ -369,7 +421,11 @@ def search_decisions(
     )
 
 
-@router.get("/decisions/{source}/{identifier}", summary="Read one decision in full")
+@router.get(
+    "/decisions/{source}/{identifier}",
+    summary="Read one decision in full",
+    responses={**DATABASE_RESPONSES, **NOT_FOUND_RESPONSE},
+)
 def read_decision(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
     source: Annotated[str, Path(description="Collection code.")],
