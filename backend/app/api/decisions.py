@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db import get_connection
+from app.ementa import split as split_ementa
 from app.errors import DATABASE_RESPONSES, NOT_FOUND_RESPONSE
 
 router = APIRouter(tags=["search"])
@@ -164,6 +165,38 @@ class DecisionMatch(DecisionBase):
     )
 
 
+class EmentaSections(BaseModel):
+    """
+    The four sections of the national court council's shape, as the court wrote
+    them. The labels are left out: each field is the section's own text.
+    """
+
+    headnote: str = Field(
+        description=(
+            "The keyword block every ementa opens with, before the first "
+            "section. Not one of the four, and kept because it is text the "
+            "court wrote."
+        ),
+        examples=["DIREITO CIVIL. APELAÇÃO CÍVEL. RECURSO CONHECIDO E PROVIDO."],
+    )
+    case: str = Field(
+        description="What was judged.",
+        examples=["1. Apelação interposta contra sentença de improcedência."],
+    )
+    question: str = Field(
+        description="What had to be decided.",
+        examples=["2. Definir se houve falha na prestação do serviço."],
+    )
+    reasoning: str = Field(
+        description="Why it was decided that way.",
+        examples=["3. A falha ficou demonstrada pela prova documental."],
+    )
+    ruling: str = Field(
+        description="What was decided, and the thesis when the court states one.",
+        examples=["4. Recurso conhecido e provido."],
+    )
+
+
 class Decision(DecisionBase):
     class_code: int | None = Field(
         description="Case class, as the national court council codes it.",
@@ -197,6 +230,16 @@ class Decision(DecisionBase):
     full_text_available: bool = Field(
         description="Whether the court offers the complete document."
     )
+    sections: EmentaSections | None = Field(
+        description=(
+            "The ementa split into the four sections the national court council "
+            "asks for, or `null` when it is written as free prose — which is "
+            "how the two cases are told apart. 78,9% of the collection splits. "
+            "Always read from the court's own text, so a search term never "
+            "changes the answer: `summary` carries the highlighting, these "
+            "carry the text."
+        ),
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -225,6 +268,22 @@ class Decision(DecisionBase):
                 ),
                 "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
                 "full_text_available": True,
+                "sections": {
+                    "headnote": (
+                        "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. "
+                        "PRESCRIÇÃO INTERCORRENTE."
+                    ),
+                    "case": (
+                        "1. Apelação interposta contra sentença que julgou "
+                        "extinta a execução fiscal."
+                    ),
+                    "question": "2. Definir o termo inicial da suspensão.",
+                    "reasoning": (
+                        "3. O prazo corre da ciência da primeira diligência "
+                        "infrutífera."
+                    ),
+                    "ruling": "4. Apelação conhecida e desprovida.",
+                },
             }
         }
     }
@@ -421,6 +480,20 @@ def search_decisions(
     )
 
 
+def _sections(ementa: str | None) -> EmentaSections | None:
+    parts = split_ementa(ementa)
+    if parts is None:
+        return None
+
+    return EmentaSections(
+        headnote=parts.headnote.strip(),
+        case=parts.case.text.strip(),
+        question=parts.question.text.strip(),
+        reasoning=parts.reasoning.text.strip(),
+        ruling=parts.ruling.text.strip(),
+    )
+
+
 @router.get(
     "/decisions/{source}/{identifier}",
     summary="Read one decision in full",
@@ -478,4 +551,5 @@ def read_decision(
         summary=summary,
         outcome=row["decisao_texto"],
         full_text_available=row["possui_inteiro_teor"],
+        sections=_sections(row["ementa"]),
     )
