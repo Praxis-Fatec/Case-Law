@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import { searchDecisions, type SearchDecisionMatch } from '../api/search';
+import DecisionResultCard from '../components/DecisionResultCard';
 
 function HomePage() {
   const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
@@ -148,11 +149,7 @@ function HomePage() {
             <ul className="result-list">
               {results.map((result) => (
                 <li key={`${result.source}-${result.identifier}`} className="result-item">
-                  <div className="result-item__header">
-                    <span className="result-item__court">{result.court}</span>
-                    <span className="result-item__number">{result.case_number}</span>
-                  </div>
-                  <p className="result-item__snippet">{result.snippet}</p>
+                  <DecisionResultCard decision={result} />
                 </li>
               ))}
             </ul>
