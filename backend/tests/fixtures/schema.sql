@@ -61,10 +61,13 @@ CREATE TABLE core.carga (
     links_nao_verificados BIGINT      NOT NULL
 );
 
--- Two successful loads, so a test can tell "the most recent" from "any".
+-- Two successful loads, so a test can tell "the most recent" from "any", and a
+-- failed one dated after both: if the endpoint ever sorts before filtering, the
+-- failure becomes the answer and the tests say so.
 INSERT INTO core.carga VALUES
 ('1789000000.0', 'tjdft-jurisdf', '2026-03-16 02:00:00+00', 'concluida', 6, 4, 2, 0, 4),
-('1789000001.0', 'tjdft-jurisdf', '2026-03-17 02:00:00+00', 'concluida', 9, 9, 0, 0, 9);
+('1789000001.0', 'tjdft-jurisdf', '2026-03-17 02:00:00+00', 'concluida', 9, 9, 0, 0, 9),
+('1789000002.0', 'tjdft-jurisdf', '2026-03-18 02:00:00+00', 'falhou',    0, 0, 0, 0, 0);
 
 CREATE TABLE verificacao.link (
     identificador TEXT        PRIMARY KEY,

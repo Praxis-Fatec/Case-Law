@@ -7,7 +7,7 @@ writes, never the courts themselves.
 """
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends
 from psycopg import Connection
@@ -18,7 +18,9 @@ from app.db import get_connection
 
 router = APIRouter(tags=["indicators"])
 
-# A load that failed left nothing behind, so it cannot be what the data is from.
+# A load that failed left nothing behind, so it cannot be what the data is
+# from. Ordering matters: without it PostgreSQL returns whichever row it reaches
+# first, which is right on a small table and wrong on a real one.
 LAST_LOAD_SQL = """
 SELECT concluida_em, registros_gravados
 FROM core.carga
@@ -27,13 +29,29 @@ ORDER BY concluida_em DESC
 LIMIT 1
 """
 
+# Asked only when there is no successful load, to tell a collection that has
+# never been loaded from one whose every load failed. The first is a new
+# environment; the second is a broken pipeline, and they are not the same news.
+ANY_LOAD_SQL = "SELECT COUNT(*) AS total FROM core.carga"
+
+State = Literal["loaded", "all_loads_failed", "never_loaded"]
+
 
 class LastUpdate(BaseModel):
+    state: State = Field(
+        description=(
+            "Which of three situations this is. `loaded` means `updated_at` "
+            "holds a date. `all_loads_failed` means the pipeline ran here and "
+            "never finished — the decisions on this server, if any, are from "
+            "before that. `never_loaded` means nothing has been collected here "
+            "at all. Read this rather than reading the absence of a date."
+        ),
+        examples=["loaded"],
+    )
     updated_at: datetime | None = Field(
         description=(
-            "When the most recent successful load finished, in UTC. `null` only "
-            "when no load has ever succeeded here — read `state` rather than "
-            "reading the absence."
+            "When the most recent successful load finished, in UTC. `null` "
+            "whenever `state` is not `loaded`."
         ),
         examples=["2026-09-18T14:42:03Z"],
     )
@@ -58,10 +76,19 @@ def read_last_update(
         cursor.execute(LAST_LOAD_SQL)
         row = cursor.fetchone()
 
-    if row is None:
-        return LastUpdate(updated_at=None, records=0)
+        if row is not None:
+            return LastUpdate(
+                state="loaded",
+                updated_at=row["concluida_em"],
+                records=row["registros_gravados"],
+            )
 
+        cursor.execute(ANY_LOAD_SQL)
+        counted = cursor.fetchone()
+
+    attempted = bool(counted and counted["total"])
     return LastUpdate(
-        updated_at=row["concluida_em"],
-        records=row["registros_gravados"],
+        state="all_loads_failed" if attempted else "never_loaded",
+        updated_at=None,
+        records=0,
     )

@@ -20,6 +20,21 @@ pytestmark = needs_database
 
 
 @pytest.fixture
+def undone(db: psycopg.Connection[DictRow]) -> Iterator[psycopg.Connection[DictRow]]:
+    """
+    For the tests that have to change the load record to make their point.
+
+    Teardown runs even when the assertion fails, which a rollback at the end of
+    the test body does not: the fixture's connection commits on the way out, so
+    a failing test would leave its change behind for every test after it.
+    """
+    try:
+        yield db
+    finally:
+        db.rollback()
+
+
+@pytest.fixture
 def client(db: psycopg.Connection[DictRow]) -> Iterator[TestClient]:
     app.dependency_overrides[get_connection] = lambda: db
     yield TestClient(app)
@@ -75,3 +90,58 @@ def test_it_reads_the_data_that_travelled_with_the_decisions(
 
     assert "core.carga" in LAST_LOAD_SQL
     assert "NOW()" not in LAST_LOAD_SQL.upper()
+
+
+def test_a_load_that_failed_is_not_the_answer(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    The fixture's failed load is dated after both successful ones. Filtering
+    after sorting, or not filtering at all, would report it — and report a date
+    on which nothing was written.
+    """
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT concluida_em FROM core.carga WHERE status <> 'concluida' "
+            "ORDER BY concluida_em DESC LIMIT 1"
+        )
+        failed = cursor.fetchone()
+
+    assert failed is not None, "the fixture stopped carrying a failed load"
+    body = client.get("/indicators/last-update").json()
+
+    assert body["state"] == "loaded"
+    assert not body["updated_at"].startswith(failed["concluida_em"].date().isoformat())
+
+
+def test_a_collection_whose_every_load_failed_says_so(
+    client: TestClient, undone: psycopg.Connection[DictRow]
+) -> None:
+    """
+    A pipeline that ran and never finished is different news from one that never
+    ran, and a screen has to be able to say which.
+    """
+    undone.execute("UPDATE core.carga SET status = 'falhou'")
+
+    body = client.get("/indicators/last-update").json()
+
+    assert body["state"] == "all_loads_failed"
+    assert body["updated_at"] is None
+    assert body["records"] == 0
+
+
+def test_a_collection_with_no_load_at_all_says_so(
+    client: TestClient, undone: psycopg.Connection[DictRow]
+) -> None:
+    """
+    The card asks for an explicit answer rather than a silent null. `null` alone
+    would leave a screen unable to tell "not loaded yet" from "the field is
+    missing".
+    """
+    undone.execute("DELETE FROM core.carga")
+
+    body = client.get("/indicators/last-update").json()
+
+    assert body["state"] == "never_loaded"
+    assert body["updated_at"] is None
+    assert body["records"] == 0
