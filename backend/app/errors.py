@@ -64,6 +64,25 @@ NOT_FOUND_RESPONSE: dict[int | str, dict[str, Any]] = {
 }
 
 
+def two_examples(
+    first: tuple[str, str, Any], second: tuple[str, str, Any]
+) -> dict[str, Any]:
+    """
+    A 200 that answers two different shapes needs to show both. One example
+    teaches the reader that the other case does not exist.
+    """
+    return {
+        "content": {
+            "application/json": {
+                "examples": {
+                    name: {"summary": summary, "value": value}
+                    for name, summary, value in (first, second)
+                }
+            }
+        }
+    }
+
+
 def _unavailable(detail: str) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": detail})
 

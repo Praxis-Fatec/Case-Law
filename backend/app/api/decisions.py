@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
-from app.errors import DATABASE_RESPONSES, NOT_FOUND_RESPONSE
+from app.errors import DATABASE_RESPONSES, NOT_FOUND_RESPONSE, two_examples
 
 router = APIRouter(tags=["search"])
 
@@ -165,6 +165,50 @@ class DecisionMatch(DecisionBase):
     )
 
 
+# The one response the documentation shows. A test keeps it carrying every
+# field the schema has, so it cannot fall behind as the response grows.
+STRUCTURED_EXAMPLE: dict[str, Any] = {
+    "source": "tjdft-jurisdf",
+    "identifier": "2119440",
+    "court": "TJDFT",
+    "case_number": "0712598-03.2019.8.07.0003",
+    "judging_body": "3ª TURMA CÍVEL",
+    "reporting_judge": "JOÃO EGMONT",
+    "decided_on": "2026-06-11",
+    "small_claims": False,
+    "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
+    "source_url_reachable": True,
+    "class_code": 1116,
+    "judged_on": "2026-06-11",
+    "published_on": "2026-06-18",
+    "summary": (
+        "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. "
+        "<mark>PRESCRIÇÃO</mark> INTERCORRENTE. I. CASO EM EXAME 1. "
+        "Apelação interposta contra sentença que julgou extinta a "
+        "execução fiscal. II. QUESTÃO EM DISCUSSÃO 2. Definir o termo "
+        "inicial da suspensão. III. RAZÕES DE DECIDIR 3. O prazo corre "
+        "da ciência da primeira diligência infrutífera. IV. DISPOSITIVO "
+        "4. Apelação conhecida e desprovida."
+    ),
+    "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
+    "full_text_available": True,
+    "sections": {
+        "headnote": (
+            "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE."
+        ),
+        "case": (
+            "1. Apelação interposta contra sentença que julgou "
+            "extinta a execução fiscal."
+        ),
+        "question": "2. Definir o termo inicial da suspensão.",
+        "reasoning": (
+            "3. O prazo corre da ciência da primeira diligência infrutífera."
+        ),
+        "ruling": "4. Apelação conhecida e desprovida.",
+    },
+}
+
+
 class EmentaSections(BaseModel):
     """
     The four sections of the national court council's shape, as the court wrote
@@ -241,52 +285,7 @@ class Decision(DecisionBase):
         ),
     )
 
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "source": "tjdft-jurisdf",
-                "identifier": "2119440",
-                "court": "TJDFT",
-                "case_number": "0712598-03.2019.8.07.0003",
-                "judging_body": "3ª TURMA CÍVEL",
-                "reporting_judge": "JOÃO EGMONT",
-                "decided_on": "2026-06-11",
-                "small_claims": False,
-                "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
-                "source_url_reachable": True,
-                "class_code": 1116,
-                "judged_on": "2026-06-11",
-                "published_on": "2026-06-18",
-                "summary": (
-                    "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. "
-                    "<mark>PRESCRIÇÃO</mark> INTERCORRENTE. I. CASO EM EXAME 1. "
-                    "Apelação interposta contra sentença que julgou extinta a "
-                    "execução fiscal. II. QUESTÃO EM DISCUSSÃO 2. Definir o termo "
-                    "inicial da suspensão. III. RAZÕES DE DECIDIR 3. O prazo corre "
-                    "da ciência da primeira diligência infrutífera. IV. DISPOSITIVO "
-                    "4. Apelação conhecida e desprovida."
-                ),
-                "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
-                "full_text_available": True,
-                "sections": {
-                    "headnote": (
-                        "PROCESSUAL CIVIL E TRIBUTÁRIO. EXECUÇÃO FISCAL. "
-                        "PRESCRIÇÃO INTERCORRENTE."
-                    ),
-                    "case": (
-                        "1. Apelação interposta contra sentença que julgou "
-                        "extinta a execução fiscal."
-                    ),
-                    "question": "2. Definir o termo inicial da suspensão.",
-                    "reasoning": (
-                        "3. O prazo corre da ciência da primeira diligência "
-                        "infrutífera."
-                    ),
-                    "ruling": "4. Apelação conhecida e desprovida.",
-                },
-            }
-        }
-    }
+    model_config = {"json_schema_extra": {"example": STRUCTURED_EXAMPLE}}
 
 
 class SearchResults(BaseModel):
@@ -497,7 +496,25 @@ def _sections(ementa: str | None) -> EmentaSections | None:
 @router.get(
     "/decisions/{source}/{identifier}",
     summary="Read one decision in full",
-    responses={**DATABASE_RESPONSES, **NOT_FOUND_RESPONSE},
+    responses={
+        **DATABASE_RESPONSES,
+        **NOT_FOUND_RESPONSE,
+        200: two_examples(
+            (
+                "structured",
+                "Written in the four sections, which 78,9% of the collection is.",
+                STRUCTURED_EXAMPLE,
+            ),
+            (
+                "free prose",
+                (
+                    "Not written in them: `sections` is null and `summary` is "
+                    "all there is to read."
+                ),
+                {**STRUCTURED_EXAMPLE, "sections": None},
+            ),
+        ),
+    },
 )
 def read_decision(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
