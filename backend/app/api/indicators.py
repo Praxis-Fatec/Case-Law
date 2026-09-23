@@ -7,7 +7,7 @@ writes, never the courts themselves.
 """
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends
 from psycopg import Connection
@@ -15,6 +15,7 @@ from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
 from app.db import get_connection
+from app.errors import NOT_PUBLISHED, UNAVAILABLE
 
 router = APIRouter(tags=["indicators"])
 
@@ -35,6 +36,45 @@ LIMIT 1
 ANY_LOAD_SQL = "SELECT COUNT(*) AS total FROM core.carga"
 
 State = Literal["loaded", "all_loads_failed", "never_loaded"]
+
+# One example per state. A single example would teach a reader that the other
+# two do not exist, and they are exactly the cases worth handling.
+ANSWERS: dict[str, dict[str, Any]] = {
+    "loaded": {
+        "summary": "The usual answer: a load finished here and left a date.",
+        "value": {
+            "state": "loaded",
+            "updated_at": "2026-09-18T14:42:03Z",
+            "records": 7,
+        },
+    },
+    "all_loads_failed": {
+        "summary": "The pipeline ran here and never finished.",
+        "value": {"state": "all_loads_failed", "updated_at": None, "records": 0},
+    },
+    "never_loaded": {
+        "summary": "Nothing has been collected here yet.",
+        "value": {"state": "never_loaded", "updated_at": None, "records": 0},
+    },
+}
+
+RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {"content": {"application/json": {"examples": ANSWERS}}},
+    503: {
+        "description": (
+            "The load record has not been published to this environment yet, or "
+            "the database is not answering. Neither means the request was wrong."
+        ),
+        "content": {
+            "application/json": {
+                "examples": {
+                    "not published": {"value": {"detail": NOT_PUBLISHED}},
+                    "database down": {"value": {"detail": UNAVAILABLE}},
+                }
+            }
+        },
+    },
+}
 
 
 class LastUpdate(BaseModel):
@@ -61,7 +101,11 @@ class LastUpdate(BaseModel):
     )
 
 
-@router.get("/indicators/last-update", summary="When the data was last refreshed")
+@router.get(
+    "/indicators/last-update",
+    summary="When the data was last refreshed",
+    responses=RESPONSES,
+)
 def read_last_update(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
 ) -> LastUpdate:
