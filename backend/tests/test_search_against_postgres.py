@@ -54,7 +54,7 @@ def test_the_fixture_loads(db: psycopg.Connection[DictRow]) -> None:
         row = cursor.fetchone()
 
     assert row is not None
-    assert row["total"] == 3
+    assert row["total"] == 4
 
 
 def test_searching_without_accents_finds_accented_text(
