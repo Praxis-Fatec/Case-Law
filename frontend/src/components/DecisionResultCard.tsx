@@ -157,7 +157,9 @@ function DecisionResultCard({ decision }: DecisionResultCardProps) {
         <div className="decision-result-card__title">
           <span className="decision-result-card__court">{getDisplayValue(decision.court)}</span>
           <span className="decision-result-card__separator">•</span>
-          <span className="decision-result-card__process">{getDisplayValue(decision.case_number)}</span>
+          <span className="decision-result-card__process">
+            {getDisplayValue(decision.case_number)}
+          </span>
         </div>
       </header>
 
