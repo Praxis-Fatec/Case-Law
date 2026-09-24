@@ -46,6 +46,19 @@ INSERT INTO core.fonte VALUES (
     'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'
 );
 
+-- The same row as pipeline/transformations/seeds/tribunal.csv.
+CREATE TABLE core.tribunal (
+    sigla  TEXT NOT NULL PRIMARY KEY,
+    nome   TEXT NOT NULL,
+    esfera TEXT,
+    uf     TEXT
+);
+
+INSERT INTO core.tribunal VALUES (
+    'TJDFT', 'Tribunal de Justiça do Distrito Federal e dos Territórios',
+    'distrital', 'DF'
+);
+
 -- Written by the pipeline's link check, read by the core model.
 DROP SCHEMA IF EXISTS verificacao CASCADE;
 CREATE SCHEMA verificacao;
