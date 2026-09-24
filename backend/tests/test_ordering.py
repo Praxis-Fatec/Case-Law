@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow
 
-from app.api.decisions import DEFAULT_ORDER, ORDERINGS, PAGE_SQL_BY_ORDER
+from app.api.decisions import DEFAULT_ORDER, ORDERINGS, _page_sql
 from app.db import get_connection
 from app.main import app
 from tests.conftest import needs_database
@@ -90,8 +90,9 @@ def test_every_ordering_ends_on_the_same_tiebreak(client: TestClient) -> None:
 def test_the_ordering_is_chosen_from_a_closed_set_not_built_from_input(
     client: TestClient,
 ) -> None:
-    assert set(PAGE_SQL_BY_ORDER) == set(ORDERINGS)
-    for sql in PAGE_SQL_BY_ORDER.values():
+    for clause in ORDERINGS.values():
+        sql = _page_sql("", clause)
+        assert clause.strip() in sql
         assert "%(order)s" not in sql
 
 

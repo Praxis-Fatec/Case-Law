@@ -5,7 +5,7 @@ import pytest
 from psycopg.rows import DictRow
 
 from tests.conftest import FIXTURES, needs_database
-from tests.test_seal_filter import transformation
+from tests.test_seal_filter import MODEL, transformation
 
 pytestmark = needs_database
 
@@ -74,3 +74,37 @@ def test_the_seed_carries_a_pattern_for_every_source() -> None:
     assert len(lines) > 1, "the seed has no source"
     for line in lines[1:]:
         assert "{identificador}" in line
+
+
+def test_a_record_with_no_identifier_gets_no_link(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
+    db.execute(
+        'INSERT INTO raw.acordao_tjdft (identificador, "dataJulgamento", ementa, '
+        '"segredoJustica", _dlt_load_id) '
+        "VALUES (NULL, '2026-03-20', 'Ementa sem identificador.', FALSE, '1789000000.0')"
+    )
+    db.execute("DROP TABLE IF EXISTS core.decisao_sem_id")
+    db.execute(f"CREATE TABLE core.decisao_sem_id AS {transformation()}")
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT url_fonte FROM core.decisao_sem_id WHERE identificador_fonte IS NULL"
+        )
+        rows = cursor.fetchall()
+
+    assert rows, "the record without an identifier did not reach the transformation"
+    for row in rows:
+        assert row["url_fonte"] is None
+
+
+def test_a_link_that_could_not_be_built_never_reaches_a_server(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    model = MODEL.read_text(encoding="utf-8")
+    audits = model.split("audits (", 1)[1].split("\n  )", 1)[0]
+
+    assert "not_null" in audits
+    assert "url_fonte" in audits
+    assert "identificador_fonte" in audits
