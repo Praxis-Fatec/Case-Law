@@ -110,6 +110,29 @@ def test_a_publication_older_than_the_code_answers_503(client_failing_with) -> N
     assert response.json()["detail"] == OUT_OF_DATE
 
 
+@pytest.mark.parametrize(
+    ("error", "detail"),
+    [
+        (UndefinedTable('relation "core.tribunal" does not exist'), NOT_PUBLISHED),
+        (psycopg.errors.UndefinedColumn('column "nome" does not exist'), OUT_OF_DATE),
+        (psycopg.OperationalError("connection refused"), UNAVAILABLE),
+    ],
+)
+def test_the_court_list_never_answers_a_failure_as_an_empty_list(
+    client_failing_with, error: Exception, detail: str
+) -> None:
+    """
+    An empty list means no court has a decision yet. A screen would read a
+    failure presented that way as a collection with nothing in it.
+    """
+    client = client_failing_with(error)
+
+    response = client.get("/courts")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": detail}
+
+
 def test_the_detail_answers_the_same_way(client_failing_with) -> None:
     client = client_failing_with(
         psycopg.errors.UndefinedColumn('column "link_valido" does not exist')

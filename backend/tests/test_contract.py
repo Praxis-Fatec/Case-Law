@@ -246,6 +246,43 @@ def test_the_documented_inverted_range_is_the_one_the_search_sends(
     assert response.json() == promised["value"]
 
 
+def test_the_court_list_is_documented_with_its_shape(client: TestClient) -> None:
+    spec = client.get("/openapi.json").json()
+    operation = spec["paths"]["/courts"]["get"]
+    schemas = spec["components"]["schemas"]
+
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/Courts"
+    }
+    assert set(schemas["Courts"]["properties"]) == {"courts"}
+    assert set(schemas["Court"]["properties"]) == {"abbreviation", "name"}
+    assert set(schemas["Court"]["required"]) == {"abbreviation", "name"}
+    assert "with no decision yet, is left out" in operation["description"]
+
+
+def test_the_court_list_documents_an_empty_answer_and_its_failures(
+    client: TestClient,
+) -> None:
+    responses = documented(client, "/courts")
+    shown = responses["200"]["content"]["application/json"]["examples"]
+    failures = responses["503"]["content"]["application/json"]["examples"]
+
+    assert {"courts": []} in [named["value"] for named in shown.values()]
+    assert failures
+    for named in failures.values():
+        assert isinstance(named["value"]["detail"], str)
+
+
+def test_the_documented_court_example_is_what_the_endpoint_serves(
+    client: TestClient,
+) -> None:
+    """The example is hand written. This pins it against the fixture's answer."""
+    responses = documented(client, "/courts")
+    shown = responses["200"]["content"]["application/json"]["examples"]
+
+    assert client.get("/courts").json() == shown["with decisions"]["value"]
+
+
 def test_the_search_documents_every_filter(client: TestClient) -> None:
     search = client.get("/openapi.json").json()["paths"]["/decisions"]["get"]
     parameters = {parameter["name"]: parameter for parameter in search["parameters"]}
