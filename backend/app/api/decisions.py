@@ -95,21 +95,36 @@ def _tribunal_filter_sql(tribunals: list[str] | None) -> str:
     return " AND tribunal_sigla = ANY(%(tribunais)s)"
 
 
-def _count_sql(tribunals: list[str] | None) -> str:
-    if not tribunals:
+def _date_filter_sql(date_from: date | None, date_to: date | None) -> str:
+    clauses: list[str] = []
+    if date_from is not None:
+        clauses.append(" AND data_referencia >= %(date_from)s")
+    if date_to is not None:
+        clauses.append(" AND data_referencia <= %(date_to)s")
+    return "".join(clauses)
+
+
+def _count_sql(
+    tribunals: list[str] | None, date_from: date | None = None, date_to: date | None = None
+) -> str:
+    filters = _tribunal_filter_sql(tribunals) + _date_filter_sql(date_from, date_to)
+    if not filters:
         return COUNT_SQL
-    return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{_tribunal_filter_sql(tribunals)}"
+    return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{filters}"
 
 
-def _page_sql(tribunals: list[str] | None) -> str:
-    if not tribunals:
+def _page_sql(
+    tribunals: list[str] | None, date_from: date | None = None, date_to: date | None = None
+) -> str:
+    filters = _tribunal_filter_sql(tribunals) + _date_filter_sql(date_from, date_to)
+    if not filters:
         return PAGE_SQL
 
     return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
     FROM core.decisao
-    WHERE {MATCH}{_tribunal_filter_sql(tribunals)}
+    WHERE {MATCH}{filters}
     {ORDERING}
     LIMIT %(limit)s OFFSET %(offset)s
 )
@@ -495,6 +510,18 @@ def search_decisions(
             examples=[["TJDFT"], ["TJDFT", "STJ"]],
         ),
     ] = None,
+    date_from: Annotated[
+        date | None,
+        Query(
+            description="Inclusive lower bound for data_referencia."
+        ),
+    ] = None,
+    date_to: Annotated[
+        date | None,
+        Query(
+            description="Inclusive upper bound for data_referencia."
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
 ) -> SearchResults:
@@ -509,6 +536,12 @@ def search_decisions(
     """
     page_size = min(page_size, settings.search_max_page_size)
 
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(
+            status_code=400,
+            detail="date_from must be less than or equal to date_to.",
+        )
+
     normalized_tribunals = [
         value.strip() for value in (tribunal or []) if isinstance(value, str) and value.strip()
     ]
@@ -522,9 +555,13 @@ def search_decisions(
     }
     if tribunais:
         parameters["tribunais"] = tribunais
+    if date_from is not None:
+        parameters["date_from"] = date_from
+    if date_to is not None:
+        parameters["date_to"] = date_to
 
-    count_sql = _count_sql(tribunais)
-    page_sql = _page_sql(tribunais)
+    count_sql = _count_sql(tribunais, date_from, date_to)
+    page_sql = _page_sql(tribunais, date_from, date_to)
 
     with connection.cursor() as cursor:
         cursor.execute(count_sql, parameters)

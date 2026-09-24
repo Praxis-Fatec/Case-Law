@@ -287,6 +287,174 @@ def test_search_filters_by_multiple_tribunais(
     assert body["results"]
 
 
+def test_search_filters_by_date_range_including_bounds(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 3
+    database.answer = lambda statement, parameters: (
+        [{"total": 3}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 1)},
+            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 15)},
+            {**row_for_tribunal("TJDFT", "2084702"), "data_referencia": date(2024, 1, 31)},
+        ]
+        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" in statement
+        else []
+    )
+
+    body = client.get(
+        "/decisions",
+        params={"q": "dano moral", "date_from": "2024-01-01", "date_to": "2024-01-31"},
+    ).json()
+
+    assert body["total"] == 3
+    assert len(body["results"]) == 3
+    assert all(
+        date(2024, 1, 1) <= date.fromisoformat(result["decided_on"]) <= date(2024, 1, 31)
+        for result in body["results"]
+    )
+
+
+def test_search_filters_by_only_start_date(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 2
+    database.answer = lambda statement, parameters: (
+        [{"total": 2}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 10)},
+            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 20)},
+        ]
+        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" not in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "date_from": "2024-01-10"}).json()
+
+    assert body["total"] == 2
+    assert all(date.fromisoformat(result["decided_on"]) >= date(2024, 1, 10) for result in body["results"])
+
+
+def test_search_filters_by_only_end_date(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 2
+    database.answer = lambda statement, parameters: (
+        [{"total": 2}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 5)},
+            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 12)},
+        ]
+        if "data_referencia <= %(date_to)s" in statement and "data_referencia >= %(date_from)s" not in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "date_to": "2024-01-12"}).json()
+
+    assert body["total"] == 2
+    assert all(date.fromisoformat(result["decided_on"]) <= date(2024, 1, 12) for result in body["results"])
+
+
+def test_search_rejects_inverted_date_range(client: TestClient) -> None:
+    response = client.get(
+        "/decisions",
+        params={"q": "dano moral", "date_from": "2024-03-05", "date_to": "2024-03-01"},
+    )
+
+    assert response.status_code == 400
+    assert "date_from" in response.json()["detail"].lower()
+
+
+def test_search_rejects_invalid_date_format(client: TestClient) -> None:
+    response = client.get(
+        "/decisions",
+        params={"q": "dano moral", "date_from": "not-a-date"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_search_combines_tribunal_expression_and_dates(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 1
+    database.answer = lambda statement, parameters: (
+        [{"total": 1}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {
+                **row_for_tribunal("STJ", "3084700"),
+                "data_referencia": date(2024, 2, 10),
+            }
+        ]
+        if "tribunal_sigla = ANY" in statement and "data_referencia >= %(date_from)s" in statement
+        else []
+    )
+
+    body = client.get(
+        "/decisions",
+        params={
+            "q": '"dano moral"',
+            "tribunal": ["TJDFT", "STJ"],
+            "date_from": "2024-02-01",
+            "date_to": "2024-02-29",
+        },
+    ).json()
+
+    assert body["total"] == 1
+    assert body["results"][0]["court"] == "STJ"
+    assert date.fromisoformat(body["results"][0]["decided_on"]) == date(2024, 2, 10)
+
+
+def test_search_total_reflects_date_filter(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 4
+    database.answer = lambda statement, parameters: (
+        [{"total": 4}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 1)},
+            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 10)},
+            {**row_for_tribunal("TJDFT", "2084702"), "data_referencia": date(2024, 1, 20)},
+            {**row_for_tribunal("TJDFT", "2084703"), "data_referencia": date(2024, 1, 30)},
+        ]
+        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" in statement
+        else []
+    )
+
+    body = client.get(
+        "/decisions",
+        params={"q": "dano moral", "date_from": "2024-01-10", "date_to": "2024-01-30"},
+    ).json()
+
+    assert body["total"] == 4
+    assert len(body["results"]) == 4
+
+
+def test_search_excludes_rows_missing_the_date_used_for_filter(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 1
+    database.answer = lambda statement, parameters: (
+        [{"total": 1}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 15)},
+        ]
+        if "data_referencia >= %(date_from)s" in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "date_from": "2024-01-01"}).json()
+
+    assert body["total"] == 1
+    assert len(body["results"]) == 1
+
+
 def test_search_combines_tribunal_filter_with_expression(
     client: TestClient, database: FakeDatabase
 ) -> None:
