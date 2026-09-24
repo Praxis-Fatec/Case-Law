@@ -35,7 +35,11 @@ MATCHING_ROW = {
 
 
 def row_for_tribunal(tribunal_sigla: str, identifier: str) -> dict[str, Any]:
-    row = {**MATCHING_ROW, "tribunal_sigla": tribunal_sigla, "identificador_fonte": identifier}
+    row = {
+        **MATCHING_ROW,
+        "tribunal_sigla": tribunal_sigla,
+        "identificador_fonte": identifier,
+    }
     row["url_fonte"] = f"https://example.com/{tribunal_sigla.lower()}/{identifier}"
     row["snippet"] = f"<mark>{tribunal_sigla}</mark> dano moral."
     return row
@@ -239,6 +243,28 @@ def test_search_without_filter_keeps_the_previous_behavior(
     assert {result["court"] for result in body["results"]} <= {"TJDFT", "STJ"}
 
 
+def test_search_without_filter_runs_the_statements_it_ran_before(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    client.get("/decisions", params={"q": "dano moral"})
+
+    assert database.statements == [COUNT_SQL, PAGE_SQL]
+    assert not {"tribunais", "date_from", "date_to"} & set(database.parameters[0])
+
+
+def test_blank_and_repeated_tribunais_are_ignored(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.answer = lambda statement, parameters: [{"total": 0}]
+
+    client.get(
+        "/decisions",
+        params={"q": "dano moral", "tribunal": ["TJDFT", " ", "STJ", "TJDFT"]},
+    )
+
+    assert database.parameters[0]["tribunais"] == ["TJDFT", "STJ"]
+
+
 def test_search_filters_by_one_tribunal(
     client: TestClient, database: FakeDatabase
 ) -> None:
@@ -254,7 +280,9 @@ def test_search_filters_by_one_tribunal(
         else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}
+    ).json()
 
     assert body["total"] == 2
     assert body["results"]
@@ -295,11 +323,21 @@ def test_search_filters_by_date_range_including_bounds(
         [{"total": 3}]
         if statement.startswith(COUNT_SQL)
         else [
-            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 1)},
-            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 15)},
-            {**row_for_tribunal("TJDFT", "2084702"), "data_referencia": date(2024, 1, 31)},
+            {
+                **row_for_tribunal("TJDFT", "2084700"),
+                "data_referencia": date(2024, 1, 1),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084701"),
+                "data_referencia": date(2024, 1, 15),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084702"),
+                "data_referencia": date(2024, 1, 31),
+            },
         ]
-        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" in statement
+        if "data_referencia >= %(date_from)s" in statement
+        and "data_referencia <= %(date_to)s" in statement
         else []
     )
 
@@ -311,7 +349,9 @@ def test_search_filters_by_date_range_including_bounds(
     assert body["total"] == 3
     assert len(body["results"]) == 3
     assert all(
-        date(2024, 1, 1) <= date.fromisoformat(result["decided_on"]) <= date(2024, 1, 31)
+        date(2024, 1, 1)
+        <= date.fromisoformat(result["decided_on"])
+        <= date(2024, 1, 31)
         for result in body["results"]
     )
 
@@ -324,17 +364,29 @@ def test_search_filters_by_only_start_date(
         [{"total": 2}]
         if statement.startswith(COUNT_SQL)
         else [
-            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 10)},
-            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 20)},
+            {
+                **row_for_tribunal("TJDFT", "2084700"),
+                "data_referencia": date(2024, 1, 10),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084701"),
+                "data_referencia": date(2024, 1, 20),
+            },
         ]
-        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" not in statement
+        if "data_referencia >= %(date_from)s" in statement
+        and "data_referencia <= %(date_to)s" not in statement
         else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "date_from": "2024-01-10"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "date_from": "2024-01-10"}
+    ).json()
 
     assert body["total"] == 2
-    assert all(date.fromisoformat(result["decided_on"]) >= date(2024, 1, 10) for result in body["results"])
+    assert all(
+        date.fromisoformat(result["decided_on"]) >= date(2024, 1, 10)
+        for result in body["results"]
+    )
 
 
 def test_search_filters_by_only_end_date(
@@ -345,17 +397,29 @@ def test_search_filters_by_only_end_date(
         [{"total": 2}]
         if statement.startswith(COUNT_SQL)
         else [
-            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 5)},
-            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 12)},
+            {
+                **row_for_tribunal("TJDFT", "2084700"),
+                "data_referencia": date(2024, 1, 5),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084701"),
+                "data_referencia": date(2024, 1, 12),
+            },
         ]
-        if "data_referencia <= %(date_to)s" in statement and "data_referencia >= %(date_from)s" not in statement
+        if "data_referencia <= %(date_to)s" in statement
+        and "data_referencia >= %(date_from)s" not in statement
         else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "date_to": "2024-01-12"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "date_to": "2024-01-12"}
+    ).json()
 
     assert body["total"] == 2
-    assert all(date.fromisoformat(result["decided_on"]) <= date(2024, 1, 12) for result in body["results"])
+    assert all(
+        date.fromisoformat(result["decided_on"]) <= date(2024, 1, 12)
+        for result in body["results"]
+    )
 
 
 def test_search_rejects_inverted_date_range(client: TestClient) -> None:
@@ -390,7 +454,8 @@ def test_search_combines_tribunal_expression_and_dates(
                 "data_referencia": date(2024, 2, 10),
             }
         ]
-        if "tribunal_sigla = ANY" in statement and "data_referencia >= %(date_from)s" in statement
+        if "tribunal_sigla = ANY" in statement
+        and "data_referencia >= %(date_from)s" in statement
         else []
     )
 
@@ -417,12 +482,25 @@ def test_search_total_reflects_date_filter(
         [{"total": 4}]
         if statement.startswith(COUNT_SQL)
         else [
-            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 1)},
-            {**row_for_tribunal("TJDFT", "2084701"), "data_referencia": date(2024, 1, 10)},
-            {**row_for_tribunal("TJDFT", "2084702"), "data_referencia": date(2024, 1, 20)},
-            {**row_for_tribunal("TJDFT", "2084703"), "data_referencia": date(2024, 1, 30)},
+            {
+                **row_for_tribunal("TJDFT", "2084700"),
+                "data_referencia": date(2024, 1, 1),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084701"),
+                "data_referencia": date(2024, 1, 10),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084702"),
+                "data_referencia": date(2024, 1, 20),
+            },
+            {
+                **row_for_tribunal("TJDFT", "2084703"),
+                "data_referencia": date(2024, 1, 30),
+            },
         ]
-        if "data_referencia >= %(date_from)s" in statement and "data_referencia <= %(date_to)s" in statement
+        if "data_referencia >= %(date_from)s" in statement
+        and "data_referencia <= %(date_to)s" in statement
         else []
     )
 
@@ -443,13 +521,18 @@ def test_search_excludes_rows_missing_the_date_used_for_filter(
         [{"total": 1}]
         if statement.startswith(COUNT_SQL)
         else [
-            {**row_for_tribunal("TJDFT", "2084700"), "data_referencia": date(2024, 1, 15)},
+            {
+                **row_for_tribunal("TJDFT", "2084700"),
+                "data_referencia": date(2024, 1, 15),
+            },
         ]
         if "data_referencia >= %(date_from)s" in statement
         else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "date_from": "2024-01-01"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "date_from": "2024-01-01"}
+    ).json()
 
     assert body["total"] == 1
     assert len(body["results"]) == 1
@@ -489,7 +572,9 @@ def test_search_total_reflects_tribunal_filters(
         else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}
+    ).json()
 
     assert body["total"] == 7
     assert len(body["results"]) == 7
@@ -501,14 +586,12 @@ def test_search_returns_empty_results_for_a_tribunal_filter_with_no_match(
 ) -> None:
     database.total = 0
     database.answer = lambda statement, parameters: (
-        [{"total": 0}]
-        if statement.startswith(COUNT_SQL)
-        else []
-        if "tribunal_sigla = ANY" in statement
-        else []
+        [{"total": 0}] if statement.startswith(COUNT_SQL) else []
     )
 
-    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TRIBUNAL_INEXISTENTE"}).json()
+    body = client.get(
+        "/decisions", params={"q": "dano moral", "tribunal": "TRIBUNAL_INEXISTENTE"}
+    ).json()
 
     assert body["total"] == 0
     assert body["results"] == []
