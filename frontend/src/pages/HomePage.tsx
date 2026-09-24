@@ -2,10 +2,25 @@ import { useState } from 'react';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import { searchDecisions, type SearchDecisionMatch } from '../api/search';
 import DecisionResultCard from '../components/DecisionResultCard';
+import SearchFilters, { type SearchFilterValues } from '../components/SearchFilters';
+
+const FILTERS_PANEL_ID = 'search-filters';
+
+const NO_FILTERS: SearchFilterValues = {
+  courts: [],
+  dateFrom: '',
+  dateTo: '',
+  publishedFrom: '',
+  publishedTo: '',
+};
 
 function HomePage() {
   const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
   const [mode, setMode] = useState<'free' | 'exact'>('free');
+  // What the panel shows while it is being edited. Not sent anywhere yet: a
+  // change here must never start a search on its own.
+  const [filterDraft, setFilterDraft] = useState<SearchFilterValues>(NO_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [results, setResults] = useState<SearchDecisionMatch[]>([]);
@@ -51,70 +66,82 @@ function HomePage() {
   return (
     <main className="search-page">
       <div className="search-layout">
-        <form className="legal-search" onSubmit={handleSubmit} noValidate>
-          <div className="legal-search__field">
-            <MagnifyingGlass size={20} aria-hidden="true" />
+        <form className="search-form" onSubmit={handleSubmit} noValidate>
+          <div className="legal-search">
+            <div className="legal-search__field">
+              <MagnifyingGlass size={20} aria-hidden="true" />
 
-            <label className="sr-only" htmlFor="legal-search-input">
-              Pesquisar decisões
-            </label>
+              <label className="sr-only" htmlFor="legal-search-input">
+                Pesquisar decisões
+              </label>
 
-            <input
-              id="legal-search-input"
-              type="search"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder="Pesquise um assunto, fundamento ou frase exata"
-              autoComplete="off"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="legal-search__actions">
-            <div className="search-mode" role="group" aria-label="Modalidade da pesquisa">
-              <span
-                className="search-mode__indicator"
-                style={{
-                  transform: mode === 'free' ? 'translateX(0%)' : 'translateX(100%)',
-                }}
+              <input
+                id="legal-search-input"
+                type="search"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder="Pesquise um assunto, fundamento ou frase exata"
+                autoComplete="off"
+                disabled={isLoading}
               />
-
-              <button
-                type="button"
-                className={mode === 'free' ? 'is-active' : ''}
-                aria-pressed={mode === 'free'}
-                onClick={() => setMode('free')}
-                disabled={isLoading}
-              >
-                Termo livre
-              </button>
-
-              <button
-                type="button"
-                className={mode === 'exact' ? 'is-active' : ''}
-                aria-pressed={mode === 'exact'}
-                onClick={() => setMode('exact')}
-                disabled={isLoading}
-              >
-                Frase exata
-              </button>
             </div>
 
-            <button
-              type="button"
-              className="filter-button"
-              aria-label="Abrir filtros"
-              disabled={isLoading}
-            >
-              <SlidersHorizontal size={17} aria-hidden="true" />
-              <span>Filtros</span>
-              <span className="filter-button__count">4</span>
-            </button>
+            <div className="legal-search__actions">
+              <div className="search-mode" role="group" aria-label="Modalidade da pesquisa">
+                <span
+                  className="search-mode__indicator"
+                  style={{
+                    transform: mode === 'free' ? 'translateX(0%)' : 'translateX(100%)',
+                  }}
+                />
 
-            <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
-              {isLoading ? 'Pesquisando...' : 'Pesquisar'}
-            </button>
+                <button
+                  type="button"
+                  className={mode === 'free' ? 'is-active' : ''}
+                  aria-pressed={mode === 'free'}
+                  onClick={() => setMode('free')}
+                  disabled={isLoading}
+                >
+                  Termo livre
+                </button>
+
+                <button
+                  type="button"
+                  className={mode === 'exact' ? 'is-active' : ''}
+                  aria-pressed={mode === 'exact'}
+                  onClick={() => setMode('exact')}
+                  disabled={isLoading}
+                >
+                  Frase exata
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="filter-button"
+                aria-expanded={filtersOpen}
+                aria-controls={FILTERS_PANEL_ID}
+                onClick={() => setFiltersOpen((open) => !open)}
+                disabled={isLoading}
+              >
+                <SlidersHorizontal size={17} aria-hidden="true" />
+                <span>Filtros</span>
+              </button>
+
+              <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
+                {isLoading ? 'Pesquisando...' : 'Pesquisar'}
+              </button>
+            </div>
           </div>
+
+          {/* Hidden rather than unmounted, so closing it keeps what was chosen. */}
+          <SearchFilters
+            id={FILTERS_PANEL_ID}
+            values={filterDraft}
+            onChange={setFilterDraft}
+            hidden={!filtersOpen}
+            disabled={isLoading}
+          />
         </form>
 
         <section className="search-results" aria-live="polite">
