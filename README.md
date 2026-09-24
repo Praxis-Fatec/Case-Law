@@ -66,6 +66,14 @@ The profiles represent who receives value from the feature. They do not indicate
 
 ---
 
+### Sprint Backlog
+
+<p align="left">
+  <a href="https://github.com/Praxis-Fatec/Case-Law/blob/main/documentation/sprints/sprint-1/sprint-1-backlog">
+    <img src="https://img.shields.io/badge/Backlog%20Sprint%201-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 1" />
+  </a>
+</p>
+
 ## Team <a id="team"></a>
 
 | Member | Role | GitHub | LinkedIn |
