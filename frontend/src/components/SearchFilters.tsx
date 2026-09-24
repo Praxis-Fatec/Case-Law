@@ -2,19 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
 import { listCourts, type Court } from '../api/courts';
-
-export type SearchFilterValues = {
-  // Abbreviations exactly as the API lists them. Empty means every court.
-  courts: string[];
-  // `YYYY-MM-DD`, what a date input holds and what the API reads. Empty means
-  // the range is open on that side.
-  dateFrom: string;
-  dateTo: string;
-  // The publication date alone. A decision without one is left out while
-  // either end is set.
-  publishedFrom: string;
-  publishedTo: string;
-};
+import type { FilterErrors, SearchFilterValues } from '../search/filters';
 
 type DateRangeGroupProps = {
   id: string;
@@ -23,14 +11,29 @@ type DateRangeGroupProps = {
   from: string;
   to: string;
   onChange: (from: string, to: string) => void;
+  error?: string;
   disabled: boolean;
 };
 
-function DateRangeGroup({ id, legend, note, from, to, onChange, disabled }: DateRangeGroupProps) {
+function DateRangeGroup({
+  id,
+  legend,
+  note,
+  from,
+  to,
+  onChange,
+  error,
+  disabled,
+}: DateRangeGroupProps) {
   const noteId = `${id}-note`;
+  const errorId = `${id}-error`;
+  const describedBy = error ? `${errorId} ${noteId}` : noteId;
 
   return (
-    <fieldset className="date-group" disabled={disabled}>
+    <fieldset
+      className={error ? 'date-group date-group--invalid' : 'date-group'}
+      disabled={disabled}
+    >
       <legend className="date-group__legend">{legend}</legend>
 
       <div className="date-range">
@@ -41,7 +44,8 @@ function DateRangeGroup({ id, legend, note, from, to, onChange, disabled }: Date
             type="date"
             value={from}
             onChange={(event) => onChange(event.target.value, to)}
-            aria-describedby={noteId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
           />
         </div>
 
@@ -52,10 +56,17 @@ function DateRangeGroup({ id, legend, note, from, to, onChange, disabled }: Date
             type="date"
             value={to}
             onChange={(event) => onChange(from, event.target.value)}
-            aria-describedby={noteId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
           />
         </div>
       </div>
+
+      {error && (
+        <p className="date-group__error" id={errorId} role="alert">
+          {error}
+        </p>
+      )}
 
       <p className="date-group__note" id={noteId}>
         {note}
@@ -71,11 +82,19 @@ type SearchFiltersProps = {
   id: string;
   values: SearchFilterValues;
   onChange: (values: SearchFilterValues) => void;
+  errors?: FilterErrors;
   hidden: boolean;
   disabled?: boolean;
 };
 
-function SearchFilters({ id, values, onChange, hidden, disabled = false }: SearchFiltersProps) {
+function SearchFilters({
+  id,
+  values,
+  onChange,
+  errors = {},
+  hidden,
+  disabled = false,
+}: SearchFiltersProps) {
   const [courtsState, setCourtsState] = useState<CourtsState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -179,6 +198,7 @@ function SearchFilters({ id, values, onChange, hidden, disabled = false }: Searc
           from={values.dateFrom}
           to={values.dateTo}
           onChange={(dateFrom, dateTo) => onChange({ ...values, dateFrom, dateTo })}
+          error={errors.judged}
           disabled={disabled}
         />
 
@@ -191,6 +211,7 @@ function SearchFilters({ id, values, onChange, hidden, disabled = false }: Searc
           onChange={(publishedFrom, publishedTo) =>
             onChange({ ...values, publishedFrom, publishedTo })
           }
+          error={errors.published}
           disabled={disabled}
         />
       </div>

@@ -311,6 +311,39 @@ input:focus-visible {
     sans-serif;
 }
 
+.date-group--invalid {
+  border-color: #b3261e;
+}
+
+.date-group--invalid .date-field input {
+  border-color: #b3261e;
+}
+
+.date-group__error {
+  margin: 0.55rem 0 0;
+  color: #9f1f18;
+  font:
+    700 12px/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Not colour alone: the message is text, and it opens with a mark. */
+.date-group__error::before {
+  content: '⚠ ';
+}
+
+.filters-pending {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #eadbd6;
+  border-radius: 10px;
+  background: #fcf6f3;
+  color: var(--search-primary);
+  font:
+    600 13px/1.4 'Source Sans 3',
+    sans-serif;
+}
+
 .date-group__note {
   margin: 0.55rem 0 0;
   color: var(--search-muted);
