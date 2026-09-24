@@ -3,7 +3,7 @@ import re
 import unicodedata
 from datetime import date
 from html.parser import HTMLParser
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from psycopg import Connection
@@ -49,19 +49,33 @@ ts_headline(
 
 COUNT_SQL = f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}"
 
-ORDERING = f"""
+Order = Literal["relevance", "date"]
+DEFAULT_ORDER: Order = "relevance"
+
+# Both end in identificador_fonte so a page boundary never splits a tie and
+# repeats or drops a decision between pages.
+ORDERINGS: dict[Order, str] = {
+    "relevance": f"""
 ORDER BY
     ts_rank(ementa_busca, {QUERY}) DESC,
     data_referencia DESC,
     identificador_fonte DESC
-"""
+""",
+    "date": """
+ORDER BY
+    data_referencia DESC,
+    identificador_fonte DESC
+""",
+}
 
-PAGE_SQL = f"""
+
+def _page_sql(ordering: str) -> str:
+    return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
     FROM core.decisao
     WHERE {MATCH}
-    {ORDERING}
+    {ordering}
     LIMIT %(limit)s OFFSET %(offset)s
 )
 SELECT
@@ -79,8 +93,15 @@ SELECT
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
-{ORDERING}
+{ordering}
 """
+
+
+PAGE_SQL_BY_ORDER: dict[Order, str] = {
+    nome: _page_sql(clausula) for nome, clausula in ORDERINGS.items()
+}
+
+PAGE_SQL = PAGE_SQL_BY_ORDER[DEFAULT_ORDER]
 
 DETAIL_SQL = """
 SELECT
@@ -438,6 +459,16 @@ def search_decisions(
     ],
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
+    order: Annotated[
+        Order,
+        Query(
+            description=(
+                "`relevance` puts the closest match first, `date` the most "
+                "recent. Both break ties the same way, so a decision never "
+                "moves between pages."
+            ),
+        ),
+    ] = DEFAULT_ORDER,
 ) -> SearchResults:
     """
     Search the ementa of every collected decision.
@@ -462,7 +493,7 @@ def search_decisions(
 
         rows: list[DictRow] = []
         if total:
-            cursor.execute(PAGE_SQL, parameters)
+            cursor.execute(PAGE_SQL_BY_ORDER[order], parameters)
             rows = cursor.fetchall()
 
     return SearchResults(
