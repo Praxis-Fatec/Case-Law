@@ -4,6 +4,16 @@ import { Check } from '@phosphor-icons/react';
 import { listCourts, type Court } from '../api/courts';
 import type { FilterErrors, SearchFilterValues } from '../search/filters';
 
+// Chrome does not submit a form on Enter from a date input, and the search
+// button sits above the panel. Without this, applying from the keyboard means
+// tabbing back through every field.
+function submitOnEnter(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  }
+}
+
 type DateRangeGroupProps = {
   id: string;
   legend: string;
@@ -44,6 +54,7 @@ function DateRangeGroup({
             type="date"
             value={from}
             onChange={(event) => onChange(event.target.value, to)}
+            onKeyDown={submitOnEnter}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
           />
@@ -56,6 +67,7 @@ function DateRangeGroup({
             type="date"
             value={to}
             onChange={(event) => onChange(from, event.target.value)}
+            onKeyDown={submitOnEnter}
             aria-invalid={error ? true : undefined}
             aria-describedby={describedBy}
           />
