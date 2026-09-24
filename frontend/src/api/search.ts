@@ -4,9 +4,11 @@ export type SearchDecisionMatch = {
   source: string;
   identifier: string;
   court: string;
-  case_number: string;
-  judging_body: string;
-  reporting_judge: string;
+  // The API declares these three nullable and means it: a third of the
+  // collection has no class name, and the reporter is missing on part of it.
+  case_number: string | null;
+  judging_body: string | null;
+  reporting_judge: string | null;
   decided_on: string;
   small_claims: string | null;
   source_url: string;
