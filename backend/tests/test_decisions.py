@@ -33,6 +33,14 @@ MATCHING_ROW = {
     "snippet": "Ilícito contratual. <mark>Dano</mark> <mark>moral</mark>.",
 }
 
+
+def row_for_tribunal(tribunal_sigla: str, identifier: str) -> dict[str, Any]:
+    row = {**MATCHING_ROW, "tribunal_sigla": tribunal_sigla, "identificador_fonte": identifier}
+    row["url_fonte"] = f"https://example.com/{tribunal_sigla.lower()}/{identifier}"
+    row["snippet"] = f"<mark>{tribunal_sigla}</mark> dano moral."
+    return row
+
+
 DETAIL_ROW = {
     **{key: value for key, value in MATCHING_ROW.items() if key != "snippet"},
     "classe_cnj": 198,
@@ -217,6 +225,125 @@ def test_search_returns_the_total_and_the_page(
     assert body["page"] == 1
     assert body["page_size"] == 20
     assert len(body["results"]) == 20
+
+
+def test_search_without_filter_keeps_the_previous_behavior(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 4
+    body = client.get("/decisions", params={"q": "dano moral"}).json()
+
+    assert body["total"] == 4
+    assert body["page"] == 1
+    assert len(body["results"]) == 4
+    assert {result["court"] for result in body["results"]} <= {"TJDFT", "STJ"}
+
+
+def test_search_filters_by_one_tribunal(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 2
+    database.answer = lambda statement, parameters: (
+        [{"total": 2}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            row_for_tribunal("TJDFT", "2084700"),
+            row_for_tribunal("TJDFT", "2084701"),
+        ]
+        if "tribunal_sigla = ANY" in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}).json()
+
+    assert body["total"] == 2
+    assert body["results"]
+    assert all(result["court"] == "TJDFT" for result in body["results"])
+
+
+def test_search_filters_by_multiple_tribunais(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 3
+    database.answer = lambda statement, parameters: (
+        [{"total": 3}]
+        if statement.startswith(COUNT_SQL)
+        else [
+            row_for_tribunal("TJDFT", "2084700"),
+            row_for_tribunal("STJ", "3084700"),
+            row_for_tribunal("TJDFT", "2084701"),
+        ]
+        if "tribunal_sigla = ANY" in statement
+        else []
+    )
+
+    body = client.get(
+        "/decisions",
+        params={"q": "dano moral", "tribunal": ["TJDFT", "STJ"]},
+    ).json()
+
+    assert body["total"] == 3
+    assert {result["court"] for result in body["results"]} <= {"TJDFT", "STJ"}
+    assert body["results"]
+
+
+def test_search_combines_tribunal_filter_with_expression(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 1
+    database.answer = lambda statement, parameters: (
+        [{"total": 1}]
+        if statement.startswith(COUNT_SQL)
+        else [row_for_tribunal("STJ", "3084700")]
+        if "tribunal_sigla = ANY" in statement
+        else []
+    )
+
+    body = client.get(
+        "/decisions",
+        params={"q": '"dano moral"', "tribunal": "STJ"},
+    ).json()
+
+    assert body["total"] == 1
+    assert body["results"][0]["court"] == "STJ"
+    assert body["results"][0]["snippet"]
+
+
+def test_search_total_reflects_tribunal_filters(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 7
+    database.answer = lambda statement, parameters: (
+        [{"total": 7}]
+        if statement.startswith(COUNT_SQL)
+        else [row_for_tribunal("TJDFT", f"208470{index}") for index in range(7)]
+        if "tribunal_sigla = ANY" in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TJDFT"}).json()
+
+    assert body["total"] == 7
+    assert len(body["results"]) == 7
+    assert all(result["court"] == "TJDFT" for result in body["results"])
+
+
+def test_search_returns_empty_results_for_a_tribunal_filter_with_no_match(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 0
+    database.answer = lambda statement, parameters: (
+        [{"total": 0}]
+        if statement.startswith(COUNT_SQL)
+        else []
+        if "tribunal_sigla = ANY" in statement
+        else []
+    )
+
+    body = client.get("/decisions", params={"q": "dano moral", "tribunal": "TRIBUNAL_INEXISTENTE"}).json()
+
+    assert body["total"] == 0
+    assert body["results"] == []
 
 
 def test_search_result_carries_the_highlighted_snippet(client: TestClient) -> None:

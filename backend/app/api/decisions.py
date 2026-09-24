@@ -49,6 +49,38 @@ ts_headline(
 
 COUNT_SQL = f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}"
 
+PAGE_SQL = f"""
+WITH pagina AS (
+    SELECT fonte_codigo, identificador_fonte
+    FROM core.decisao
+    WHERE {MATCH}
+    ORDER BY
+        ts_rank(ementa_busca, {QUERY}) DESC,
+        data_referencia DESC,
+        identificador_fonte DESC
+    LIMIT %(limit)s OFFSET %(offset)s
+)
+SELECT
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.data_referencia,
+    decisao.turma_recursal,
+    decisao.url_fonte,
+    decisao.link_valido,
+    decisao.ementa,
+    {SNIPPET} AS snippet
+FROM pagina
+JOIN core.decisao USING (fonte_codigo, identificador_fonte)
+ORDER BY
+    ts_rank(ementa_busca, {QUERY}) DESC,
+    data_referencia DESC,
+    identificador_fonte DESC
+"""
+
 ORDERING = f"""
 ORDER BY
     ts_rank(ementa_busca, {QUERY}) DESC,
@@ -56,11 +88,28 @@ ORDER BY
     identificador_fonte DESC
 """
 
-PAGE_SQL = f"""
+
+def _tribunal_filter_sql(tribunals: list[str] | None) -> str:
+    if not tribunals:
+        return ""
+    return " AND tribunal_sigla = ANY(%(tribunais)s)"
+
+
+def _count_sql(tribunals: list[str] | None) -> str:
+    if not tribunals:
+        return COUNT_SQL
+    return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{_tribunal_filter_sql(tribunals)}"
+
+
+def _page_sql(tribunals: list[str] | None) -> str:
+    if not tribunals:
+        return PAGE_SQL
+
+    return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
     FROM core.decisao
-    WHERE {MATCH}
+    WHERE {MATCH}{_tribunal_filter_sql(tribunals)}
     {ORDERING}
     LIMIT %(limit)s OFFSET %(offset)s
 )
@@ -436,6 +485,16 @@ def search_decisions(
             examples=["dano moral"],
         ),
     ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Restrict to one or more court abbreviations. Repeating the "
+                "parameter means a union of courts."
+            ),
+            examples=[["TJDFT"], ["TJDFT", "STJ"]],
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
 ) -> SearchResults:
@@ -449,20 +508,31 @@ def search_decisions(
     many decisions exist before paging through them.
     """
     page_size = min(page_size, settings.search_max_page_size)
+
+    normalized_tribunals = [
+        value.strip() for value in (tribunal or []) if isinstance(value, str) and value.strip()
+    ]
+    tribunais = list(dict.fromkeys(normalized_tribunals))
+
     parameters = {
         "term": q,
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": (page - 1) * page_size,
     }
+    if tribunais:
+        parameters["tribunais"] = tribunais
+
+    count_sql = _count_sql(tribunais)
+    page_sql = _page_sql(tribunais)
 
     with connection.cursor() as cursor:
-        cursor.execute(COUNT_SQL, parameters)
+        cursor.execute(count_sql, parameters)
         total = int((cursor.fetchone() or {"total": 0})["total"])
 
         rows: list[DictRow] = []
         if total:
-            cursor.execute(PAGE_SQL, parameters)
+            cursor.execute(page_sql, parameters)
             rows = cursor.fetchall()
 
     return SearchResults(
