@@ -208,8 +208,14 @@ def test_every_documented_failure_shows_what_the_body_looks_like(
         for status, described in documented(client, path).items():
             if status.startswith(("4", "5")) and status != "422":
                 body = described["content"]["application/json"]
-                assert "example" in body, f"{path} {status} has no example"
-                assert isinstance(body["example"]["detail"], str)
+                shown = (
+                    [body["example"]]
+                    if "example" in body
+                    else [named["value"] for named in body.get("examples", {}).values()]
+                )
+                assert shown, f"{path} {status} has no example"
+                for example in shown:
+                    assert isinstance(example["detail"], str)
 
 
 def test_the_documented_404_is_the_one_the_endpoint_sends(client: TestClient) -> None:
@@ -223,6 +229,34 @@ def test_the_documented_404_is_the_one_the_endpoint_sends(client: TestClient) ->
     actual = client.get("/decisions/tjdft-jurisdf/000000").json()
 
     assert actual == promised
+
+
+def test_the_documented_inverted_range_is_the_one_the_search_sends(
+    client: TestClient,
+) -> None:
+    described = documented(client, "/decisions")["400"]
+    promised = described["content"]["application/json"]["examples"]["inverted range"]
+
+    response = client.get(
+        "/decisions",
+        params={"q": "dano moral", "date_from": "2026-03-31", "date_to": "2026-03-01"},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == promised["value"]
+
+
+def test_the_search_documents_every_filter(client: TestClient) -> None:
+    search = client.get("/openapi.json").json()["paths"]["/decisions"]["get"]
+    parameters = {parameter["name"]: parameter for parameter in search["parameters"]}
+
+    assert {"tribunal", "date_from", "date_to"} <= set(parameters)
+    assert not any(
+        parameters[name]["required"] for name in ("tribunal", "date_from", "date_to")
+    )
+    assert parameters["tribunal"]["schema"]["anyOf"][0]["type"] == "array"
+    assert parameters["date_from"]["schema"]["anyOf"][0]["format"] == "date"
+    assert parameters["date_to"]["schema"]["anyOf"][0]["format"] == "date"
 
 
 def test_the_response_example_carries_every_field_the_schema_has(

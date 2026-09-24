@@ -13,7 +13,12 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
-from app.errors import DATABASE_RESPONSES, NOT_FOUND_RESPONSE, two_examples
+from app.errors import (
+    DATABASE_RESPONSES,
+    MALFORMED,
+    NOT_FOUND_RESPONSE,
+    two_examples,
+)
 
 router = APIRouter(tags=["search"])
 
@@ -47,8 +52,6 @@ ts_headline(
 )
 """
 
-COUNT_SQL = f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}"
-
 ORDERING = f"""
 ORDER BY
     ts_rank(ementa_busca, {QUERY}) DESC,
@@ -56,11 +59,35 @@ ORDER BY
     identificador_fonte DESC
 """
 
-PAGE_SQL = f"""
+
+def _filters_sql(
+    tribunals: list[str], date_from: date | None, date_to: date | None
+) -> str:
+    """
+    The optional narrowing, appended to the text match. The count and the page
+    are built from the same string, so the total can never describe a different
+    set than the one being paged through.
+    """
+    clauses: list[str] = []
+    if tribunals:
+        clauses.append("tribunal_sigla = ANY(%(tribunais)s)")
+    if date_from is not None:
+        clauses.append("data_referencia >= %(date_from)s")
+    if date_to is not None:
+        clauses.append("data_referencia <= %(date_to)s")
+    return "".join(f" AND {clause}" for clause in clauses)
+
+
+def _count_sql(filters: str = "") -> str:
+    return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{filters}"
+
+
+def _page_sql(filters: str = "") -> str:
+    return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
     FROM core.decisao
-    WHERE {MATCH}
+    WHERE {MATCH}{filters}
     {ORDERING}
     LIMIT %(limit)s OFFSET %(offset)s
 )
@@ -81,6 +108,11 @@ FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
 {ORDERING}
 """
+
+
+# Without filters, the exact statements the search ran before they existed.
+COUNT_SQL = _count_sql()
+PAGE_SQL = _page_sql()
 
 DETAIL_SQL = """
 SELECT
@@ -417,10 +449,34 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
     return _fallback_ementa_start(ementa)
 
 
+INVERTED_RANGE = "date_from must be less than or equal to date_to."
+
+# The search fails with 400 in two ways, and a caller handles them differently:
+# one is a value the database cannot read, the other a range that is backwards.
+SEARCH_RESPONSES: dict[int | str, dict[str, Any]] = {
+    **DATABASE_RESPONSES,
+    400: {
+        **DATABASE_RESPONSES[400],
+        "description": (
+            "A parameter carries something the database cannot read, or "
+            "`date_from` is after `date_to`."
+        ),
+        "content": {
+            "application/json": {
+                "examples": {
+                    "malformed": {"value": {"detail": MALFORMED}},
+                    "inverted range": {"value": {"detail": INVERTED_RANGE}},
+                }
+            }
+        },
+    },
+}
+
+
 @router.get(
     "/decisions",
-    summary="Search decisions by term",
-    responses=DATABASE_RESPONSES,
+    summary="Search decisions by term, court and date",
+    responses=SEARCH_RESPONSES,
 )
 def search_decisions(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
@@ -436,6 +492,42 @@ def search_decisions(
             examples=["dano moral"],
         ),
     ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Only decisions from this court, by its abbreviation exactly as "
+                "`court` answers it (`TJDFT`, not `tjdft`). Repeat the parameter "
+                "for several — `tribunal=TJDFT&tribunal=STJ` — and a decision "
+                "from any of them is returned. Blank and repeated values are "
+                "ignored. An abbreviation with no decisions answers `total: 0`, "
+                "not an error. Omitted, every court is searched."
+            ),
+            examples=[["TJDFT"], ["TJDFT", "STJ"]],
+        ),
+    ] = None,
+    date_from: Annotated[
+        date | None,
+        Query(
+            description=(
+                "Earliest `decided_on` to return, as `YYYY-MM-DD`. Inclusive: a "
+                "decision dated this very day is returned. Alone, the range is "
+                "open at the end."
+            ),
+            examples=["2026-03-01"],
+        ),
+    ] = None,
+    date_to: Annotated[
+        date | None,
+        Query(
+            description=(
+                "Latest `decided_on` to return, as `YYYY-MM-DD`. Inclusive: a "
+                "decision dated this very day is returned. Alone, the range is "
+                "open at the start. The same day in both returns that one day."
+            ),
+            examples=["2026-03-31"],
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
 ) -> SearchResults:
@@ -446,23 +538,60 @@ def search_decisions(
     which runs to several thousand characters. Open a decision to read it whole.
 
     The total counts every match, not only this page, so a screen can say how
-    many decisions exist before paging through them.
+    many decisions exist before paging through them. With filters it counts
+    every match inside them, on every page.
+
+    `tribunal`, `date_from` and `date_to` are optional and narrow the search
+    together: a result matches `q` **and** comes from one of the courts **and**
+    falls within the dates. The dates are compared with `decided_on` — the
+    judgement date, or the publication date when the court did not record the
+    first — so a result never falls outside the range the screen asked for.
+
+    Without filters, every court and every date:
+
+        GET /decisions?q=dano+moral
+
+    Combined — the exact phrase, from either of two courts, in March 2026 with
+    both the 1st and the 31st included (one line, broken here to fit):
+
+        GET /decisions?q=%22dano+moral%22&tribunal=TJDFT&tribunal=STJ
+                      &date_from=2026-03-01&date_to=2026-03-31
+
+    A date that is not a real `YYYY-MM-DD` day answers 422, like any malformed
+    parameter. `date_from` after `date_to` answers 400: an empty range is
+    almost always a mistake, and saying so beats an empty result.
     """
     page_size = min(page_size, settings.search_max_page_size)
-    parameters = {
+
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(status_code=400, detail=INVERTED_RANGE)
+
+    tribunais = list(
+        dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
+    )
+
+    parameters: dict[str, Any] = {
         "term": q,
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": (page - 1) * page_size,
     }
+    if tribunais:
+        parameters["tribunais"] = tribunais
+    if date_from is not None:
+        parameters["date_from"] = date_from
+    if date_to is not None:
+        parameters["date_to"] = date_to
+
+    filters = _filters_sql(tribunais, date_from, date_to)
 
     with connection.cursor() as cursor:
-        cursor.execute(COUNT_SQL, parameters)
+        cursor.execute(_count_sql(filters), parameters)
         total = int((cursor.fetchone() or {"total": 0})["total"])
 
         rows: list[DictRow] = []
         if total:
-            cursor.execute(PAGE_SQL, parameters)
+            cursor.execute(_page_sql(filters), parameters)
             rows = cursor.fetchall()
 
     return SearchResults(
