@@ -447,6 +447,208 @@ input:focus-visible {
     sans-serif;
 }
 
+.decision-result-card--selected {
+  border-color: var(--search-primary);
+  box-shadow: 0 0 0 3px rgb(69 21 31 / 8%);
+}
+
+.decision-result-card__open {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.85rem;
+  border: 1px solid var(--search-primary);
+  border-radius: 9px;
+  background: var(--search-surface);
+  color: var(--search-primary);
+  font:
+    700 13px/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.decision-result-card__open:hover,
+.decision-result-card__open[aria-pressed='true'] {
+  background: var(--search-soft);
+}
+
+/* The list and the open decision side by side. The list is never unmounted, so
+   closing the panel returns to the same results. */
+.results-layout {
+  width: min(100%, 1200px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.results-layout--detail-open {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+}
+
+.results-layout .search-results {
+  width: 100%;
+}
+
+/* Narrower, the list gives way to the fields a result card needs. */
+.results-layout--detail-open .decision-result-card__meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.decision-detail {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1rem 1.25rem 1.5rem;
+  border: 1px solid var(--search-border);
+  border-radius: 15px;
+  background: var(--search-surface);
+  box-shadow: 0 4px 18px rgb(45 19 27 / 5%);
+}
+
+.decision-detail__toolbar {
+  display: flex;
+}
+
+.decision-detail__back {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border: 1px solid #eadbd6;
+  border-radius: 9px;
+  background: #fcf6f3;
+  color: var(--search-primary);
+  font:
+    700 13px/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.decision-detail__back:hover {
+  background: #f7e8e2;
+}
+
+.decision-detail__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.decision-detail__court {
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: var(--search-soft);
+  color: var(--search-primary);
+  font:
+    700 11px/1.2 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.decision-detail__title {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    700 22px/1.25 'Source Sans 3',
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.decision-detail__title:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 20%);
+  outline-offset: 3px;
+}
+
+.decision-detail__state-title {
+  margin: 0;
+  font:
+    700 16px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.decision-detail .search-state p {
+  margin: 0;
+}
+
+.decision-detail__meta {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 0.9rem 1.25rem;
+  border-radius: 12px;
+  background: #fbf8f5;
+}
+
+.decision-detail__meta-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+.decision-detail__meta-item dt {
+  color: var(--search-muted);
+  font:
+    600 12px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.decision-detail__meta-item dd {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    700 14px/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Long ementas read best at a controlled line length. */
+.decision-detail__reading {
+  max-width: 72ch;
+}
+
+.decision-detail__section-title {
+  margin: 0 0 0.6rem;
+  color: var(--search-text);
+  font:
+    700 16px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.decision-detail__summary {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    400 17px/1.65 'Source Sans 3',
+    sans-serif;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .results-layout--detail-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Hidden, not unmounted: back on the list, the results are still there. */
+  .results-layout--detail-open .search-results {
+    display: none;
+  }
+
+  .decision-detail {
+    position: static;
+    max-height: none;
+  }
+}
+
 @media (max-width: 900px) {
   .decision-result-card__meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));

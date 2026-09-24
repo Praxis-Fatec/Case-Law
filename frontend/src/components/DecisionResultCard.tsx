@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from 'react';
 
 import type { SearchDecisionMatch } from '../api/search';
+import { formatDate, getDisplayValue, NOT_INFORMED, normalizeText } from './decisionFormat';
 
 type DecisionCardData = Pick<
   SearchDecisionMatch,
@@ -18,20 +19,12 @@ type DecisionCardData = Pick<
 
 type DecisionResultCardProps = {
   decision: DecisionCardData;
+  // Opens the decision in full. Without it the card only links to the court.
+  onOpen?: () => void;
+  openButtonId?: string;
+  // The decision open in the detail panel, marked so the list says which.
+  selected?: boolean;
 };
-
-function normalizeText(value: string | null | undefined): string {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  return value.trim();
-}
-
-function getDisplayValue(value: string | null | undefined): string {
-  const normalized = normalizeText(value);
-  return normalized || 'Não informado';
-}
 
 function normalizeOfficialUrl(value: string | null | undefined): string | null {
   const normalized = normalizeText(value);
@@ -101,36 +94,12 @@ function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
   return renderedNodes.length > 0 ? renderedNodes : ['Trecho indisponível.'];
 }
 
-function formatDate(value: string | null | undefined): string | null {
-  const normalized = normalizeText(value);
-
-  if (!normalized) {
-    return null;
-  }
-
-  const isoDateMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-
-  if (isoDateMatch) {
-    const [, year, month, day] = isoDateMatch;
-    const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
-
-    if (Number.isNaN(date.getTime())) {
-      return null;
-    }
-
-    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-  }
-
-  const parsedDate = new Date(normalized);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return parsedDate.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
-}
-
-function DecisionResultCard({ decision }: DecisionResultCardProps) {
+function DecisionResultCard({
+  decision,
+  onOpen,
+  openButtonId,
+  selected = false,
+}: DecisionResultCardProps) {
   const officialUrl = normalizeOfficialUrl(decision.source_url);
   const linkIsUnavailable = !officialUrl || decision.source_url_reachable === false;
 
@@ -140,18 +109,21 @@ function DecisionResultCard({ decision }: DecisionResultCardProps) {
     { label: 'Relator', value: getDisplayValue(decision.reporting_judge) },
     {
       label: 'Data de julgamento',
-      value: formatDate(decision.decided_on) ?? 'Não informado',
+      value: formatDate(decision.decided_on) ?? NOT_INFORMED,
     },
     {
       label: 'Data de publicação',
-      value: formatDate(decision.published_on) ?? 'Não informado',
+      value: formatDate(decision.published_on) ?? NOT_INFORMED,
     },
   ];
 
   return (
     <article
-      className="decision-result-card"
+      className={
+        selected ? 'decision-result-card decision-result-card--selected' : 'decision-result-card'
+      }
       aria-label={`Decisão ${decision.case_number ?? 'sem processo'}`}
+      aria-current={selected ? 'true' : undefined}
     >
       <header className="decision-result-card__header">
         <div className="decision-result-card__title">
@@ -168,6 +140,23 @@ function DecisionResultCard({ decision }: DecisionResultCardProps) {
       </div>
 
       <div className="decision-result-card__actions" aria-live="polite">
+        {onOpen && (
+          <button
+            type="button"
+            id={openButtonId}
+            className="decision-result-card__open"
+            onClick={onOpen}
+            aria-pressed={selected}
+          >
+            Ver decisão
+            <span className="sr-only">
+              {' '}
+              completa
+              {normalizeText(decision.case_number) ? ` do processo ${decision.case_number}` : ''}
+            </span>
+          </button>
+        )}
+
         {officialUrl && decision.source_url_reachable !== false ? (
           <a
             className="decision-result-card__source-link"
@@ -199,7 +188,7 @@ function DecisionResultCard({ decision }: DecisionResultCardProps) {
 
       <dl className="decision-result-card__meta">
         {metadata
-          .filter((item) => item.value !== 'Não informado')
+          .filter((item) => item.value !== NOT_INFORMED)
           .map((item) => (
             <div className="decision-result-card__meta-item" key={item.label}>
               <dt>{item.label}</dt>
