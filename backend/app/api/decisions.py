@@ -3,7 +3,7 @@ import re
 import unicodedata
 from datetime import date
 from html.parser import HTMLParser
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from psycopg import Connection
@@ -52,12 +52,24 @@ ts_headline(
 )
 """
 
-ORDERING = f"""
+Order = Literal["relevance", "date"]
+DEFAULT_ORDER: Order = "relevance"
+
+# Both end in identificador_fonte so a page boundary never splits a tie and
+# repeats or drops a decision between pages.
+ORDERINGS: dict[Order, str] = {
+    "relevance": f"""
 ORDER BY
     ts_rank(ementa_busca, {QUERY}) DESC,
     data_referencia DESC,
     identificador_fonte DESC
-"""
+""",
+    "date": """
+ORDER BY
+    data_referencia DESC,
+    identificador_fonte DESC
+""",
+}
 
 
 def _filters_sql(
@@ -82,13 +94,14 @@ def _count_sql(filters: str = "") -> str:
     return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{filters}"
 
 
-def _page_sql(filters: str = "") -> str:
+def _page_sql(filters: str = "", ordering: str = "") -> str:
+    ordering = ordering or ORDERINGS[DEFAULT_ORDER]
     return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
     FROM core.decisao
     WHERE {MATCH}{filters}
-    {ORDERING}
+    {ordering}
     LIMIT %(limit)s OFFSET %(offset)s
 )
 SELECT
@@ -106,11 +119,12 @@ SELECT
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
-{ORDERING}
+{ordering}
 """
 
 
-# Without filters, the exact statements the search ran before they existed.
+# Without filters and in the default order, the exact statements the search ran
+# before either existed.
 COUNT_SQL = _count_sql()
 PAGE_SQL = _page_sql()
 
@@ -530,6 +544,16 @@ def search_decisions(
     ] = None,
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
+    order: Annotated[
+        Order,
+        Query(
+            description=(
+                "`relevance` puts the closest match first, `date` the most "
+                "recent. Both break ties the same way, so a decision never "
+                "moves between pages."
+            ),
+        ),
+    ] = DEFAULT_ORDER,
 ) -> SearchResults:
     """
     Search the ementa of every collected decision.
@@ -591,7 +615,7 @@ def search_decisions(
 
         rows: list[DictRow] = []
         if total:
-            cursor.execute(_page_sql(filters), parameters)
+            cursor.execute(_page_sql(filters, ORDERINGS[order]), parameters)
             rows = cursor.fetchall()
 
     return SearchResults(
