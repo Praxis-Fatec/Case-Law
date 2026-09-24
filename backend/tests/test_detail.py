@@ -180,3 +180,83 @@ def test_a_term_that_does_appear_still_marks_without_losing_the_rest(
     assert "<mark>" in summary
     stripped = re.sub(r"</?mark>", "", summary)
     assert len(stripped.split()) == len(row["ementa"].split())
+
+
+def test_a_structured_ementa_comes_back_in_sections(client: TestClient) -> None:
+    body = client.get(f"/decisions/{SOURCE}/{LONG}").json()
+    sections = body["sections"]
+
+    assert sections is not None
+    assert "Apelação interposta" in sections["case"]
+    assert "termo inicial da suspensão" in sections["question"]
+    assert "artigo 40" in sections["reasoning"]
+    assert "desprovida" in sections["ruling"]
+    assert sections["headnote"].startswith("PROCESSUAL CIVIL")
+
+
+def test_free_prose_says_so_instead_of_guessing(client: TestClient) -> None:
+    """
+    Sixteen per cent of the collection is not written in the shape. `null` is
+    how the two cases are told apart.
+    """
+    body = client.get(f"/decisions/{SOURCE}/{PRESENT}").json()
+
+    assert body["sections"] is None
+    assert body["summary"] != ""
+
+
+def test_the_sections_keep_every_word_of_the_ementa(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    The card asks that nothing be lost. Read through the endpoint rather than
+    the splitter, so a field dropped on the way out is caught here too.
+    """
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT ementa FROM core.decisao WHERE identificador_fonte = %s",
+            (LONG,),
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    sections = client.get(f"/decisions/{SOURCE}/{LONG}").json()["sections"]
+    joined = " ".join(
+        sections[name]
+        for name in ("headnote", "case", "question", "reasoning", "ruling")
+    )
+
+    original = set(row["ementa"].split())
+    served = set(joined.split())
+    assert original - served <= {
+        "I.",
+        "II.",
+        "III.",
+        "IV.",
+        "CASO",
+        "EM",
+        "EXAME",
+        "QUESTÃO",
+        "DISCUSSÃO",
+        "RAZÕES",
+        "DE",
+        "DECIDIR",
+        "DISPOSITIVO",
+    }, "words other than the section labels went missing"
+
+
+def test_the_search_term_never_changes_whether_it_is_structured(
+    client: TestClient,
+) -> None:
+    """
+    Sections are read from the court's own text. Splitting the highlighted copy
+    would make a search for "caso" mark the label itself and turn a structured
+    decision into an unstructured one.
+    """
+    plain = client.get(f"/decisions/{SOURCE}/{LONG}").json()["sections"]
+
+    for term in ("caso", "dispositivo", "prescrição", "xyzabc"):
+        with_term = client.get(
+            f"/decisions/{SOURCE}/{LONG}", params={"q": term}
+        ).json()["sections"]
+        assert with_term == plain, term
