@@ -61,7 +61,7 @@ export async function searchDecisions(params: {
   });
 
   if (!response.ok) {
-    throw new Error(`Search request failed with status ${response.status}`);
+    throw new SearchRequestError(response.status, await readDetail(response));
   }
 
   return (await response.json()) as SearchDecisionResponse;
