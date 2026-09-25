@@ -23,10 +23,18 @@ export type SearchDecisionResponse = {
   results: SearchDecisionMatch[];
 };
 
+// The two orders the API accepts. `relevance` is its default, so it is left
+// out of the request: the default search stays the same request it always was.
+export type SearchOrder = 'relevance' | 'date';
+
+export const DEFAULT_ORDER: SearchOrder = 'relevance';
+
 export async function searchDecisions(params: {
   q: string;
   page?: number;
   page_size?: number;
+  // Applied by the API over every match, before paging — never on the page.
+  order?: SearchOrder;
 }): Promise<SearchDecisionResponse> {
   assertApiConfiguration();
 
@@ -39,6 +47,10 @@ export async function searchDecisions(params: {
 
   if (params.page_size) {
     url.searchParams.set('page_size', String(params.page_size));
+  }
+
+  if (params.order && params.order !== DEFAULT_ORDER) {
+    url.searchParams.set('order', params.order);
   }
 
   const response = await fetch(url.toString(), {
