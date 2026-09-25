@@ -222,10 +222,17 @@ function HomePage() {
     const searchId = startSearch();
 
     setApplied(search);
-    // A new search is a new list: back to the list's address, in place, so the
-    // decision from the old list never sits beside the new one.
+    // A new search, order or page is a new list: back to the list's address, so
+    // the decision from the old list never sits beside the new one. Reached
+    // from the list, that address is the entry just before — returning to it,
+    // rather than turning the decision's entry into a second copy of it, leaves
+    // no Back that goes nowhere. Opened from a link, there is none: in place.
     if (chosenDecision) {
-      navigate({ pathname: '/', search: location.search }, { replace: true });
+      if (cameFromResults) {
+        navigate(-1);
+      } else {
+        navigate({ pathname: '/', search: location.search }, { replace: true });
+      }
     }
     setIsLoading(true);
     setErrorMessage(null);
