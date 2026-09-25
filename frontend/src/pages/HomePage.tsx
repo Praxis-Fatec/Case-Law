@@ -106,6 +106,7 @@ function HomePage() {
           : undefined,
     }));
     setFilterDraft(next);
+  };
 
   // The decision shown beside the list. Choosing another item only swaps what
   // the right side shows: the list, and the search behind it, never change.
@@ -129,7 +130,6 @@ function HomePage() {
     const opener = document.getElementById(openButtonId(openDecision));
     opener?.scrollIntoView({ block: 'center' });
     opener?.focus();
-
   };
 
   const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
