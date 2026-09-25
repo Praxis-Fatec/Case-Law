@@ -19,8 +19,8 @@ from sources.tjdft import (
     REQUEST_INTERVAL,
     _Pacer,
     _windows,
-    document_exists,
-    identifiers_between,
+    document_opens,
+    documents_between,
 )
 
 SCHEMA = "verificacao"
@@ -30,8 +30,8 @@ TABLE = f"{SCHEMA}.link"
 # because nothing here can answer for it, not because nobody got to it: the
 # STJ's portal answers 200 and echoes back whatever sequential it is given, so
 # a real acordao and an invented one are indistinguishable from outside.
-CHECKS: dict[str, Callable[[str], bool]] = {
-    "tjdft-jurisdf": document_exists,
+CHECKS: dict[str, Callable[[str, str | None], bool]] = {
+    "tjdft-jurisdf": document_opens,
 }
 
 # The sweep lists a collection by date window, which only the TJDFT's API does.
@@ -71,7 +71,7 @@ END $do$;
 # source with no check of its own stays that way on purpose: claiming a verdict
 # nobody produced would be worse than admitting there is none.
 PENDING = f"""
-SELECT d.fonte_codigo, d.identificador_fonte
+SELECT d.fonte_codigo, d.identificador_fonte, d.identificador_documento
 FROM core.decisao AS d
 LEFT JOIN {TABLE} AS v
   ON v.fonte_codigo = d.fonte_codigo
@@ -101,7 +101,7 @@ WHERE data_julgamento IS NOT NULL
 """
 
 IN_WINDOW = """
-SELECT identificador_fonte
+SELECT identificador_fonte, identificador_documento
 FROM core.decisao
 WHERE data_julgamento BETWEEN %(first)s AND %(last)s
   AND fonte_codigo = %(fonte)s
@@ -140,14 +140,14 @@ def verify() -> int:
             cursor.execute(
                 PENDING, {"limit": _limit(), "fontes": list(CHECKS)}
             )
-            pending = [(row[0], row[1]) for row in cursor.fetchall()]
+            pending = [(row[0], row[1], row[2]) for row in cursor.fetchall()]
 
         print(f"{len(pending)} to verify, from {', '.join(CHECKS)}", flush=True)
 
-        for fonte, identificador in pending:
+        for fonte, identificador, documento in pending:
             pacer.wait()
             try:
-                exists = CHECKS[fonte](identificador)
+                exists = CHECKS[fonte](identificador, documento)
             except Exception as error:  # noqa: BLE001 — any failure is "unknown"
                 failed += 1
                 consecutive += 1
@@ -181,10 +181,14 @@ def sweep() -> int:
     The same answer as `verify`, in a fraction of the requests.
 
     Reading a window costs one request per forty documents, so the collection
-    is listed for about 2.700 requests instead of 107.828. What the listing
-    does not carry is a candidate, not a verdict: a corrected judgement date
-    moves a record out of the window it was collected in, so each absence is
-    confirmed one by one before being written down as broken.
+    is listed for about 2.700 requests instead of 107.828. The listing carries
+    the document key as well, so the window settles both questions at once: the
+    source still holds the record, and the key the link is built from is the
+    one it reports.
+
+    A record the listing does not match is a candidate, not a verdict: a
+    corrected judgement date moves a record out of the window it was collected
+    in, so each one is confirmed on its own before being written down as broken.
     """
     pacer = _Pacer(_interval())
     checked = invalid = 0
@@ -205,29 +209,29 @@ def sweep() -> int:
         print(f"{first} to {last}, {len(janelas)} windows", flush=True)
 
         for inicio, fim in janelas:
-            listed = identifiers_between(inicio, fim, _interval())
+            listed = documents_between(inicio, fim, _interval())
 
             with connection.cursor() as cursor:
                 cursor.execute(
                     IN_WINDOW,
                     {"first": inicio, "last": fim, "fonte": SWEEPABLE},
                 )
-                ours = [row[0] for row in cursor.fetchall()]
+                ours = [(row[0], row[1]) for row in cursor.fetchall()]
 
-            missing = [i for i in ours if i not in listed]
+            missing = [i for i, doc in ours if listed.get(i) != doc]
             print(
                 f"  {inicio:%Y-%m}  listed {len(listed):>5}  ours {len(ours):>5}"
                 f"  to confirm {len(missing)}",
                 flush=True,
             )
 
-            for identificador in ours:
-                if identificador in listed:
+            for identificador, documento in ours:
+                if listed.get(identificador) == documento:
                     valido = True
                 else:
                     pacer.wait()
                     try:
-                        valido = CHECKS[SWEEPABLE](identificador)
+                        valido = CHECKS[SWEEPABLE](identificador, documento)
                     except Exception:  # noqa: BLE001
                         continue
 
