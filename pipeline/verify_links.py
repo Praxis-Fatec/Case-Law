@@ -15,23 +15,23 @@ import psycopg2
 
 from datetime import date
 
+from sources.stj import document_opens as stj_document_opens
 from sources.tjdft import (
     REQUEST_INTERVAL,
     _Pacer,
     _windows,
-    document_opens,
     documents_between,
 )
+from sources.tjdft import document_opens as tjdft_document_opens
 
 SCHEMA = "verificacao"
 TABLE = f"{SCHEMA}.link"
 
-# What each source can be asked about its own documents. A source is absent
-# because nothing here can answer for it, not because nobody got to it: the
-# STJ's portal answers 200 and echoes back whatever sequential it is given, so
-# a real acordao and an invented one are indistinguishable from outside.
+# What each source can be asked about its own documents. A source absent here
+# stays unverified, which is not the same as invalid.
 CHECKS: dict[str, Callable[[str, str | None], bool]] = {
-    "tjdft-jurisdf": document_opens,
+    "tjdft-jurisdf": tjdft_document_opens,
+    "stj-espelhos": stj_document_opens,
 }
 
 # The sweep lists a collection by date window, which only the TJDFT's API does.

@@ -209,14 +209,10 @@ def test_a_verdict_belongs_to_the_source_that_produced_it(
     }
 
 
-def test_a_source_with_no_check_stays_unverified(
+def test_a_source_nobody_checked_yet_stays_unverified(
     db: psycopg.Connection[DictRow],
 ) -> None:
-    """
-    The STJ's portal answers 200 and echoes back whatever sequential it is
-    given, so nothing can tell a real acordao from an invented one. Unverified
-    is the honest answer; calling them all valid would be a claim nobody made.
-    """
+    """A verdict never appears for a source that has none of its own."""
     db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
     db.execute("TRUNCATE verificacao.link")
     db.execute(

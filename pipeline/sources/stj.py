@@ -134,6 +134,38 @@ def espelhos(datasets: tuple[str, ...] = DATASETS) -> Iterator[list[dict[str, An
             print(f"    {orgao}/{nome}  {tamanho} bytes", flush=True)
 
 
+INTEIRO_TEOR = "https://processo.stj.jus.br/SCON/GetInteiroTeorDoAcordao"
+DOCUMENT_TIMEOUT = 30
+NOT_FOUND = "não encontrado"
+
+
+def document_opens(identificador: str, documento: str | None = None) -> bool:
+    """
+    Whether the registration still reaches an inteiro teor.
+
+    The espelho's own id opens nothing: the portal page that takes it loads the
+    document in an iframe that answers "ocorreu um erro" for every id there is.
+    The inteiro teor is keyed by the process's registration instead, and answers
+    a PDF for it, a chooser page when the registration holds more than one
+    acordao, and a short "Acórdão não encontrado" when it holds none.
+
+    Raises whatever the request raised, which is not an answer of "invalid".
+    """
+    if not documento:
+        return False
+
+    response = requests.get(
+        INTEIRO_TEOR,
+        params={"num_registro": documento},
+        timeout=DOCUMENT_TIMEOUT,
+    )
+    response.raise_for_status()
+
+    if "pdf" in response.headers.get("content-type", "").lower():
+        return True
+    return NOT_FOUND not in response.text[:4000].lower()
+
+
 def main() -> None:
     somente = os.getenv("STJ_DATASETS", "").strip()
     escolhidos = tuple(somente.split(",")) if somente else DATASETS
