@@ -454,21 +454,182 @@ describe('by keyboard', () => {
   });
 });
 
-describe('with the detail', () => {
-  it('opening a decision and going back keeps the page and range, with no new search', async () => {
-    const api = installApi(137);
-    const user = await searchFirst();
+describe('back from a decision to a later page', () => {
+  const THIRD = 'Exibindo 41–60 de 137 resultados';
+  // Another expression, with another total, so two searches cannot be mistaken
+  // for one another.
+  const OTHER = 'outra expressão';
+  const byExpression: Answer = (url) =>
+    json(pageOf(url, url.searchParams.get('q') === OTHER ? 45 : 137));
+
+  const card = (identifier: number) =>
+    screen.getByRole('link', { name: new RegExp(`Ler a decisão do processo 0700${identifier}-`) });
+  const panel = () => screen.getByRole('complementary');
+  const browserBack = () => act(() => screen.getByTestId('browser-back').click());
+
+  // An expression, a mode, filters and an order applied, then two pages on:
+  // the third page, where a reset to the first would show.
+  async function onTheThirdPage(before: string[] = []) {
+    const user = userEvent.setup();
+    renderApp('/', before);
+    const box = screen.getByLabelText('Pesquisar decisões');
+    await user.clear(box);
+    await user.type(box, 'dano moral');
+    await user.click(screen.getByRole('button', { name: 'Frase exata' }));
+    await user.click(screen.getByRole('button', { name: /filtros/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /^TJDFT\b/ }));
+    const judged = screen.getByRole('group', { name: 'Data de julgamento' });
+    await user.type(within(judged).getByLabelText('De'), '2026-01-01');
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await waitForRange('Exibindo 1–20 de 137 resultados');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Ordenar por' }), 'date');
+    await waitForRange('Exibindo 1–20 de 137 resultados');
     await next(user, 'Exibindo 21–40 de 137 resultados');
+    await next(user, THIRD);
+    return user;
+  }
+
+  async function open(user: ReturnType<typeof userEvent.setup>, identifier: number) {
+    await user.click(card(identifier));
+    await waitFor(() => expect(currentAddress()).toBe(`/decisoes/tjdft-jurisdf/${identifier}`));
+    await within(panel()).findByText(`RELATOR ${identifier}`);
+  }
+
+  // The third page as it was left: its range and total, its own twenty
+  // results, and the expression, mode, filters and order it was searched with.
+  async function expectThirdPage() {
+    await waitFor(() => expect(currentAddress()).toBe('/'));
+    await waitForRange(THIRD);
+    expect(shown()).toHaveLength(20);
+    expect(shown()[0]).toHaveTextContent('Trecho 41.');
+    expect(shown()[19]).toHaveTextContent('Trecho 60.');
+    expect(screen.getByLabelText('Pesquisar decisões')).toHaveValue('dano moral');
+    expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('date');
+    expect(screen.getByRole('checkbox', { name: /^TJDFT\b/ })).toBeChecked();
+    const judged = screen.getByRole('group', { name: 'Data de julgamento' });
+    expect(within(judged).getByLabelText('De')).toHaveValue('2026-01-01');
+    expect(screen.getByRole('button', { name: /Filtros/ })).toHaveTextContent('2');
+  }
+
+  // Paging on from the restored page asks for the next one of the same cut:
+  // the page was restored, not only drawn.
+  async function expectPagingOnFromThird(
+    user: ReturnType<typeof userEvent.setup>,
+    api: ReturnType<typeof installApi>,
+  ) {
+    const third = api.last();
+    await next(user, 'Exibindo 61–80 de 137 resultados');
+    expect(api.last().searchParams.get('page')).toBe('4');
+    expect(cut(api.last())).toBe(cut(third));
+  }
+
+  it("through the screen's own action, is the third page as it was, with no new search", async () => {
+    const api = installApi(137, byExpression);
+    const user = await onTheThirdPage(['/antes']);
+    const asked = api.searches.length;
+    expect(api.last().searchParams.get('page')).toBe('3');
+
+    await open(user, 43);
+    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
+
+    await expectThirdPage();
+    expect(api.searches).toHaveLength(asked);
+    await expectPagingOnFromThird(user, api);
+
+    // The way back stepped back in the history, not forward to a new copy of
+    // the list: Back now leaves the list instead of reopening the decision.
+    await browserBack();
+    expect(currentAddress()).toBe('/antes');
+  });
+
+  it("through the browser's Back, walking the history, is the same", async () => {
+    const api = installApi(137, byExpression);
+    const user = await onTheThirdPage();
     const asked = api.searches.length;
 
-    const [, second] = screen.getAllByRole('link', { name: /Ler a decisão/ });
-    await user.click(second);
-    await waitFor(() => expect(currentAddress()).toBe('/decisoes/tjdft-jurisdf/22'));
-    await user.click(await screen.findByRole('button', { name: 'Voltar aos resultados' }));
+    await open(user, 43);
+    await browserBack();
+
+    await expectThirdPage();
+    expect(api.searches).toHaveLength(asked);
+    await expectPagingOnFromThird(user, api);
+  });
+
+  it('keeps the third page over one decision after another, either way back', async () => {
+    const api = installApi(137, byExpression);
+    const user = await onTheThirdPage();
+    const asked = api.searches.length;
+
+    await open(user, 43);
+    await browserBack();
+    await expectThirdPage();
+
+    await open(user, 55);
+    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
+    await expectThirdPage();
+
+    // From one decision straight to another, then a single Back.
+    await open(user, 44);
+    await open(user, 58);
+    await browserBack();
+    await expectThirdPage();
+
+    expect(api.searches).toHaveLength(asked);
+  });
+
+  it('starts on the first page again when, back on the list, a new search or filters are applied', async () => {
+    const api = installApi(137, byExpression);
+    const user = await onTheThirdPage();
+    await open(user, 43);
+    await browserBack();
+    await expectThirdPage();
+
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await waitForRange('Exibindo 1–20 de 137 resultados');
+    expect(api.last().searchParams.get('page')).toBe('1');
+
+    await next(user, 'Exibindo 21–40 de 137 resultados');
+    await user.click(screen.getByRole('checkbox', { name: /^STJ\b/ }));
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await waitForRange('Exibindo 1–20 de 137 resultados');
+    expect(api.last().searchParams.get('page')).toBe('1');
+    expect(api.last().searchParams.getAll('tribunal').sort()).toEqual(['STJ', 'TJDFT']);
+  });
+
+  it('never brings back the page of another search, one started from a decision', async () => {
+    const api = installApi(137, byExpression);
+    const user = await onTheThirdPage();
+    await open(user, 43);
+
+    const box = screen.getByLabelText('Pesquisar decisões');
+    await user.clear(box);
+    await user.type(box, OTHER);
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
 
     await waitFor(() => expect(currentAddress()).toBe('/'));
-    await waitForRange('Exibindo 21–40 de 137 resultados');
-    expect(shown()[0]).toHaveTextContent('Trecho 21.');
-    expect(api.searches).toHaveLength(asked);
+    await waitForRange('Exibindo 1–20 de 45 resultados');
+    expect(api.last().searchParams.get('q')).toBe(OTHER);
+    expect(api.last().searchParams.get('page')).toBe('1');
+    expect(screen.queryByText(/de 137 resultados/)).toBeNull();
+    expect(screen.queryByText(THIRD)).toBeNull();
+  });
+
+  it('leaves no second list entry behind when a page is changed from a decision', async () => {
+    const api = installApi(137, byExpression);
+    // An entry before the list, so the test can tell where Back leads.
+    const user = await onTheThirdPage(['/antes']);
+    await open(user, 43);
+
+    await next(user, 'Exibindo 61–80 de 137 resultados');
+    expect(currentAddress()).toBe('/');
+    expect(api.last().searchParams.get('page')).toBe('4');
+
+    // One Back leaves the list: it does not land on a copy of it.
+    await browserBack();
+    expect(currentAddress()).toBe('/antes');
   });
 });

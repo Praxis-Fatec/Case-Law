@@ -5,10 +5,11 @@ import App from '../App';
 import AddressProbe from './AddressProbe';
 
 // The screen with its real routes, at any address — as when a link is opened
-// directly or the page is reloaded there.
-export function renderApp(path = '/') {
+// directly or the page is reloaded there. `before` are entries already in the
+// history behind it, for a test to tell where Back leads.
+export function renderApp(path = '/', before: string[] = []) {
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[...before, path]} initialIndex={before.length}>
       <App />
       <AddressProbe />
     </MemoryRouter>,
