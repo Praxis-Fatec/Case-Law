@@ -97,7 +97,14 @@ def espelhos(datasets: tuple[str, ...] = DATASETS) -> Iterator[list[dict[str, An
 
     for dataset in datasets:
         orgao = dataset.removeprefix("espelhos-de-acordaos-")
-        for kind, nome, url in _files(dataset):
+        arquivos = list(_files(dataset))
+        print(f"{orgao}: {len(arquivos)} files", flush=True)
+        lidos = 0
+
+        for kind, nome, url in arquivos:
+            lidos += 1
+            if lidos % 10 == 0:
+                print(f"  {orgao}: {lidos}/{len(arquivos)}", flush=True)
             try:
                 lotes = list(_from_zip(url)) if kind == "zip" else [_from_json(url)]
             except json.JSONDecodeError as erro:

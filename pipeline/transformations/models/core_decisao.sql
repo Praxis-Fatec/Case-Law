@@ -20,7 +20,20 @@ MODEL (
   filtro (US3), ordenação (US6) e desempate da paginação (US7) usam.
 */
 
-WITH bruto AS (
+-- The STJ writes the same organ both with and without accents. Whichever
+-- spelling carries them is the one the screen should show.
+WITH orgao_stj AS (
+  SELECT DISTINCT ON (UPPER(UNACCENT("nomeOrgaoJulgador")))
+    UPPER(UNACCENT("nomeOrgaoJulgador")) AS chave,
+    "nomeOrgaoJulgador"                  AS nome
+  FROM raw.espelho_stj
+  WHERE COALESCE(TRIM("nomeOrgaoJulgador"), '') <> ''
+  ORDER BY
+    UPPER(UNACCENT("nomeOrgaoJulgador")),
+    ("nomeOrgaoJulgador" <> UNACCENT("nomeOrgaoJulgador")) DESC
+),
+
+bruto AS (
   SELECT
     identificador,
     "dataJulgamento"::DATE               AS data_julgamento,
@@ -37,6 +50,31 @@ WITH bruto AS (
     'tjdft-jurisdf'                      AS fonte_codigo
   FROM raw.acordao_tjdft
   WHERE NOT COALESCE("segredoJustica", FALSE)
+
+  UNION ALL
+
+  SELECT
+    e.id                                                     AS identificador,
+    TO_DATE(NULLIF(e."dataDecisao", ''), 'YYYYMMDD')         AS data_julgamento,
+    -- Free text with the gazette and the page around it: DJE DATA:01/09/2010
+    TO_DATE(
+      (REGEXP_MATCH(e."dataPublicacao", '(\d{2}/\d{2}/\d{4})'))[1],
+      'DD/MM/YYYY'
+    )                                                        AS data_publicacao,
+    NULLIF(TRIM(e."numeroProcesso"), '')                     AS processo,
+    o.nome                                                   AS orgao_julgador,
+    NULLIF(TRIM(e."ministroRelator"), '')                    AS relator,
+    CAST(NULL AS BIGINT)                                     AS classe_cnj,
+    e.ementa                                                 AS ementa,
+    NULLIF(TRIM(e.decisao), '')                              AS decisao_texto,
+    FALSE                                                    AS turma_recursal,
+    FALSE                                                    AS possui_inteiro_teor,
+    e._dlt_load_id                                           AS carga_id,
+    'stj-espelhos'                                           AS fonte_codigo
+  FROM raw.espelho_stj AS e
+  LEFT JOIN orgao_stj AS o
+    ON o.chave = UPPER(UNACCENT(e."nomeOrgaoJulgador"))
+  WHERE COALESCE(TRIM(e.ementa), '') <> ''
 )
 
 SELECT
