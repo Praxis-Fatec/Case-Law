@@ -13,6 +13,18 @@ import ResultsSort from '../components/ResultsSort';
 // this again, never whatever is being typed in the box and not yet applied.
 type AppliedSearch = { q: string; order: SearchOrder };
 
+const PAGE_SIZE = 20;
+
+// The one place a request is built from the applied search. Paging, when it
+// comes, asks for another page of this same search — same expression, same
+// order — so a page can never be read in a different order than the first.
+const requestFor = (search: AppliedSearch, page = 1) => ({
+  q: search.q,
+  page,
+  page_size: PAGE_SIZE,
+  order: search.order,
+});
+
 function HomePage() {
   const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
   const [mode, setMode] = useState<'free' | 'exact'>('free');
@@ -40,12 +52,7 @@ function HomePage() {
 
     try {
       // Every new order or expression starts on the first page.
-      const response = await searchDecisions({
-        q: search.q,
-        page: 1,
-        page_size: 20,
-        order: search.order,
-      });
+      const response = await searchDecisions(requestFor(search));
 
       if (searchId !== latestSearch.current) {
         return;
