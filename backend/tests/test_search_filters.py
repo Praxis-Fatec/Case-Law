@@ -310,3 +310,85 @@ def test_a_date_that_is_not_a_day_is_refused(client: TestClient, value: str) -> 
     response = client.get("/decisions", params={"q": "dano moral", "date_from": value})
 
     assert response.status_code == 422
+
+
+def test_filters_that_each_return_results_can_return_none_together(
+    client: TestClient,
+) -> None:
+    """
+    The reason this file exists. Each narrowing works, and the combination is
+    where they stop agreeing: TRF1 decided on the 10th, so asking for TRF1 from
+    the 11th is a question with no answer, though both halves have plenty.
+    """
+    assert search(client, tribunal="TRF1")["total"] == 1
+    assert search(client, date_from="2026-03-11")["total"] > 0
+
+    body = search(client, tribunal="TRF1", date_from="2026-03-11")
+
+    assert body["total"] == 0
+    assert body["results"] == []
+
+
+def test_a_court_with_nothing_to_add_leaves_the_union_alone(
+    client: TestClient,
+) -> None:
+    """
+    An abbreviation nobody has decisions for is a narrowing that removes
+    nothing, not one that empties the answer.
+    """
+    alone = search(client, tribunal="STJ")
+    joined = search(client, tribunal=["STJ", "TRIBUNAL_INEXISTENTE"])
+
+    assert identifiers(joined) == identifiers(alone) == STJ
+    assert joined["total"] == alone["total"]
+
+
+def test_the_union_does_not_depend_on_the_order_the_courts_arrive(
+    client: TestClient,
+) -> None:
+    first = search(client, tribunal=["TJDFT", "STJ"])
+    second = search(client, tribunal=["STJ", "TJDFT"])
+
+    assert identifiers(first) == identifiers(second) == TJDFT | STJ
+    assert first["total"] == second["total"]
+
+
+def test_the_offered_courts_are_the_ones_the_base_holds(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    The panel is built from this list, so a court missing from it cannot be
+    filtered on and one listed without decisions is a dead option. It offers
+    what the base holds and the seed names, and the assertion reads both from
+    the rows: against a constant it would only say the test and the endpoint
+    were written by the same hand.
+    """
+    db.execute(
+        "INSERT INTO core.tribunal (sigla, nome) VALUES ('TJZZ', 'Tribunal sem acervo')"
+    )
+
+    offered = {c["abbreviation"] for c in client.get("/courts").json()["courts"]}
+
+    with db.cursor() as cursor:
+        cursor.execute("SELECT DISTINCT tribunal_sigla AS sigla FROM core.decisao")
+        held = {row["sigla"] for row in cursor.fetchall()}
+        cursor.execute("SELECT sigla FROM core.tribunal")
+        registered = {row["sigla"] for row in cursor.fetchall()}
+
+    assert offered == held & registered
+    assert held - registered, "every court is registered here, so this proves nothing"
+    assert "TJZZ" in registered - held, "the empty court vanished before the check"
+
+
+def test_the_filters_survive_the_ordering(client: TestClient) -> None:
+    """
+    Ordering rewrites the ORDER BY of the same statement the filters narrow, so
+    a filter dropped there would show up as a different set under one order.
+    """
+    by_relevance = search(client, tribunal=["TJDFT", "STJ"], date_to="2026-03-31")
+    by_date = search(
+        client, tribunal=["TJDFT", "STJ"], date_to="2026-03-31", order="date"
+    )
+
+    assert identifiers(by_relevance) == identifiers(by_date)
+    assert by_relevance["total"] == by_date["total"]
