@@ -55,20 +55,33 @@ ts_headline(
 Order = Literal["relevance", "date"]
 DEFAULT_ORDER: Order = "relevance"
 
-# Both end in identificador_fonte so a page boundary never splits a tie and
-# repeats or drops a decision between pages.
+TIEBREAK = "fonte_codigo DESC, identificador_fonte DESC"
+
+
+def _ordering(*keys: str) -> str:
+    """
+    An ORDER BY that closes on the unique key of `core.decisao`.
+
+    Relevance and date both tie: hundreds of decisions share a rank, and a
+    court decides dozens on the same day. A tie the database is free to break
+    however it likes is broken differently for each page, so the same decision
+    comes back on two of them while another is never served. Ending on
+    `fonte_codigo, identificador_fonte` leaves no tie at all — no two rows carry
+    the same pair — and the order becomes the same one every time. An
+    identifier alone would not do it: two collections number from 1.
+
+    Built here rather than written out so an ordering added later cannot be the
+    one that forgets.
+    """
+    return "ORDER BY\n    " + ",\n    ".join((*keys, TIEBREAK)) + "\n"
+
+
 ORDERINGS: dict[Order, str] = {
-    "relevance": f"""
-ORDER BY
-    ts_rank(ementa_busca, {QUERY}) DESC,
-    data_referencia DESC,
-    identificador_fonte DESC
-""",
-    "date": """
-ORDER BY
-    data_referencia DESC,
-    identificador_fonte DESC
-""",
+    "relevance": _ordering(
+        f"ts_rank(ementa_busca, {QUERY}) DESC",
+        "data_referencia DESC",
+    ),
+    "date": _ordering("data_referencia DESC"),
 }
 
 
@@ -352,7 +365,29 @@ class SearchResults(BaseModel):
         examples=[1847],
     )
     page: int = Field(description="Which page this is, starting at 1.", examples=[1])
-    page_size: int = Field(description="How many results per page.", examples=[20])
+    page_size: int = Field(
+        description=(
+            "How many results per page. The size that was applied, which is "
+            "the maximum when a larger one was asked for."
+        ),
+        examples=[20],
+    )
+    range_from: int | None = Field(
+        description=(
+            "Where this page starts within the total, counting from 1, so a "
+            "screen can say which slice it is showing. `null` when the page "
+            "carries nothing: there is no position to report."
+        ),
+        examples=[21],
+    )
+    range_to: int | None = Field(
+        description=(
+            "Where this page ends within the total, counting from 1 and "
+            "including this result. On the last page it is the total itself. "
+            "`null` when the page carries nothing."
+        ),
+        examples=[40],
+    )
     results: list[DecisionMatch]
 
 
@@ -583,8 +618,30 @@ def search_decisions(
             examples=["2026-03-31"],
         ),
     ] = None,
-    page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
-    page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
+    page: Annotated[
+        int,
+        Query(
+            ge=1,
+            description=(
+                "Which page to read, starting at 1. A page past the last one "
+                "answers an empty list with the same total, not an error."
+            ),
+            examples=[1],
+        ),
+    ] = 1,
+    page_size: Annotated[
+        int,
+        Query(
+            ge=1,
+            description=(
+                "How many results per page. Anything above "
+                f"{settings.search_max_page_size} is served at that maximum "
+                "rather than refused, and `page_size` in the answer says which "
+                "size was applied."
+            ),
+            examples=[20],
+        ),
+    ] = 20,
     order: Annotated[
         Order,
         Query(
@@ -605,6 +662,22 @@ def search_decisions(
     The total counts every match, not only this page, so a screen can say how
     many decisions exist before paging through them. With filters it counts
     every match inside them, on every page.
+
+    Paging is stable. Every ordering ends on the decision's unique key, so two
+    matches that tie on relevance or on the same judgement day still come back
+    in one fixed order — and walking the pages of one search serves every match
+    once, with none repeated and none skipped. `range_from` and `range_to` say
+    where the page sits inside the total, and are `null` when it carries
+    nothing:
+
+        GET /decisions?q=dano+moral&page=2&page_size=20
+
+        {"total": 57, "page": 2, "page_size": 20,
+         "range_from": 21, "range_to": 40, "results": [...]}
+
+    A page past the last one is an empty list with the same total, whatever the
+    page number, never an error. A `page_size` above the maximum is served at
+    the maximum, and the answer says which size was applied.
 
     `tribunal`, `date_from`, `date_to`, `published_from` and `published_to` are
     optional and narrow the search together: a result matches `q` **and** comes
@@ -651,11 +724,13 @@ def search_decisions(
         dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
     )
 
+    offset = (page - 1) * page_size
+
     parameters: dict[str, Any] = {
         "term": q,
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
-        "offset": (page - 1) * page_size,
+        "offset": offset,
     }
     if tribunais:
         parameters["tribunais"] = tribunais
@@ -675,7 +750,7 @@ def search_decisions(
         total = int((cursor.fetchone() or {"total": 0})["total"])
 
         rows: list[DictRow] = []
-        if total:
+        if offset < total:
             cursor.execute(_page_sql(filters, ORDERINGS[order]), parameters)
             rows = cursor.fetchall()
 
@@ -683,6 +758,8 @@ def search_decisions(
         total=total,
         page=page,
         page_size=page_size,
+        range_from=offset + 1 if rows else None,
+        range_to=offset + len(rows) if rows else None,
         results=[
             DecisionMatch(
                 **_base_fields(row),
