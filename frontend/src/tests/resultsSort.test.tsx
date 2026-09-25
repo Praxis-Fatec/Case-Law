@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import HomePage from '../pages/HomePage';
+import { renderApp } from './renderApp';
 
 // Only the address is replaced: the request code under test is the real one.
 // These answers are controlled, so they prove what the screen sends and shows,
@@ -80,7 +80,7 @@ const byOrder: Handler = (url) =>
 
 async function searchFirst() {
   const user = userEvent.setup();
-  render(<HomePage />);
+  renderApp();
   await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
   await screen.findAllByRole('article');
   return user;
@@ -98,7 +98,7 @@ afterEach(() => {
 describe('the order selector', () => {
   it('is not offered before there is a search to order', () => {
     installApi(byOrder);
-    render(<HomePage />);
+    renderApp();
 
     expect(screen.queryByRole('combobox', { name: 'Ordenar por' })).toBeNull();
   });
@@ -144,7 +144,7 @@ describe('changing the order', () => {
   it('keeps the applied filters, and not a filter still being edited', async () => {
     const api = installApi(byOrder);
     const user = userEvent.setup();
-    render(<HomePage />);
+    renderApp();
     await user.click(screen.getByRole('button', { name: /filtros/i }));
     const judged = screen.getByRole('group', { name: 'Data de julgamento' });
     fireEvent.change(within(judged).getByLabelText('De'), { target: { value: '2026-01-01' } });

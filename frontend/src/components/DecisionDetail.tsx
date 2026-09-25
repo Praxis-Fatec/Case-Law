@@ -14,8 +14,8 @@ type DecisionDetailProps = {
   id: string;
   source: string;
   identifier: string;
-  // Stacked layout only: back to the chosen item in the list above.
-  onBack: () => void;
+  // The way back out of this decision, when there is one to offer.
+  back?: { label: string; onClick: () => void };
 };
 
 type MetadataItem = { label: string; value: string };
@@ -52,7 +52,7 @@ function textItem(label: string, value: string | null): MetadataItem | null {
   return normalized ? { label, value: normalized } : null;
 }
 
-function DecisionDetail({ id, source, identifier, onBack }: DecisionDetailProps) {
+function DecisionDetail({ id, source, identifier, back }: DecisionDetailProps) {
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -98,14 +98,14 @@ function DecisionDetail({ id, source, identifier, onBack }: DecisionDetailProps)
       aria-labelledby={titleId}
       aria-busy={state.status === 'loading'}
     >
-      {/* Only shown when the columns stack and the list is above, out of view.
-          Side by side, the list is right there and nothing needs closing. */}
-      <div className="decision-detail__toolbar">
-        <button type="button" className="decision-detail__back" onClick={onBack}>
-          <ArrowLeft size={16} aria-hidden="true" />
-          Voltar aos resultados
-        </button>
-      </div>
+      {back && (
+        <div className="decision-detail__toolbar">
+          <button type="button" className="decision-detail__back" onClick={back.onClick}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            {back.label}
+          </button>
+        </div>
+      )}
 
       {state.status === 'loading' && (
         <>

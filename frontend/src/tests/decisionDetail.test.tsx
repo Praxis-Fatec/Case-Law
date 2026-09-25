@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Decision } from '../api/decisions';
 import DecisionDetail from '../components/DecisionDetail';
-import HomePage from '../pages/HomePage';
+import { renderApp } from './renderApp';
 
 // Only the address is replaced: the request code under test is the real one.
 vi.mock('../api/client', () => ({
@@ -93,14 +93,7 @@ const byIdentifier =
 
 function renderDetail(decision: Decision) {
   installApi(() => json(decision));
-  render(
-    <DecisionDetail
-      id="detail"
-      source={decision.source}
-      identifier={decision.identifier}
-      onBack={() => undefined}
-    />,
-  );
+  render(<DecisionDetail id="detail" source={decision.source} identifier={decision.identifier} />);
   return screen.findByRole('heading', { level: 2 });
 }
 
@@ -136,7 +129,7 @@ describe('the metadata', () => {
 
   it('asks the endpoint by collection and identifier, not by case number', async () => {
     const api = installApi(() => json(STRUCTURED));
-    render(<DecisionDetail id="d" source="tjdft-jurisdf" identifier="2119440" onBack={() => {}} />);
+    render(<DecisionDetail id="d" source="tjdft-jurisdf" identifier="2119440" />);
 
     await screen.findByRole('heading', { level: 2 });
     expect(api.details()[0].pathname).toBe('/decisions/tjdft-jurisdf/2119440');
@@ -258,7 +251,7 @@ describe('the panel states', () => {
   it('says it is loading, with nothing from any decision yet', async () => {
     const pending = deferred<Response>();
     installApi(() => pending.promise);
-    render(<DecisionDetail id="d" source="s" identifier="1" onBack={() => {}} />);
+    render(<DecisionDetail id="d" source="s" identifier="1" />);
 
     expect(screen.getByRole('status')).toHaveTextContent('Carregando decisão');
     expect(screen.queryByRole('term')).toBeNull();
@@ -269,7 +262,7 @@ describe('the panel states', () => {
 
   it('says a missing decision was not found', async () => {
     installApi(() => json({ detail: 'Decision not found.' }, 404));
-    render(<DecisionDetail id="d" source="s" identifier="0" onBack={() => {}} />);
+    render(<DecisionDetail id="d" source="s" identifier="0" />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Decisão não encontrada');
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
@@ -279,7 +272,7 @@ describe('the panel states', () => {
     let calls = 0;
     installApi(() => (++calls === 1 ? json({ detail: 'down' }, 503) : json(STRUCTURED)));
     const user = userEvent.setup();
-    render(<DecisionDetail id="d" source="s" identifier="1" onBack={() => {}} />);
+    render(<DecisionDetail id="d" source="s" identifier="1" />);
 
     await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
 
@@ -297,7 +290,7 @@ describe('choosing decisions from the results', () => {
 
   async function searchAndWait() {
     const user = userEvent.setup();
-    render(<HomePage />);
+    renderApp();
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
     await screen.findByRole('heading', { level: 2, name: /0712598/ });
     return user;
@@ -309,22 +302,23 @@ describe('choosing decisions from the results', () => {
     const box = screen.getByLabelText('Pesquisar decisões');
     const query = (box as HTMLInputElement).value;
 
-    await user.click(screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ }));
+    await user.click(screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ }));
 
     expect(await screen.findByRole('heading', { level: 2, name: /0702646/ })).toBeInTheDocument();
     expect(screen.getByText('57')).toBeInTheDocument();
     expect(screen.getAllByRole('article')).toHaveLength(2);
     expect(box).toHaveValue(query);
-    expect(
-      screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ }),
-    ).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
   });
 
   it('is chosen from the keyboard too', async () => {
     installApi(byIdentifier([STRUCTURED, PROSE]), searchAnswer);
     await searchAndWait();
 
-    const second = screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ });
+    const second = screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ });
     second.focus();
     const user = userEvent.setup();
     await user.keyboard('{Enter}');
@@ -341,8 +335,8 @@ describe('choosing decisions from the results', () => {
     }, searchAnswer);
     const user = await searchAndWait();
 
-    await user.click(screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ }));
-    await user.click(screen.getByRole('button', { name: /Ler a decisão do processo 0712598/ }));
+    await user.click(screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ }));
+    await user.click(screen.getByRole('link', { name: /Ler a decisão do processo 0712598/ }));
     await act(async () => late.resolve(json(PROSE)));
 
     expect(await screen.findByRole('heading', { level: 2, name: /0712598/ })).toBeInTheDocument();
@@ -352,7 +346,7 @@ describe('choosing decisions from the results', () => {
   it('goes back to the chosen card with the search as it was', async () => {
     installApi(byIdentifier([STRUCTURED, PROSE]), searchAnswer);
     const user = await searchAndWait();
-    await user.click(screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ }));
+    await user.click(screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ }));
     await screen.findByRole('heading', { level: 2, name: /0702646/ });
     // Reading the decision below the list, focus is in the panel, not the card.
     const back = screen.getByRole('button', { name: 'Voltar aos resultados' });
@@ -360,7 +354,7 @@ describe('choosing decisions from the results', () => {
 
     fireEvent.click(back);
 
-    const card = screen.getByRole('button', { name: /Ler a decisão do processo 0702646/ });
+    const card = screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ });
     expect(card).toHaveFocus();
     expect(card.scrollIntoView).toHaveBeenCalled();
     expect(screen.getByText('57')).toBeInTheDocument();
