@@ -18,23 +18,6 @@ AUDIT (
 SELECT * FROM @this_model WHERE data_referencia IS NULL;
 
 AUDIT (
-  name identificador_unico_entre_fontes,
-  dialect postgres
-);
-/* verificacao.link casa só pelo identificador, sem a fonte. Se duas fontes
-   usarem o mesmo, a decisão exibe o link_valido da outra. As faixas do TJDFT e
-   do STJ não se cruzam hoje, e é só isso que separa as duas — esta auditoria
-   avisa no dia em que deixarem de não se cruzar. */
-SELECT d.*
-FROM @this_model AS d
-WHERE EXISTS (
-  SELECT 1
-  FROM @this_model AS o
-  WHERE o.identificador_fonte = d.identificador_fonte
-    AND o.fonte_codigo <> d.fonte_codigo
-);
-
-AUDIT (
   name data_do_stj_convertida,
   dialect postgres
 );
@@ -74,19 +57,28 @@ AUDIT (
   name token_do_documento_por_fonte,
   dialect postgres
 );
-/* Cada fonte abre o documento por uma chave própria, e trocá-las não quebra
-   nada visível: a URL continua bem formada e o site responde 200. O TJDFT é uma
-   SPA que só reconhece o uuid; o identificador leva para a home. O STJ usa o
-   próprio id. */
+/* Trocar a chave não quebra nada visível: a URL continua bem formada e o site
+   responde 200. Nenhuma fonte abre pelo identificador do registro, então a
+   primeira condição pega a troca em toda a coleção de uma vez. O formato só é
+   exigido do TJDFT: o STJ publica alguns números de registro quebrados, e
+   reprovar a carga por isso esconderia decisão real. */
 SELECT *
 FROM @this_model
-WHERE (
-  fonte_codigo = 'tjdft-jurisdf'
-  AND (
-    identificador_documento !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    OR identificador_documento = identificador_fonte
-  )
-) OR (
-  fonte_codigo = 'stj-espelhos'
-  AND identificador_documento <> identificador_fonte
+WHERE identificador_documento = identificador_fonte
+   OR (
+     fonte_codigo = 'tjdft-jurisdf'
+     AND identificador_documento !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+   );
+
+AUDIT (
+  name verdito_de_fonte_conhecida,
+  dialect postgres
 );
+/* Veredicto sob código de fonte inexistente fica órfão: não casa com nada, não
+   dá erro, e a decisão fica sem verificação para sempre. */
+SELECT v.*
+FROM verificacao.link AS v
+LEFT JOIN core.fonte AS f
+  ON f.codigo = v.fonte_codigo
+WHERE f.codigo IS NULL
+  AND EXISTS (SELECT 1 FROM @this_model);

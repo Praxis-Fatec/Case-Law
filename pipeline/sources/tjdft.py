@@ -121,22 +121,24 @@ def total_available(
     return int(response.json()["hits"]["value"])
 
 
-def identifiers_between(
+def documents_between(
     start: date,
     end: date,
     interval: float = REQUEST_INTERVAL,
-) -> set[str]:
+) -> dict[str, str]:
     """
-    Every identifier the source holds for a window, read page by page.
+    Every document the source holds for a window, as identifier to uuid.
 
-    One request per forty documents instead of one per document. Absence here
-    is a candidate for a broken link, not a verdict: a court that corrected a
-    judgement date moves a record out of the window it was collected in, so the
-    caller confirms each absence with `document_exists`.
+    One request per forty documents instead of one per document. The uuid comes
+    in the same answer, so the window can confirm the key a link is built from
+    at no extra cost. Absence here is a candidate for a broken link, not a
+    verdict: a court that corrected a judgement date moves a record out of the
+    window it was collected in, so the caller confirms each absence with
+    `document_opens`.
     """
     pacer = _Pacer(interval)
     terms = _search_terms(start, end)
-    found: set[str] = set()
+    found: dict[str, str] = {}
     page = 0
 
     while True:
@@ -148,19 +150,22 @@ def identifiers_between(
         records = response.json().get("registros") or []
         if not records:
             return found
-        found |= {str(r.get("identificador")) for r in records}
+        found |= {str(r.get("identificador")): str(r.get("uuid")) for r in records}
         page += 1
 
 
-def document_exists(identificador: str) -> bool:
+def document_opens(identificador: str, documento: str | None = None) -> bool:
     """
-    Whether the source still holds this document.
+    Whether the link built for this record still reaches its document.
 
-    The portal page cannot answer this: `detalhes/{id}` is a single-page
-    application that returns the same 200 and the same 62.758 bytes for a real
-    identifier and for an invented one, because the document arrives later over
-    this very API. So the check asks the API, by the identifier the link is
-    built from.
+    Two questions, and the second is the one that bites. The source has to still
+    hold the record — but the link is not built from the identifier, it is built
+    from the uuid, and a uuid that does not match opens nothing. The portal is a
+    single-page application: it answers 200 with the same bytes for a real uuid,
+    an invented one and no uuid at all, so only the API can tell them apart.
+
+    With no `documento` the question is existence alone, which is what the
+    window sweep asks.
 
     Raises whatever the request raised. The caller decides what an unreachable
     portal means; here it is not an answer of "invalid".
@@ -176,8 +181,11 @@ def document_exists(identificador: str) -> bool:
     )
     response.raise_for_status()
 
-    records = response.json().get("registros") or []
-    return any(str(r.get("identificador")) == str(identificador) for r in records)
+    for record in response.json().get("registros") or []:
+        if str(record.get("identificador")) != str(identificador):
+            continue
+        return documento is None or str(record.get("uuid")) == str(documento)
+    return False
 
 
 def _date_from_env(name: str) -> date | None:
