@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, type Decision } from '../api/decisions';
@@ -14,7 +14,8 @@ type DecisionDetailProps = {
   id: string;
   source: string;
   identifier: string;
-  onClose: () => void;
+  // Stacked layout only: back to the chosen item in the list above.
+  onBack: () => void;
 };
 
 type MetadataItem = { label: string; value: string };
@@ -51,10 +52,9 @@ function textItem(label: string, value: string | null): MetadataItem | null {
   return normalized ? { label, value: normalized } : null;
 }
 
-function DecisionDetail({ id, source, identifier, onClose }: DecisionDetailProps) {
+function DecisionDetail({ id, source, identifier, onBack }: DecisionDetailProps) {
   const [state, setState] = useState<DetailState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
-  const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     // Opening another decision remounts this panel; a retry runs this again.
@@ -84,13 +84,6 @@ function DecisionDetail({ id, source, identifier, onClose }: DecisionDetailProps
     };
   }, [source, identifier, attempt]);
 
-  // Where a keyboard or screen reader user lands once the decision is there.
-  useEffect(() => {
-    if (state.status === 'loaded') {
-      titleRef.current?.focus();
-    }
-  }, [state.status]);
-
   const retry = () => {
     setState({ status: 'loading' });
     setAttempt((current) => current + 1);
@@ -105,8 +98,10 @@ function DecisionDetail({ id, source, identifier, onClose }: DecisionDetailProps
       aria-labelledby={titleId}
       aria-busy={state.status === 'loading'}
     >
+      {/* Only shown when the columns stack and the list is above, out of view.
+          Side by side, the list is right there and nothing needs closing. */}
       <div className="decision-detail__toolbar">
-        <button type="button" className="decision-detail__back" onClick={onClose}>
+        <button type="button" className="decision-detail__back" onClick={onBack}>
           <ArrowLeft size={16} aria-hidden="true" />
           Voltar aos resultados
         </button>
@@ -147,9 +142,7 @@ function DecisionDetail({ id, source, identifier, onClose }: DecisionDetailProps
         </div>
       )}
 
-      {state.status === 'loaded' && (
-        <DecisionContent decision={state.decision} titleId={titleId} titleRef={titleRef} />
-      )}
+      {state.status === 'loaded' && <DecisionContent decision={state.decision} titleId={titleId} />}
     </aside>
   );
 }
@@ -157,10 +150,9 @@ function DecisionDetail({ id, source, identifier, onClose }: DecisionDetailProps
 type DecisionContentProps = {
   decision: Decision;
   titleId: string;
-  titleRef: React.RefObject<HTMLHeadingElement>;
 };
 
-function DecisionContent({ decision, titleId, titleRef }: DecisionContentProps) {
+function DecisionContent({ decision, titleId }: DecisionContentProps) {
   const metadata = metadataOf(decision);
   const court = normalizeText(decision.court);
   const caseNumber = normalizeText(decision.case_number);
@@ -169,7 +161,7 @@ function DecisionContent({ decision, titleId, titleRef }: DecisionContentProps) 
     <>
       <header className="decision-detail__header">
         {court && <span className="decision-detail__court">{court}</span>}
-        <h2 id={titleId} ref={titleRef} tabIndex={-1} className="decision-detail__title">
+        <h2 id={titleId} tabIndex={-1} className="decision-detail__title">
           {caseNumber ? `Processo ${caseNumber}` : 'Decisão sem número de processo informado'}
         </h2>
       </header>

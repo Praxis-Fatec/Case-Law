@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { ArrowRight } from '@phosphor-icons/react';
 
 import type { SearchDecisionMatch } from '../api/search';
 import { formatDate, getDisplayValue, NOT_INFORMED, normalizeText } from './decisionFormat';
@@ -123,9 +124,29 @@ function DecisionResultCard({
         selected ? 'decision-result-card decision-result-card--selected' : 'decision-result-card'
       }
       aria-label={`Decisão ${decision.case_number ?? 'sem processo'}`}
-      aria-current={selected ? 'true' : undefined}
     >
+      {/* The whole card chooses the decision, as in the reference. A real
+          button stretched over the card, so it answers to Tab, Enter and Space;
+          the official link sits above it and stays a link of its own. */}
+      {onOpen && (
+        <button
+          type="button"
+          id={openButtonId}
+          className="decision-result-card__select"
+          onClick={onOpen}
+          aria-current={selected ? 'true' : undefined}
+        >
+          <span className="sr-only">
+            Ler a decisão
+            {normalizeText(decision.case_number) ? ` do processo ${decision.case_number}` : ''}
+          </span>
+        </button>
+      )}
+
       <header className="decision-result-card__header">
+        {onOpen && (
+          <ArrowRight className="decision-result-card__arrow" size={16} aria-hidden="true" />
+        )}
         <div className="decision-result-card__title">
           <span className="decision-result-card__court">{getDisplayValue(decision.court)}</span>
           <span className="decision-result-card__separator">•</span>
@@ -140,23 +161,6 @@ function DecisionResultCard({
       </div>
 
       <div className="decision-result-card__actions" aria-live="polite">
-        {onOpen && (
-          <button
-            type="button"
-            id={openButtonId}
-            className="decision-result-card__open"
-            onClick={onOpen}
-            aria-pressed={selected}
-          >
-            Ver decisão
-            <span className="sr-only">
-              {' '}
-              completa
-              {normalizeText(decision.case_number) ? ` do processo ${decision.case_number}` : ''}
-            </span>
-          </button>
-        )}
-
         {officialUrl && decision.source_url_reachable !== false ? (
           <a
             className="decision-result-card__source-link"

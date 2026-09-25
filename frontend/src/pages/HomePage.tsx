@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import { searchDecisions, type SearchDecisionMatch } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
@@ -15,6 +15,12 @@ const keyOf = (decision: OpenDecision) => `${decision.source}/${decision.identif
 const openButtonId = (decision: OpenDecision) =>
   `open-${keyOf(decision).replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
+// Below this width the two columns stack, the detail under the list.
+const STACKED = '(max-width: 1100px)';
+
+const isStacked = () =>
+  typeof window.matchMedia === 'function' && window.matchMedia(STACKED).matches;
+
 function HomePage() {
   const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
   const [mode, setMode] = useState<'free' | 'exact'>('free');
@@ -22,22 +28,28 @@ function HomePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [results, setResults] = useState<SearchDecisionMatch[]>([]);
   const [totalResults, setTotalResults] = useState<number | null>(null);
-  // The decision open beside the list. The list stays mounted underneath, so
-  // closing the panel returns to the same results, scroll and all.
+  // The decision shown beside the list. Choosing another item only swaps what
+  // the right side shows: the list, and the search behind it, never change.
   const [openDecision, setOpenDecision] = useState<OpenDecision | null>(null);
-  const lastOpened = useRef<OpenDecision | null>(null);
-
-  // Back on the list, focus returns to the button that opened the decision.
-  useEffect(() => {
-    if (openDecision === null && lastOpened.current) {
-      document.getElementById(openButtonId(lastOpened.current))?.focus();
-      lastOpened.current = null;
-    }
-  }, [openDecision]);
 
   const openDetail = (decision: OpenDecision) => {
-    lastOpened.current = decision;
     setOpenDecision(decision);
+    // Stacked, the detail sits below the list, out of sight: bring it in.
+    if (isStacked()) {
+      requestAnimationFrame(() =>
+        document.getElementById(DETAIL_PANEL_ID)?.scrollIntoView({ block: 'start' }),
+      );
+    }
+  };
+
+  // Only reachable stacked, where the list is above: back to the chosen item.
+  const backToList = () => {
+    if (!openDecision) {
+      return;
+    }
+    const opener = document.getElementById(openButtonId(openDecision));
+    opener?.scrollIntoView({ block: 'center' });
+    opener?.focus();
   };
 
   const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
@@ -51,7 +63,6 @@ function HomePage() {
     }
 
     // A new search replaces the list the open decision came from.
-    lastOpened.current = null;
     setOpenDecision(null);
     setIsLoading(true);
     setErrorMessage(null);
@@ -62,6 +73,10 @@ function HomePage() {
       const response = await searchDecisions({ q: trimmedValue, page: 1, page_size: 20 });
       setTotalResults(response.total);
       setResults(response.results);
+
+      // As in the reference: the first result is open as soon as the list is.
+      const [first] = response.results;
+      setOpenDecision(first ? { source: first.source, identifier: first.identifier } : null);
 
       if (response.total === 0) {
         setErrorMessage(
@@ -149,9 +164,9 @@ function HomePage() {
           </div>
         </form>
 
-        <div
-          className={openDecision ? 'results-layout results-layout--detail-open' : 'results-layout'}
-        >
+        {/* Always two columns, as in the reference: the list on the left, the
+            decision on the right. */}
+        <div className="results-layout">
           <section className="search-results" aria-live="polite">
             {isLoading && (
               <div className="search-state search-state--loading">Carregando resultados...</div>
@@ -208,14 +223,22 @@ function HomePage() {
           {/* Outside the results' live region, so a screen reader is not read the
             whole ementa each time a decision opens. Keyed by the decision, so
             nothing from the previous one shows while the next loads. */}
-          {openDecision && (
+          {openDecision ? (
             <DecisionDetail
               key={keyOf(openDecision)}
               id={DETAIL_PANEL_ID}
               source={openDecision.source}
               identifier={openDecision.identifier}
-              onClose={() => setOpenDecision(null)}
+              onBack={backToList}
             />
+          ) : (
+            <aside id={DETAIL_PANEL_ID} className="decision-detail decision-detail--empty">
+              <p className="decision-detail__placeholder">
+                {isLoading
+                  ? 'Carregando resultados...'
+                  : 'Pesquise e escolha uma decisão da lista para lê-la aqui.'}
+              </p>
+            </aside>
           )}
         </div>
       </div>

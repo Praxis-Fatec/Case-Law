@@ -447,52 +447,107 @@ input:focus-visible {
     sans-serif;
 }
 
-.decision-result-card--selected {
-  border-color: var(--search-primary);
-  box-shadow: 0 0 0 3px rgb(69 21 31 / 8%);
-}
-
-.decision-result-card__open {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 0.85rem;
-  border: 1px solid var(--search-primary);
-  border-radius: 9px;
-  background: var(--search-surface);
-  color: var(--search-primary);
-  font:
-    700 13px/1 'Source Sans 3',
-    sans-serif;
+/* A card that chooses a decision: a button stretched over the whole card. */
+.decision-result-card:has(.decision-result-card__select) {
+  position: relative;
   cursor: pointer;
 }
 
-.decision-result-card__open:hover,
-.decision-result-card__open[aria-pressed='true'] {
-  background: var(--search-soft);
+.decision-result-card__select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
 }
 
-/* The list and the open decision side by side. The list is never unmounted, so
-   closing the panel returns to the same results. */
+.decision-result-card__select:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 25%);
+  outline-offset: -3px;
+}
+
+/* The official link stays its own target, above the stretched button. Only the
+   link itself: the empty rest of its row still chooses the card. */
+.decision-result-card:has(.decision-result-card__select) .decision-result-card__source-link {
+  position: relative;
+  z-index: 2;
+}
+
+.decision-result-card:has(.decision-result-card__select) .decision-result-card__header {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.decision-result-card__arrow {
+  flex: none;
+  color: var(--search-muted);
+  transition: transform 160ms ease;
+}
+
+.decision-result-card:has(.decision-result-card__select):hover {
+  border-color: #cdb5ae;
+}
+
+.decision-result-card:has(.decision-result-card__select):hover .decision-result-card__arrow {
+  color: var(--search-primary);
+  transform: translateX(2px);
+}
+
+/* The decision on the right, marked as in the reference: soft ground, and an
+   arrow and border that say it without relying on the ground alone. */
+.decision-result-card--selected {
+  border-color: var(--search-primary);
+  background: #fdf3ef;
+}
+
+.decision-result-card--selected .decision-result-card__header {
+  background: #f8e6df;
+}
+
+.decision-result-card--selected .decision-result-card__arrow {
+  color: var(--search-primary);
+}
+
+/* Always two columns, as in the reference: the list, and the decision chosen
+   from it. Choosing another only changes the right side. */
 .results-layout {
   width: min(100%, 1200px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   gap: 1rem;
   align-items: start;
-}
-
-.results-layout--detail-open {
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
 }
 
 .results-layout .search-results {
   width: 100%;
 }
 
-/* Narrower, the list gives way to the fields a result card needs. */
-.results-layout--detail-open .decision-result-card__meta {
+/* In the narrower left column, a card lays its fields out in two columns. */
+.results-layout .decision-result-card__meta {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.decision-detail--empty {
+  min-height: 12rem;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.decision-detail__placeholder {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    500 15px/1.5 'Source Sans 3',
+    sans-serif;
 }
 
 .decision-detail {
@@ -510,8 +565,9 @@ input:focus-visible {
   box-shadow: 0 4px 18px rgb(45 19 27 / 5%);
 }
 
+/* Side by side the list is right there: the way back only shows when stacked. */
 .decision-detail__toolbar {
-  display: flex;
+  display: none;
 }
 
 .decision-detail__back {
@@ -633,19 +689,19 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 
+/* Too narrow for two columns: the decision goes under the list. */
 @media (max-width: 1100px) {
-  .results-layout--detail-open {
+  .results-layout {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  /* Hidden, not unmounted: back on the list, the results are still there. */
-  .results-layout--detail-open .search-results {
-    display: none;
   }
 
   .decision-detail {
     position: static;
     max-height: none;
+  }
+
+  .decision-detail__toolbar {
+    display: flex;
   }
 }
 
