@@ -6,14 +6,15 @@ data is, and later how it is distributed. They read the load record the pipeline
 writes, never the courts themselves.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
+from app.api.decisions import MATCH, SEARCH_RESPONSES, _narrowing
 from app.db import get_connection
 from app.errors import NOT_PUBLISHED, UNAVAILABLE
 
@@ -136,3 +137,98 @@ def read_last_update(
         updated_at=None,
         records=0,
     )
+
+
+# LEFT JOIN, not JOIN: a court the seed never registered would otherwise drop
+# out and the sums would stop adding up to the search's total, which is the one
+# thing this endpoint promises.
+VOLUME_SQL = f"""
+SELECT
+    d.tribunal_sigla                     AS sigla,
+    COALESCE(t.nome, d.tribunal_sigla)   AS nome,
+    COUNT(*)                             AS decisoes
+FROM core.decisao AS d
+LEFT JOIN core.tribunal AS t ON t.sigla = d.tribunal_sigla
+WHERE {MATCH}{{filters}}
+GROUP BY d.tribunal_sigla, t.nome
+ORDER BY COUNT(*) DESC, d.tribunal_sigla
+"""
+
+
+class CourtVolume(BaseModel):
+    abbreviation: str = Field(description="The court's abbreviation.", examples=["STJ"])
+    name: str = Field(
+        description="The court's full name.",
+        examples=["Superior Tribunal de Justiça"],
+    )
+    decisions: int = Field(
+        description="How many of the search's decisions came from this court.",
+        examples=[876996],
+    )
+
+
+class VolumeByCourt(BaseModel):
+    total: int = Field(
+        description=(
+            "Every decision the same search matches. The courts' counts add up "
+            "to it, so a chart drawn from this cannot disagree with the number "
+            "beside the results."
+        ),
+        examples=[984824],
+    )
+    courts: list[CourtVolume] = Field(
+        description="Busiest court first. Empty when the search matches nothing."
+    )
+
+
+@router.get(
+    "/indicators/volume-by-court",
+    summary="How the search's decisions divide between the courts",
+    responses=SEARCH_RESPONSES,
+)
+def read_volume_by_court(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[
+        str,
+        Query(
+            min_length=2,
+            description="The same expression the search takes.",
+            examples=["dano moral"],
+        ),
+    ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(description="The same court filter the search takes."),
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+) -> VolumeByCourt:
+    """
+    The same decisions the search would return, counted by court.
+
+    It takes the search's parameters and narrows the same way, from the same
+    builder, so the chart and the results can never describe different sets. A
+    search that matches nothing answers an empty list and a total of zero, not
+    an error: no court is the honest answer to a question with no decisions.
+    """
+    filters, parameters = _narrowing(
+        q, tribunal, date_from, date_to, published_from, published_to
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute(VOLUME_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    courts = [
+        CourtVolume(
+            abbreviation=row["sigla"], name=row["nome"], decisions=row["decisoes"]
+        )
+        for row in rows
+    ]
+    return VolumeByCourt(total=sum(c.decisions for c in courts), courts=courts)
