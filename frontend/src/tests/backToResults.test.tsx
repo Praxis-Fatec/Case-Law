@@ -55,14 +55,18 @@ function deferred<T>() {
 
 type SearchAnswer = (url: URL) => Response | Promise<Response>;
 
+// Searches and detail reads are kept apart: opening a decision reads its
+// detail, and that must not be mistaken for — or hide — a search.
 function installApi(search: SearchAnswer = () => json(page(57))) {
   const searches: URL[] = [];
+  const details: string[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       const detail = url.pathname.match(/^\/decisions\/[^/]+\/([^/]+)$/);
       if (detail) {
+        details.push(url.pathname);
         const found = DECISIONS.find((d) => d.identifier === detail[1]);
         return found ? json(found) : json({ detail: 'Decision not found.' }, 404);
       }
@@ -73,7 +77,7 @@ function installApi(search: SearchAnswer = () => json(page(57))) {
       return json({ courts: [] });
     }),
   );
-  return { searches };
+  return { searches, details };
 }
 
 function page(total: number, identifiers = ['1001', '1002', '1003']) {
@@ -93,7 +97,12 @@ const panel = () => screen.getByRole('complementary');
 async function searchWithContext() {
   const user = userEvent.setup();
   renderApp();
-  // Filters and an order applied with the search, to check they come back too.
+  // An expression, a mode, filters and an order applied with the search, to
+  // check that every one of them comes back too.
+  const box = screen.getByLabelText('Pesquisar decisões');
+  await user.clear(box);
+  await user.type(box, 'dano moral');
+  await user.click(screen.getByRole('button', { name: 'Frase exata' }));
   await user.click(screen.getByRole('button', { name: /filtros/i }));
   const judged = screen.getByRole('group', { name: 'Data de julgamento' });
   fireEvent.change(within(judged).getByLabelText('De'), { target: { value: '2026-01-01' } });
@@ -106,6 +115,11 @@ async function searchWithContext() {
 
 function expectContextKept() {
   expect(currentAddress()).toBe('/');
+  expect(screen.getByLabelText('Pesquisar decisões')).toHaveValue('dano moral');
+  expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   expect(screen.getByText('57')).toBeInTheDocument();
   expect(screen.getAllByRole('article')).toHaveLength(3);
   expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('date');
@@ -126,16 +140,21 @@ describe('back to the results', () => {
   it("by the screen's own action: the list as it was, and no new search", async () => {
     const api = installApi();
     const user = await searchWithContext();
-    const before = api.searches.length;
+    // The searches made so far: the initial one and the reorder.
+    const searchesBefore = api.searches.length;
+    expect(searchesBefore).toBe(2);
+    expect(api.searches[searchesBefore - 1].searchParams.get('q')).toBe('dano moral');
 
     await user.click(card('1002'));
     expect(currentAddress()).toBe('/decisoes/tjdft-jurisdf/1002');
     await within(panel()).findByText('RELATOR 1002');
+    // Opening it read its detail — a different request from a search.
+    expect(api.details).toContain('/decisions/tjdft-jurisdf/1002');
 
     await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
 
     expectContextKept();
-    expect(api.searches).toHaveLength(before);
+    expect(api.searches).toHaveLength(searchesBefore);
     expect(card('1002')).toHaveFocus();
   });
 

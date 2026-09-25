@@ -144,6 +144,28 @@ describe('the address of a decision', () => {
     expect(api.searches).toHaveLength(0);
   });
 
+  it('reloaded, still opens the decision the reader chose, with nothing kept from before', async () => {
+    installApi();
+    const user = userEvent.setup();
+    const { unmount } = renderApp();
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    const [, second] = await screen.findAllByRole('link', { name: /Ler a decisão/ });
+    await user.click(second);
+    const address = currentAddress()!;
+
+    // A reload: the whole app, session included, gone and started again at
+    // the address the reader was on.
+    unmount();
+    const reloaded = installApi();
+    renderApp(address);
+
+    const panel = screen.getByRole('complementary');
+    expect(await within(panel).findByText('RELATOR 2000002')).toBeInTheDocument();
+    expect(reloaded.details).toEqual(['/decisions/tjdft-jurisdf/2000002']);
+    expect(reloaded.searches).toHaveLength(0);
+    expect(screen.queryAllByRole('article')).toHaveLength(0);
+  });
+
   it('shows the existing not-found state for a decision that does not exist', async () => {
     installApi();
     renderApp('/decisoes/tjdft-jurisdf/9999999');
