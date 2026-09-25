@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { Link, type To } from 'react-router-dom';
 import { ArrowRight } from '@phosphor-icons/react';
 
 import type { SearchDecisionMatch } from '../api/search';
@@ -26,7 +27,10 @@ type DecisionCardData = Pick<
 
 type DecisionResultCardProps = {
   decision: DecisionCardData;
-  // Opens the decision in full. Without it the card only links to the court.
+  // The address of the decision in full. Without it the card only links to
+  // the court.
+  to?: To;
+  // Called as the card is followed, for what the address alone does not do.
   onOpen?: () => void;
   openButtonId?: string;
   // The decision open in the detail panel, marked so the list says which.
@@ -84,6 +88,7 @@ function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
 
 function DecisionResultCard({
   decision,
+  to,
   onOpen,
   openButtonId,
   selected = false,
@@ -112,12 +117,13 @@ function DecisionResultCard({
       }
       aria-label={`Decisão ${decision.case_number ?? 'sem processo'}`}
     >
-      {/* The whole card chooses the decision, as in the reference. A real
-          button stretched over the card, so it answers to Tab, Enter and Space;
-          the official link sits above it and stays a link of its own. */}
-      {onOpen && (
-        <button
-          type="button"
+      {/* The whole card opens the decision, as in the reference. A real link
+          stretched over the card, to the decision's own address: it can be
+          opened in another tab or copied. The official link is a sibling, not
+          a child, and sits above it, so it never opens this one as well. */}
+      {to && (
+        <Link
+          to={to}
           id={openButtonId}
           className="decision-result-card__select"
           onClick={onOpen}
@@ -127,13 +133,11 @@ function DecisionResultCard({
             Ler a decisão
             {normalizeText(decision.case_number) ? ` do processo ${decision.case_number}` : ''}
           </span>
-        </button>
+        </Link>
       )}
 
       <header className="decision-result-card__header">
-        {onOpen && (
-          <ArrowRight className="decision-result-card__arrow" size={16} aria-hidden="true" />
-        )}
+        {to && <ArrowRight className="decision-result-card__arrow" size={16} aria-hidden="true" />}
         <div className="decision-result-card__title">
           <span className="decision-result-card__court">{getDisplayValue(decision.court)}</span>
           <span className="decision-result-card__separator">•</span>

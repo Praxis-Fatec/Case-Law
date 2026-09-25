@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import HomePage from '../pages/HomePage';
+import { renderApp } from './renderApp';
 
 // Only the address is replaced: the request code under test is the real one,
 // and it reads the base URL from the environment, which a test run should not
@@ -91,7 +91,7 @@ function deferred<T>() {
 
 async function renderPage() {
   const user = userEvent.setup();
-  render(<HomePage />);
+  renderApp();
   await user.click(screen.getByRole('button', { name: /filtros/i }));
   return user;
 }

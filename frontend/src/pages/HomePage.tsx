@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import {
   DEFAULT_ORDER,
@@ -58,6 +59,13 @@ type OpenDecision = { source: string; identifier: string };
 
 const keyOf = (decision: OpenDecision) => `${decision.source}/${decision.identifier}`;
 
+// The address of a decision: the same two identifiers the detail endpoint
+// takes, so a copied link reopens exactly this decision.
+export const DETAIL_ROUTE = '/decisoes/:source/:identifier';
+
+const detailPath = (decision: OpenDecision) =>
+  `/decisoes/${encodeURIComponent(decision.source)}/${encodeURIComponent(decision.identifier)}`;
+
 const openButtonId = (decision: OpenDecision) =>
   `open-${keyOf(decision).replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
@@ -100,6 +108,25 @@ function HomePage() {
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
   const latestSearch = useRef(0);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // The decision shown beside the list comes from the address, so it can be
+  // copied, opened in another tab or reloaded. Choosing another item only
+  // swaps what the right side shows: the list and the search behind it stay.
+  const match = useMatch(DETAIL_ROUTE);
+  const openDecision: OpenDecision | null =
+    match?.params.source && match.params.identifier
+      ? { source: match.params.source, identifier: match.params.identifier }
+      : null;
+
+  // Opening a decision from a search does not add to the history: the one
+  // the reader chose does, through the result's link.
+  const showDecision = (decision: OpenDecision | null) =>
+    navigate(
+      { pathname: decision ? detailPath(decision) : '/', search: location.search },
+      { replace: true },
+    );
 
   // What the results on screen were filtered with. Null before the first search.
   const appliedFilters = applied?.filters ?? null;
@@ -131,13 +158,9 @@ function HomePage() {
     setFilterDraft(next);
   };
 
-  // The decision shown beside the list. Choosing another item only swaps what
-  // the right side shows: the list, and the search behind it, never change.
-  const [openDecision, setOpenDecision] = useState<OpenDecision | null>(null);
-
-  const openDetail = (decision: OpenDecision) => {
-    setOpenDecision(decision);
-    // Stacked, the detail sits below the list, out of sight: bring it in.
+  // The result's link navigates; this only brings the panel into view when the
+  // columns are stacked and it sits below the list, out of sight.
+  const openDetail = () => {
     if (isStacked()) {
       requestAnimationFrame(() =>
         document.getElementById(DETAIL_PANEL_ID)?.scrollIntoView({ block: 'start' }),
@@ -161,7 +184,7 @@ function HomePage() {
     const searchId = ++latestSearch.current;
 
     setApplied(search);
-    setOpenDecision(null);
+    showDecision(null);
     setIsLoading(true);
     setErrorMessage(null);
     // Nothing from the previous answer stays up while the new one loads, so
@@ -182,7 +205,7 @@ function HomePage() {
 
       // As in the reference: the first result is open as soon as the list is.
       const [first] = response.results;
-      setOpenDecision(first ? { source: first.source, identifier: first.identifier } : null);
+      showDecision(first ? { source: first.source, identifier: first.identifier } : null);
 
       if (response.total === 0) {
         setErrorMessage(
@@ -426,7 +449,8 @@ function HomePage() {
                       <li key={`${result.source}-${result.identifier}`} className="result-item">
                         <DecisionResultCard
                           decision={result}
-                          onOpen={() => openDetail(decision)}
+                          to={{ pathname: detailPath(decision), search: location.search }}
+                          onOpen={openDetail}
                           openButtonId={openButtonId(decision)}
                           selected={selected}
                         />
