@@ -73,12 +73,20 @@ ORDER BY
 
 
 def _filters_sql(
-    tribunals: list[str], date_from: date | None, date_to: date | None
+    tribunals: list[str],
+    date_from: date | None,
+    date_to: date | None,
+    published_from: date | None = None,
+    published_to: date | None = None,
 ) -> str:
     """
     The optional narrowing, appended to the text match. The count and the page
     are built from the same string, so the total can never describe a different
     set than the one being paged through.
+
+    The publication period reads `data_publicacao` alone, with no fallback: a
+    decision the court never dated as published cannot be said to fall inside
+    it, and a comparison with NULL is never true, so it is left out.
     """
     clauses: list[str] = []
     if tribunals:
@@ -87,6 +95,10 @@ def _filters_sql(
         clauses.append("data_referencia >= %(date_from)s")
     if date_to is not None:
         clauses.append("data_referencia <= %(date_to)s")
+    if published_from is not None:
+        clauses.append("data_publicacao >= %(published_from)s")
+    if published_to is not None:
+        clauses.append("data_publicacao <= %(published_to)s")
     return "".join(f" AND {clause}" for clause in clauses)
 
 
@@ -464,6 +476,9 @@ def _safe_snippet(raw: str | None, ementa: str | None, query: str | None = None)
 
 
 INVERTED_RANGE = "date_from must be less than or equal to date_to."
+INVERTED_PUBLICATION_RANGE = (
+    "published_from must be less than or equal to published_to."
+)
 
 # The search fails with 400 in two ways, and a caller handles them differently:
 # one is a value the database cannot read, the other a range that is backwards.
@@ -472,14 +487,18 @@ SEARCH_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: {
         **DATABASE_RESPONSES[400],
         "description": (
-            "A parameter carries something the database cannot read, or "
-            "`date_from` is after `date_to`."
+            "A parameter carries something the database cannot read, or a "
+            "period ends before it starts: `date_from` after `date_to`, or "
+            "`published_from` after `published_to`."
         ),
         "content": {
             "application/json": {
                 "examples": {
                     "malformed": {"value": {"detail": MALFORMED}},
                     "inverted range": {"value": {"detail": INVERTED_RANGE}},
+                    "inverted publication range": {
+                        "value": {"detail": INVERTED_PUBLICATION_RANGE}
+                    },
                 }
             }
         },
@@ -542,6 +561,28 @@ def search_decisions(
             examples=["2026-03-31"],
         ),
     ] = None,
+    published_from: Annotated[
+        date | None,
+        Query(
+            description=(
+                "Earliest publication date to return, as `YYYY-MM-DD`, compared "
+                "with the date the decision reached the gazette alone. "
+                "Inclusive. Decisions with no recorded publication date are "
+                "left out whenever this or `published_to` is sent."
+            ),
+            examples=["2026-03-01"],
+        ),
+    ] = None,
+    published_to: Annotated[
+        date | None,
+        Query(
+            description=(
+                "Latest publication date to return, as `YYYY-MM-DD`. Inclusive. "
+                "Alone, the period is open at the start."
+            ),
+            examples=["2026-03-31"],
+        ),
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number.")] = 1,
     page_size: Annotated[int, Query(ge=1, description="Results per page.")] = 20,
     order: Annotated[
@@ -565,11 +606,15 @@ def search_decisions(
     many decisions exist before paging through them. With filters it counts
     every match inside them, on every page.
 
-    `tribunal`, `date_from` and `date_to` are optional and narrow the search
-    together: a result matches `q` **and** comes from one of the courts **and**
-    falls within the dates. The dates are compared with `decided_on` — the
+    `tribunal`, `date_from`, `date_to`, `published_from` and `published_to` are
+    optional and narrow the search together: a result matches `q` **and** comes
+    from one of the courts **and** falls within every period sent.
+
+    There are two periods. `date_from`/`date_to` compare `decided_on` — the
     judgement date, or the publication date when the court did not record the
     first — so a result never falls outside the range the screen asked for.
+    `published_from`/`published_to` compare the publication date alone, and a
+    decision without one is left out while either is sent.
 
     Without filters, every court and every date:
 
@@ -581,14 +626,26 @@ def search_decisions(
         GET /decisions?q=%22dano+moral%22&tribunal=TJDFT&tribunal=STJ
                       &date_from=2026-03-01&date_to=2026-03-31
 
+    Judged in 2026 and published in March of it:
+
+        GET /decisions?q=dano+moral&date_from=2026-01-01&date_to=2026-12-31
+                      &published_from=2026-03-01&published_to=2026-03-31
+
     A date that is not a real `YYYY-MM-DD` day answers 422, like any malformed
-    parameter. `date_from` after `date_to` answers 400: an empty range is
-    almost always a mistake, and saying so beats an empty result.
+    parameter. A period that ends before it starts answers 400: an empty range
+    is almost always a mistake, and saying so beats an empty result.
     """
     page_size = min(page_size, settings.search_max_page_size)
 
     if date_from is not None and date_to is not None and date_from > date_to:
         raise HTTPException(status_code=400, detail=INVERTED_RANGE)
+
+    if (
+        published_from is not None
+        and published_to is not None
+        and published_from > published_to
+    ):
+        raise HTTPException(status_code=400, detail=INVERTED_PUBLICATION_RANGE)
 
     tribunais = list(
         dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
@@ -606,8 +663,12 @@ def search_decisions(
         parameters["date_from"] = date_from
     if date_to is not None:
         parameters["date_to"] = date_to
+    if published_from is not None:
+        parameters["published_from"] = published_from
+    if published_to is not None:
+        parameters["published_to"] = published_to
 
-    filters = _filters_sql(tribunais, date_from, date_to)
+    filters = _filters_sql(tribunais, date_from, date_to, published_from, published_to)
 
     with connection.cursor() as cursor:
         cursor.execute(_count_sql(filters), parameters)

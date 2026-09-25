@@ -31,13 +31,15 @@ def test_the_link_is_built_from_the_identifier(
 ) -> None:
     with transformed.cursor() as cursor:
         cursor.execute(
-            "SELECT identificador_fonte, url_fonte FROM core.decisao_com_url"
+            "SELECT fonte_codigo, identificador_fonte, url_fonte "
+            "FROM core.decisao_com_url"
         )
         rows = cursor.fetchall()
 
     assert rows
+    assert {row["fonte_codigo"] for row in rows} == {"tjdft-jurisdf", "stj-espelhos"}
     for row in rows:
-        assert row["url_fonte"].endswith(f"/{row['identificador_fonte']}")
+        assert row["identificador_fonte"] in row["url_fonte"]
         assert "{identificador}" not in row["url_fonte"]
 
 
