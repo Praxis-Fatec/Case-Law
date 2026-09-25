@@ -43,9 +43,9 @@ CREATE TABLE core.fonte (
 
 INSERT INTO core.fonte VALUES
 ('tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
- 'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'),
+ 'https://jurisdf.tjdft.jus.br/acordaos/{documento}'),
 ('stj-espelhos', 'STJ Espelhos de Acórdãos', 'STJ',
- 'https://processo.stj.jus.br/processo/revista/documento/mediado/?componente=ITA&sequencial={identificador}');
+ 'https://processo.stj.jus.br/processo/revista/documento/mediado/?componente=ITA&sequencial={documento}');
 
 -- The same row as pipeline/transformations/seeds/tribunal.csv.
 CREATE TABLE core.tribunal (
