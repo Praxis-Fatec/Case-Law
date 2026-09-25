@@ -102,20 +102,14 @@ class LastUpdate(BaseModel):
     )
 
 
-@router.get(
-    "/indicators/last-update",
-    summary="When the data was last refreshed",
-    responses=RESPONSES,
-)
-def read_last_update(
-    connection: Annotated[Connection[DictRow], Depends(get_connection)],
-) -> LastUpdate:
+def _last_update(connection: Connection[DictRow]) -> LastUpdate:
     """
-    When this environment's decisions were last refreshed.
+    Read the freshness once, so two answers cannot tell different stories.
 
-    A reader has to know how old the data is before drawing a conclusion from
-    it, so this is read straight from the load record that travelled with the
-    data rather than from the machine that answers.
+    A failed load left nothing behind, so it cannot be what the data is from.
+    Telling a collection never loaded from one whose every load failed costs a
+    second question, and only when the first found nothing: one is a new
+    environment, the other a broken pipeline.
     """
     with connection.cursor() as cursor:
         cursor.execute(LAST_LOAD_SQL)
@@ -137,6 +131,24 @@ def read_last_update(
         updated_at=None,
         records=0,
     )
+
+
+@router.get(
+    "/indicators/last-update",
+    summary="When the data was last refreshed",
+    responses=RESPONSES,
+)
+def read_last_update(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> LastUpdate:
+    """
+    When this environment's decisions were last refreshed.
+
+    A reader has to know how old the data is before drawing a conclusion from
+    it, so this is read straight from the load record that travelled with the
+    data rather than from the machine that answers.
+    """
+    return _last_update(connection)
 
 
 # LEFT JOIN, not JOIN: a court the seed never registered would otherwise drop
@@ -232,3 +244,121 @@ def read_volume_by_court(
         for row in rows
     ]
     return VolumeByCourt(total=sum(c.decisions for c in courts), courts=courts)
+
+
+# One pass, grouped, so the courts and the base cannot disagree about a period
+# the reader is deciding from. NULL dates sort out of MIN and MAX on their own.
+COVERAGE_SQL = """
+SELECT
+    d.tribunal_sigla                     AS sigla,
+    COALESCE(t.nome, d.tribunal_sigla)   AS nome,
+    COUNT(*)                             AS documentos,
+    MIN(d.data_referencia)               AS primeira,
+    MAX(d.data_referencia)               AS ultima
+FROM core.decisao AS d
+LEFT JOIN core.tribunal AS t ON t.sigla = d.tribunal_sigla
+GROUP BY d.tribunal_sigla, t.nome
+ORDER BY COUNT(*) DESC, d.tribunal_sigla
+"""
+
+
+class CourtCoverage(BaseModel):
+    abbreviation: str = Field(description="The court's abbreviation.", examples=["STJ"])
+    name: str = Field(
+        description="The court's full name.",
+        examples=["Superior Tribunal de Justiça"],
+    )
+    documents: int = Field(
+        description="How many decisions the base holds from this court.",
+        examples=[876996],
+    )
+    first: date | None = Field(
+        description="The oldest decision from this court. `null` if none is dated.",
+        examples=["1989-02-19"],
+    )
+    last: date | None = Field(
+        description="The most recent decision from this court.",
+        examples=["2026-08-26"],
+    )
+
+
+class Coverage(BaseModel):
+    documents: int = Field(
+        description="Every decision the base holds. Zero before the first load.",
+        examples=[984824],
+    )
+    first: date | None = Field(
+        description=(
+            "The oldest decision in the base. `null` when it holds none. Read it "
+            "beside each court's own period: one court reaching back decades "
+            "does not mean the base covers those decades for the others."
+        ),
+        examples=["1989-02-19"],
+    )
+    last: date | None = Field(
+        description="The most recent decision in the base.",
+        examples=["2026-09-17"],
+    )
+    courts: list[CourtCoverage] = Field(
+        description="Every court present, largest first, each with its own period."
+    )
+    state: State = Field(
+        description="Whether a load ever finished here. See `/indicators/last-update`.",
+        examples=["loaded"],
+    )
+    updated_at: datetime | None = Field(
+        description=(
+            "When the data was last refreshed, so the scope above can be read "
+            "with its age. `null` when no load ever finished."
+        ),
+        examples=["2026-09-25T17:12:44Z"],
+    )
+
+
+@router.get(
+    "/indicators/coverage",
+    summary="What the base covers as a whole",
+    responses=RESPONSES,
+)
+def read_coverage(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> Coverage:
+    """
+    How far the base reaches, so a reader knows the scope before trusting it.
+
+    This answers for the collection, not for a search: the volume endpoint
+    answers for the set a query matched. An empty base answers zero documents
+    and no courts, which is an answer rather than an error — a new environment
+    is not a broken one.
+
+    The freshness comes along because scope without age is half an answer, and
+    it is read by the same function `/indicators/last-update` uses, so the two
+    cannot disagree.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(COVERAGE_SQL)
+        rows = cursor.fetchall()
+
+    courts = [
+        CourtCoverage(
+            abbreviation=row["sigla"],
+            name=row["nome"],
+            documents=row["documentos"],
+            first=row["primeira"],
+            last=row["ultima"],
+        )
+        for row in rows
+    ]
+    starts = [c.first for c in courts if c.first is not None]
+    ends = [c.last for c in courts if c.last is not None]
+
+    fresh = _last_update(connection)
+
+    return Coverage(
+        documents=sum(c.documents for c in courts),
+        first=min(starts, default=None),
+        last=max(ends, default=None),
+        courts=courts,
+        state=fresh.state,
+        updated_at=fresh.updated_at,
+    )
