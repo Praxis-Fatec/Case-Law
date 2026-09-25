@@ -18,23 +18,6 @@ AUDIT (
 SELECT * FROM @this_model WHERE data_referencia IS NULL;
 
 AUDIT (
-  name identificador_unico_entre_fontes,
-  dialect postgres
-);
-/* verificacao.link casa só pelo identificador, sem a fonte. Se duas fontes
-   usarem o mesmo, a decisão exibe o link_valido da outra. As faixas do TJDFT e
-   do STJ não se cruzam hoje, e é só isso que separa as duas — esta auditoria
-   avisa no dia em que deixarem de não se cruzar. */
-SELECT d.*
-FROM @this_model AS d
-WHERE EXISTS (
-  SELECT 1
-  FROM @this_model AS o
-  WHERE o.identificador_fonte = d.identificador_fonte
-    AND o.fonte_codigo <> d.fonte_codigo
-);
-
-AUDIT (
   name data_do_stj_convertida,
   dialect postgres
 );

@@ -7,7 +7,6 @@ MODEL (
     unique_combination_of_columns(columns := (fonte_codigo, identificador_fonte)),
     sem_segredo_de_justica,
     data_referencia_preenchida,
-    identificador_unico_entre_fontes,
     data_do_stj_convertida,
     url_carrega_o_identificador,
     ementa_nao_vazia,
@@ -111,7 +110,9 @@ SELECT
   TO_TSVECTOR('portugues_sem_acento', b.ementa)         AS ementa_busca
 FROM bruto AS b
 JOIN core.fonte AS f ON f.codigo = b.fonte_codigo
-LEFT JOIN verificacao.link AS v ON v.identificador = b.identificador
+LEFT JOIN verificacao.link AS v
+  ON v.fonte_codigo = b.fonte_codigo
+ AND v.identificador = b.identificador
 
 ;
 
