@@ -7,17 +7,13 @@ appears once. These send the real statement to the real tables.
 """
 
 import csv
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import psycopg
-import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow
 
-from app.db import get_connection
-from app.main import app
 from tests.conftest import FIXTURES, needs_database
 from tests.test_seal_filter import transformation
 
@@ -42,28 +38,6 @@ COLUMNS = (
     "fonte_codigo, identificador_fonte, tribunal_sigla, data_referencia, ementa, "
     "turma_recursal, possui_inteiro_teor, url_fonte, link_valido, ementa_busca"
 )
-
-
-@pytest.fixture
-def db_rolled_back(
-    db: psycopg.Connection[DictRow],
-) -> Iterator[psycopg.Connection[DictRow]]:
-    """
-    Every row a test adds exists only inside its transaction. The rollback sits
-    in the teardown so a failing test cannot leave courts behind for the ones
-    that count the fixture.
-    """
-    try:
-        yield db
-    finally:
-        db.rollback()
-
-
-@pytest.fixture
-def client(db_rolled_back: psycopg.Connection[DictRow]) -> Iterator[TestClient]:
-    app.dependency_overrides[get_connection] = lambda: db_rolled_back
-    yield TestClient(app)
-    app.dependency_overrides.clear()
 
 
 def register(db: psycopg.Connection[DictRow], abbreviation: str) -> None:

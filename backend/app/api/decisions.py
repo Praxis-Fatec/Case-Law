@@ -3,7 +3,7 @@ import re
 import unicodedata
 from datetime import date
 from html.parser import HTMLParser
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, NamedTuple
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from psycopg import Connection
@@ -113,6 +113,60 @@ def _filters_sql(
     if published_to is not None:
         clauses.append("data_publicacao <= %(published_to)s")
     return "".join(f" AND {clause}" for clause in clauses)
+
+
+class Narrowing(NamedTuple):
+    """The set a request asks for: one SQL fragment and the values it binds."""
+
+    sql: str
+    parameters: dict[str, Any]
+
+
+def _narrowing(
+    q: str,
+    tribunal: list[str] | None,
+    date_from: date | None,
+    date_to: date | None,
+    published_from: date | None,
+    published_to: date | None,
+) -> Narrowing:
+    """
+    Read the narrowing once, so nothing can describe a different set.
+
+    The count, the page and the aggregation all build from what this returns.
+    A second builder would be a second chance for the total on the screen and
+    the rows under it to stop agreeing.
+    """
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(status_code=400, detail=INVERTED_RANGE)
+
+    if (
+        published_from is not None
+        and published_to is not None
+        and published_from > published_to
+    ):
+        raise HTTPException(status_code=400, detail=INVERTED_PUBLICATION_RANGE)
+
+    tribunais = list(
+        dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
+    )
+
+    parameters: dict[str, Any] = {"term": q}
+    if tribunais:
+        parameters["tribunais"] = tribunais
+    if date_from is not None:
+        parameters["date_from"] = date_from
+    if date_to is not None:
+        parameters["date_to"] = date_to
+    if published_from is not None:
+        parameters["published_from"] = published_from
+    if published_to is not None:
+        parameters["published_to"] = published_to
+
+    return Narrowing(
+        _filters_sql(tribunais, date_from, date_to, published_from, published_to),
+        parameters,
+    )
 
 
 def _count_sql(filters: str = "") -> str:
@@ -709,41 +763,17 @@ def search_decisions(
     is almost always a mistake, and saying so beats an empty result.
     """
     page_size = min(page_size, settings.search_max_page_size)
-
-    if date_from is not None and date_to is not None and date_from > date_to:
-        raise HTTPException(status_code=400, detail=INVERTED_RANGE)
-
-    if (
-        published_from is not None
-        and published_to is not None
-        and published_from > published_to
-    ):
-        raise HTTPException(status_code=400, detail=INVERTED_PUBLICATION_RANGE)
-
-    tribunais = list(
-        dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
-    )
-
     offset = (page - 1) * page_size
 
+    filters, narrowed = _narrowing(
+        q, tribunal, date_from, date_to, published_from, published_to
+    )
     parameters: dict[str, Any] = {
-        "term": q,
+        **narrowed,
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": offset,
     }
-    if tribunais:
-        parameters["tribunais"] = tribunais
-    if date_from is not None:
-        parameters["date_from"] = date_from
-    if date_to is not None:
-        parameters["date_to"] = date_to
-    if published_from is not None:
-        parameters["published_from"] = published_from
-    if published_to is not None:
-        parameters["published_to"] = published_to
-
-    filters = _filters_sql(tribunais, date_from, date_to, published_from, published_to)
 
     with connection.cursor() as cursor:
         cursor.execute(_count_sql(filters), parameters)
