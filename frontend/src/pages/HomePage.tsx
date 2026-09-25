@@ -81,7 +81,7 @@ const isStacked = () =>
 // What the results on screen were searched with: the expression, the filters,
 // the order and the page, applied together. Changing the order or the page
 // searches this again, never whatever is being edited in the box or the panel
-// and not yet applied.
+// and not yet applied
 type AppliedSearch = {
   q: string;
   filters: SearchFilterValues;
