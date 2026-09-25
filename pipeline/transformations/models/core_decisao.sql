@@ -6,7 +6,11 @@ MODEL (
     not_null(columns := (fonte_codigo, identificador_fonte, tribunal_sigla, ementa, data_referencia, url_fonte)),
     unique_combination_of_columns(columns := (fonte_codigo, identificador_fonte)),
     sem_segredo_de_justica,
-    data_referencia_preenchida
+    data_referencia_preenchida,
+    identificador_unico_entre_fontes,
+    data_do_stj_convertida,
+    url_carrega_o_identificador,
+    ementa_nao_vazia
   )
 );
 
