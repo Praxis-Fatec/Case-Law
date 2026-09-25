@@ -23,6 +23,12 @@ export type SearchDecisionResponse = {
   results: SearchDecisionMatch[];
 };
 
+// The two orders the API accepts. `relevance` is its default, so it is left
+// out of the request: the default search stays the same request it always was.
+export type SearchOrder = 'relevance' | 'date';
+
+export const DEFAULT_ORDER: SearchOrder = 'relevance';
+
 export type SearchParams = {
   q: string;
   page?: number;
@@ -35,6 +41,8 @@ export type SearchParams = {
   date_to?: string;
   published_from?: string;
   published_to?: string;
+  // Applied by the API over every match, before paging — never on the page.
+  order?: SearchOrder;
 };
 
 // A failed search, carrying what the API said so the screen can tell a
@@ -83,6 +91,10 @@ export async function searchDecisions(params: SearchParams): Promise<SearchDecis
     if (value) {
       url.searchParams.set(name, value);
     }
+  }
+
+  if (params.order && params.order !== DEFAULT_ORDER) {
+    url.searchParams.set('order', params.order);
   }
 
   const response = await fetch(url.toString(), {

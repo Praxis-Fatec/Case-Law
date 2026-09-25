@@ -1,8 +1,15 @@
 import { useRef, useState } from 'react';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
-import { searchDecisions, SearchRequestError, type SearchDecisionMatch } from '../api/search';
+import {
+  DEFAULT_ORDER,
+  searchDecisions,
+  SearchRequestError,
+  type SearchDecisionMatch,
+  type SearchOrder,
+} from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
+import ResultsSort from '../components/ResultsSort';
 import SearchFilters from '../components/SearchFilters';
 import {
   countFilters,
@@ -60,14 +67,27 @@ const STACKED = '(max-width: 1100px)';
 const isStacked = () =>
   typeof window.matchMedia === 'function' && window.matchMedia(STACKED).matches;
 
+// What the results on screen were searched with: the expression, the filters
+// and the order, applied together. Changing the order searches this again,
+// never whatever is being edited in the box or the panel and not yet applied.
+type AppliedSearch = { q: string; filters: SearchFilterValues; order: SearchOrder };
+
+// The one place a request is built from the applied search. Paging, when it
+// comes, asks for another page of this same search — same expression, filters
+// and order — so a page can never be read in a different order than the first.
+const requestFor = (search: AppliedSearch, page = 1) => ({
+  ...toSearchParams(search.q, search.filters),
+  page,
+  order: search.order,
+});
+
 function HomePage() {
   const [value, setValue] = useState('prescrição intercorrente em execução fiscal');
   const [mode, setMode] = useState<'free' | 'exact'>('free');
   // What the panel shows while it is being edited. A change here never starts a
   // search: only Pesquisar applies it.
   const [filterDraft, setFilterDraft] = useState<SearchFilterValues>(NO_FILTERS);
-  // What the results on screen were searched with. Null before the first search.
-  const [appliedFilters, setAppliedFilters] = useState<SearchFilterValues | null>(null);
+  const [applied, setApplied] = useState<AppliedSearch | null>(null);
   // Errors found on submit — a half-typed date, or a range the API refused.
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useState<FilterErrors>({});
@@ -78,8 +98,11 @@ function HomePage() {
   const [totalResults, setTotalResults] = useState<number | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   // Only the most recent search may write to the screen. An answer that
-  // arrives after a newer search started is dropped.
+  // arrives after a newer search, or a newer order, started is dropped.
   const latestSearch = useRef(0);
+
+  // What the results on screen were filtered with. Null before the first search.
+  const appliedFilters = applied?.filters ?? null;
 
   // An error from submit wins over the live one, but only where there is one:
   // a period whose submit error was cleared still shows a backwards range.
@@ -106,6 +129,7 @@ function HomePage() {
           : undefined,
     }));
     setFilterDraft(next);
+  };
 
   // The decision shown beside the list. Choosing another item only swaps what
   // the right side shows: the list, and the search behind it, never change.
@@ -129,40 +153,25 @@ function HomePage() {
     const opener = document.getElementById(openButtonId(openDecision));
     opener?.scrollIntoView({ block: 'center' });
     opener?.focus();
-
   };
 
-  const handleSubmit = async (event?: React.FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-
-    const trimmedValue = value.trim();
-
-    if (!trimmedValue) {
-      setErrorMessage('Digite uma expressão para pesquisar.');
-      return;
-    }
-
-    const blocking = { ...rangeErrors(filterDraft), ...incompleteDates(formRef.current) };
-
-    if (hasErrors(blocking)) {
-      setSubmitErrors(blocking);
-      setFiltersOpen(true);
-      return;
-    }
-
-    const filters = filterDraft;
+  // `failure`, when given, replaces the usual message: a failed reorder says so,
+  // rather than reading like the search itself went wrong.
+  const runSearch = async (search: AppliedSearch, failure?: string) => {
     const searchId = ++latestSearch.current;
 
-    setSubmitErrors({});
-    setAppliedFilters(filters);
+    setApplied(search);
     setOpenDecision(null);
     setIsLoading(true);
     setErrorMessage(null);
+    // Nothing from the previous answer stays up while the new one loads, so
+    // old results never pass for the new filters or the new order.
     setTotalResults(null);
     setResults([]);
 
     try {
-      const response = await searchDecisions(toSearchParams(trimmedValue, filters));
+      // Every new search, filter or order starts on the first page.
+      const response = await searchDecisions(requestFor(search));
 
       if (searchId !== latestSearch.current) {
         return;
@@ -207,15 +216,62 @@ function HomePage() {
       }
 
       const message =
-        requestError instanceof Error && requestError.message
+        failure ??
+        (requestError instanceof Error && requestError.message
           ? requestError.message
-          : 'Não foi possível concluir a busca.';
+          : 'Não foi possível concluir a busca.');
 
       setErrorMessage(`${message} Tente novamente.`);
     } finally {
       if (searchId === latestSearch.current) {
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleSubmit = (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      setErrorMessage('Digite uma expressão para pesquisar.');
+      return;
+    }
+
+    const blocking = { ...rangeErrors(filterDraft), ...incompleteDates(formRef.current) };
+
+    if (hasErrors(blocking)) {
+      setSubmitErrors(blocking);
+      setFiltersOpen(true);
+      return;
+    }
+
+    setSubmitErrors({});
+    // A new expression or new filters keep the order already chosen.
+    void runSearch({
+      q: trimmedValue,
+      filters: filterDraft,
+      order: applied?.order ?? DEFAULT_ORDER,
+    });
+  };
+
+  const changeOrder = (order: SearchOrder) => {
+    // Choosing the order already applied asks the API for nothing.
+    if (!applied || order === applied.order) {
+      return;
+    }
+
+    void runSearch({ ...applied, order }, 'Não foi possível reordenar os resultados.');
+  };
+
+  // Retries what failed — the applied search — not an edit left in the box or
+  // the panel.
+  const retry = () => {
+    if (applied) {
+      void runSearch(applied);
+    } else {
+      handleSubmit();
     }
   };
 
@@ -319,58 +375,68 @@ function HomePage() {
         {/* Always two columns, as in the reference: the list on the left, the
             decision on the right. */}
         <div className="results-layout">
-          <section className="search-results" aria-live="polite">
-            {isLoading && (
-              <div className="search-state search-state--loading">Carregando resultados...</div>
-            )}
-
-            {!isLoading && totalResults !== null && (
-              <div className="search-summary">
-                <span>Total de resultados:</span>
-                <strong>{totalResults}</strong>
+          <div className="results-column">
+            {/* Beside the total and above the list. Kept up while a new order
+                loads or fails, so it can be changed back or retried. Outside
+                the live region below, so choosing an order is not read out as a
+                new result. */}
+            {applied && (
+              <div className="results-toolbar">
+                <div className="search-summary" aria-live="polite">
+                  {!isLoading && totalResults !== null && (
+                    <>
+                      <span>Total de resultados:</span>
+                      <strong>{totalResults}</strong>
+                    </>
+                  )}
+                </div>
+                <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
               </div>
             )}
 
-            {!isLoading && !errorMessage && totalResults === 0 && (
-              <div className="search-state search-state--empty">
-                Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma
-                sintaxe diferente.
-              </div>
-            )}
+            <section className="search-results" aria-live="polite">
+              {isLoading && (
+                <div className="search-state search-state--loading">Carregando resultados...</div>
+              )}
 
-            {!isLoading && errorMessage && (
-              <div className="search-state search-state--error" role="alert">
-                <p>{errorMessage}</p>
-                <button
-                  type="button"
-                  className="search-state__retry"
-                  onClick={() => handleSubmit()}
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            )}
+              {!isLoading && !errorMessage && totalResults === 0 && (
+                <div className="search-state search-state--empty">
+                  Nenhuma decisão foi encontrada para esta expressão. Revise os termos ou tente uma
+                  sintaxe diferente.
+                </div>
+              )}
 
-            {!isLoading && results.length > 0 && (
-              <ul className="result-list">
-                {results.map((result) => {
-                  const decision = { source: result.source, identifier: result.identifier };
-                  const selected = openDecision !== null && keyOf(openDecision) === keyOf(decision);
+              {!isLoading && errorMessage && (
+                <div className="search-state search-state--error" role="alert">
+                  <p>{errorMessage}</p>
+                  <button type="button" className="search-state__retry" onClick={retry}>
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
 
-                  return (
-                    <li key={`${result.source}-${result.identifier}`} className="result-item">
-                      <DecisionResultCard
-                        decision={result}
-                        onOpen={() => openDetail(decision)}
-                        openButtonId={openButtonId(decision)}
-                        selected={selected}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
+              {!isLoading && results.length > 0 && (
+                <ul className="result-list">
+                  {results.map((result) => {
+                    const decision = { source: result.source, identifier: result.identifier };
+                    const selected =
+                      openDecision !== null && keyOf(openDecision) === keyOf(decision);
+
+                    return (
+                      <li key={`${result.source}-${result.identifier}`} className="result-item">
+                        <DecisionResultCard
+                          decision={result}
+                          onOpen={() => openDetail(decision)}
+                          openButtonId={openButtonId(decision)}
+                          selected={selected}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
 
           {/* Outside the results' live region, so a screen reader is not read the
             whole ementa each time a decision opens. Keyed by the decision, so
