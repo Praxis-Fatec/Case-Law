@@ -96,8 +96,8 @@ def test_a_checked_record_carries_the_answer_through_the_transformation(
     db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
     db.execute("TRUNCATE verificacao.link")
     db.execute(
-        "INSERT INTO verificacao.link (identificador, valido) "
-        "VALUES ('9000001', TRUE), ('9000002', FALSE)"
+        "INSERT INTO verificacao.link (fonte_codigo, identificador, valido) "
+        "VALUES ('tjdft-jurisdf', '9000001', TRUE), ('tjdft-jurisdf', '9000002', FALSE)"
     )
     db.execute("DROP TABLE IF EXISTS core.decisao_verificada")
     db.execute(f"CREATE TABLE core.decisao_verificada AS {transformation()}")
@@ -129,8 +129,8 @@ def test_the_load_record_counts_broken_and_unchecked_links(
     db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
     db.execute("TRUNCATE verificacao.link")
     db.execute(
-        "INSERT INTO verificacao.link (identificador, valido) "
-        "VALUES ('9000001', TRUE), ('9000002', FALSE), ('9000003', FALSE)"
+        "INSERT INTO verificacao.link (fonte_codigo, identificador, valido) "
+        "VALUES ('tjdft-jurisdf', '9000001', TRUE), ('tjdft-jurisdf', '9000002', FALSE), ('tjdft-jurisdf', '9000003', FALSE)"
     )
     db.execute("DROP TABLE IF EXISTS core.carga_apurada")
     db.execute(f"CREATE TABLE core.carga_apurada AS {carga_transformation()}")
@@ -159,8 +159,8 @@ def test_a_sealed_record_is_never_counted_as_a_broken_link(
     db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
     db.execute("TRUNCATE verificacao.link")
     db.execute(
-        "INSERT INTO verificacao.link (identificador, valido) "
-        "VALUES ('9000004', FALSE), ('9000005', FALSE)"
+        "INSERT INTO verificacao.link (fonte_codigo, identificador, valido) "
+        "VALUES ('tjdft-jurisdf', '9000004', FALSE), ('tjdft-jurisdf', '9000005', FALSE)"
     )
     db.execute("DROP TABLE IF EXISTS core.carga_sigilo")
     db.execute(f"CREATE TABLE core.carga_sigilo AS {carga_transformation()}")
@@ -171,3 +171,69 @@ def test_a_sealed_record_is_never_counted_as_a_broken_link(
 
     assert row is not None
     assert row["total"] == 0
+
+
+def test_a_verdict_belongs_to_the_source_that_produced_it(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    """
+    Two collections number from 1, so the same identifier names a different
+    decision in each. A verdict matched by the identifier alone lands on the
+    wrong decision, and the screen shows a link as broken because another
+    court's document went away.
+    """
+    db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
+    db.execute("TRUNCATE verificacao.link")
+    db.execute(
+        "INSERT INTO verificacao.link (fonte_codigo, identificador, valido) "
+        "VALUES ('stj-espelhos', '9000001', FALSE), "
+        "       ('tjdft-jurisdf', '8000001', FALSE)"
+    )
+    db.execute("DROP TABLE IF EXISTS core.decisao_cruzada")
+    db.execute(f"CREATE TABLE core.decisao_cruzada AS {transformation()}")
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT fonte_codigo, identificador_fonte, link_valido "
+            "FROM core.decisao_cruzada "
+            "WHERE identificador_fonte IN ('9000001', '8000001')"
+        )
+        found = {
+            (r["fonte_codigo"], r["identificador_fonte"]): r["link_valido"]
+            for r in cursor.fetchall()
+        }
+
+    assert found == {
+        ("tjdft-jurisdf", "9000001"): None,
+        ("stj-espelhos", "8000001"): None,
+    }
+
+
+def test_a_source_with_no_check_stays_unverified(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    """
+    The STJ's portal answers 200 and echoes back whatever sequential it is
+    given, so nothing can tell a real acordao from an invented one. Unverified
+    is the honest answer; calling them all valid would be a claim nobody made.
+    """
+    db.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
+    db.execute("TRUNCATE verificacao.link")
+    db.execute(
+        "INSERT INTO verificacao.link (fonte_codigo, identificador, valido) "
+        "VALUES ('tjdft-jurisdf', '9000001', TRUE)"
+    )
+    db.execute("DROP TABLE IF EXISTS core.decisao_sem_checagem")
+    db.execute(f"CREATE TABLE core.decisao_sem_checagem AS {transformation()}")
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) FILTER (WHERE link_valido IS NULL) AS sem_verdito, "
+            "count(*) AS total FROM core.decisao_sem_checagem "
+            "WHERE fonte_codigo = 'stj-espelhos'"
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    assert row["total"] > 0, "the fixture has no STJ record, so this proves nothing"
+    assert row["sem_verdito"] == row["total"]

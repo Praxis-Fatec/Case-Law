@@ -84,7 +84,9 @@ INSERT INTO core.carga VALUES
 ('1789000002.0', 'tjdft-jurisdf', '2026-03-18 02:00:00+00', 'falhou',    0, 0, 0, 0, 0);
 
 CREATE TABLE verificacao.link (
-    identificador TEXT        PRIMARY KEY,
+    fonte_codigo  TEXT        NOT NULL,
+    identificador TEXT        NOT NULL,
     valido        BOOLEAN     NOT NULL,
-    verificado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    verificado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (fonte_codigo, identificador)
 );

@@ -73,3 +73,18 @@ WHERE (
   fonte_codigo = 'stj-espelhos'
   AND identificador_documento <> identificador_fonte
 );
+
+AUDIT (
+  name verdito_de_fonte_conhecida,
+  dialect postgres
+);
+/* Veredicto gravado sob um código de fonte que não existe fica órfão: não casa
+   com decisão nenhuma, não dá erro, e a decisão fica para sempre sem
+   verificação como se ninguém tivesse olhado. Um erro de digitação na chave do
+   registro de verificações produz exatamente isso. */
+SELECT v.*
+FROM verificacao.link AS v
+LEFT JOIN core.fonte AS f
+  ON f.codigo = v.fonte_codigo
+WHERE f.codigo IS NULL
+  AND EXISTS (SELECT 1 FROM @this_model);

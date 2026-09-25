@@ -10,7 +10,8 @@ MODEL (
     data_do_stj_convertida,
     url_carrega_o_identificador,
     ementa_nao_vazia,
-    token_do_documento_por_fonte
+    token_do_documento_por_fonte,
+    verdito_de_fonte_conhecida
   )
 );
 
