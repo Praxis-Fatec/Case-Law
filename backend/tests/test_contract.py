@@ -246,6 +246,26 @@ def test_the_documented_inverted_range_is_the_one_the_search_sends(
     assert response.json() == promised["value"]
 
 
+def test_the_documented_inverted_publication_period_is_the_one_sent(
+    client: TestClient,
+) -> None:
+    described = documented(client, "/decisions")["400"]
+    examples = described["content"]["application/json"]["examples"]
+    promised = examples["inverted publication range"]
+
+    response = client.get(
+        "/decisions",
+        params={
+            "q": "dano moral",
+            "published_from": "2026-03-31",
+            "published_to": "2026-03-01",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == promised["value"]
+
+
 def test_the_court_list_is_documented_with_its_shape(client: TestClient) -> None:
     spec = client.get("/openapi.json").json()
     operation = spec["paths"]["/courts"]["get"]
@@ -287,13 +307,14 @@ def test_the_search_documents_every_filter(client: TestClient) -> None:
     search = client.get("/openapi.json").json()["paths"]["/decisions"]["get"]
     parameters = {parameter["name"]: parameter for parameter in search["parameters"]}
 
-    assert {"tribunal", "date_from", "date_to"} <= set(parameters)
-    assert not any(
-        parameters[name]["required"] for name in ("tribunal", "date_from", "date_to")
-    )
+    filters = ("tribunal", "date_from", "date_to", "published_from", "published_to")
+    dates = ("date_from", "date_to", "published_from", "published_to")
+
+    assert set(filters) <= set(parameters)
+    assert not any(parameters[name]["required"] for name in filters)
     assert parameters["tribunal"]["schema"]["anyOf"][0]["type"] == "array"
-    assert parameters["date_from"]["schema"]["anyOf"][0]["format"] == "date"
-    assert parameters["date_to"]["schema"]["anyOf"][0]["format"] == "date"
+    for name in dates:
+        assert parameters[name]["schema"]["anyOf"][0]["format"] == "date", name
 
 
 def test_the_response_example_carries_every_field_the_schema_has(
