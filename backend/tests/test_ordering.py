@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow
 
-from app.api.decisions import DEFAULT_ORDER, ORDERINGS, _page_sql
+from app.api.decisions import DEFAULT_ORDER, ORDERINGS, TIEBREAK, _page_sql
 from app.db import get_connection
 from app.main import app
 from tests.conftest import needs_database
@@ -83,8 +83,9 @@ def test_every_ordering_ends_on_the_same_tiebreak(client: TestClient) -> None:
     A page boundary that falls inside a tie repeats or drops a decision when
     the reader turns the page.
     """
+    assert TIEBREAK == "fonte_codigo DESC, identificador_fonte DESC"
     for clause in ORDERINGS.values():
-        assert clause.strip().endswith("identificador_fonte DESC")
+        assert clause.strip().endswith(TIEBREAK)
 
 
 def test_the_ordering_is_chosen_from_a_closed_set_not_built_from_input(
