@@ -881,9 +881,9 @@ input:focus-visible {
   box-shadow: 0 4px 18px rgb(45 19 27 / 5%);
 }
 
-/* Side by side the list is right there: the way back only shows when stacked. */
+/* Shown whenever a decision has its own address to go back from. */
 .decision-detail__toolbar {
-  display: none;
+  display: flex;
 }
 
 .decision-detail__back {
@@ -1128,10 +1128,6 @@ input:focus-visible {
   .decision-detail {
     position: static;
     max-height: none;
-  }
-
-  .decision-detail__toolbar {
-    display: flex;
   }
 }
 

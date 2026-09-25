@@ -30,6 +30,9 @@ type DecisionResultCardProps = {
   // The address of the decision in full. Without it the card only links to
   // the court.
   to?: To;
+  // How following it changes the history, as a router link takes them.
+  replace?: boolean;
+  state?: unknown;
   // Called as the card is followed, for what the address alone does not do.
   onOpen?: () => void;
   openButtonId?: string;
@@ -89,6 +92,8 @@ function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
 function DecisionResultCard({
   decision,
   to,
+  replace,
+  state,
   onOpen,
   openButtonId,
   selected = false,
@@ -124,6 +129,8 @@ function DecisionResultCard({
       {to && (
         <Link
           to={to}
+          replace={replace}
+          state={state}
           id={openButtonId}
           className="decision-result-card__select"
           onClick={onOpen}

@@ -103,7 +103,9 @@ describe('a result', () => {
     const user = userEvent.setup();
     renderApp();
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
-    await waitFor(() => expect(currentAddress()).toBe('/decisoes/tjdft-jurisdf/2000001'));
+    // The first result shows beside the list, and the address stays the list's.
+    expect(await within(screen.getByRole('complementary')).findByText('RELATOR 2000001'));
+    expect(currentAddress()).toBe('/');
 
     const [, second] = await screen.findAllByRole('link', { name: /Ler a decisão/ });
     await user.click(second);
@@ -119,6 +121,8 @@ describe('a result', () => {
     const user = userEvent.setup();
     renderApp();
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    const [first] = await screen.findAllByRole('link', { name: /Ler a decisão/ });
+    await user.click(first);
     await waitFor(() => expect(currentAddress()).toBe('/decisoes/tjdft-jurisdf/2000001'));
 
     const secondCard = screen.getAllByRole('article')[1];
