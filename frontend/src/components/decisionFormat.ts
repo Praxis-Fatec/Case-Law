@@ -16,6 +16,27 @@ export function getDisplayValue(value: string | null | undefined): string {
   return normalized || NOT_INFORMED;
 }
 
+// The court's page, only when it is a real web address. Anything else — empty,
+// malformed, `javascript:` — is no link at all, never a link to nowhere.
+export function normalizeOfficialUrl(value: string | null | undefined): string | null {
+  const normalized = normalizeText(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(normalized);
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return null;
+    }
+
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 // A `YYYY-MM-DD` day is formatted in UTC: read in the local zone, midnight in
 // Brasília would already be the previous day. Anything unreadable is null, so
 // the screen can leave it out rather than print "Invalid Date".

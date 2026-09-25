@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, type Decision } from '../api/decisions';
-import { formatDate, normalizeText } from './decisionFormat';
+import { formatDate, normalizeOfficialUrl, normalizeText } from './decisionFormat';
 
 type DetailState =
   | { status: 'loading' }
@@ -177,15 +177,117 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         </dl>
       )}
 
-      {/* The whole ementa, as the court wrote it — never the search snippet.
-          Read without a search term, so it is plain text and rendered as text. */}
-      <section className="decision-detail__reading" aria-labelledby={`${titleId}-ementa`}>
-        <h3 id={`${titleId}-ementa`} className="decision-detail__section-title">
-          Ementa
-        </h3>
-        <p className="decision-detail__summary">{decision.summary}</p>
-      </section>
+      <Ementa decision={decision} headingId={`${titleId}-ementa`} />
+
+      <OfficialSource decision={decision} />
     </>
+  );
+}
+
+// The national court council's order, with the names the backend recognises
+// them by. The API sends the sections without the labels the court wrote, so
+// these name them. "Dispositivo" covers both "DISPOSITIVO" and "DISPOSITIVO E
+// TESE": naming a thesis the court may not have stated would be false.
+const SECTIONS = [
+  { key: 'case', label: 'I. Caso em exame' },
+  { key: 'question', label: 'II. Questão em discussão' },
+  { key: 'reasoning', label: 'III. Razões de decidir' },
+  { key: 'ruling', label: 'IV. Dispositivo' },
+] as const;
+
+type EmentaProps = { decision: Decision; headingId: string };
+
+// The whole ementa, as the court wrote it, never the search snippet. The
+// detail is read without a search term, so every field is plain text and React
+// renders it as text: nothing from the API is ever parsed as HTML.
+function Ementa({ decision, headingId }: EmentaProps) {
+  const sections = decision.sections;
+  const summary = decision.summary ?? '';
+  // The contract answers `sections` only with all four found. Should one still
+  // come back empty, the complete text is shown instead of an empty heading.
+  const structured =
+    sections !== null && SECTIONS.every(({ key }) => normalizeText(sections[key]) !== '');
+
+  return (
+    <section className="decision-detail__reading" aria-labelledby={headingId}>
+      <h3 id={headingId} className="decision-detail__section-title">
+        Ementa
+      </h3>
+
+      {structured ? (
+        <>
+          {normalizeText(sections.headnote) && (
+            <p className="decision-detail__headnote">{sections.headnote}</p>
+          )}
+
+          {SECTIONS.map(({ key, label }) => (
+            <section
+              key={key}
+              className="decision-detail__part"
+              aria-labelledby={`${headingId}-${key}`}
+            >
+              <h4 id={`${headingId}-${key}`} className="decision-detail__part-title">
+                {label}
+              </h4>
+              <p className="decision-detail__text">{sections[key]}</p>
+            </section>
+          ))}
+        </>
+      ) : normalizeText(summary) ? (
+        <p className="decision-detail__text">{summary}</p>
+      ) : (
+        <p className="decision-detail__missing">
+          A ementa desta decisão não está disponível. Consulte o documento na fonte oficial.
+        </p>
+      )}
+    </section>
+  );
+}
+
+type OfficialSourceProps = { decision: Decision };
+
+// The same rule as the result card: only a real web address becomes a link,
+// and one the load found broken is shown as unavailable rather than followed.
+// Nothing here asks the court's site anything.
+function OfficialSource({ decision }: OfficialSourceProps) {
+  const officialUrl = normalizeOfficialUrl(decision.source_url);
+  const available = officialUrl !== null && decision.source_url_reachable !== false;
+  const court = normalizeText(decision.court);
+
+  return (
+    <section className="official-source" aria-label="Fonte oficial">
+      <div className="official-source__text">
+        <p className="official-source__title">Documento oficial como referência principal</p>
+        <p className="official-source__detail">
+          {available
+            ? `A decisão no site do ${court || 'tribunal'} prevalece sobre qualquer conteúdo desta página.`
+            : 'Link indisponível no momento.'}
+        </p>
+      </div>
+
+      {available ? (
+        <a
+          className="official-source__action"
+          href={officialUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <ArrowSquareOut size={16} aria-hidden="true" />
+          Abrir fonte oficial
+          <span className="sr-only"> (abre em nova aba)</span>
+        </a>
+      ) : (
+        <span
+          className="official-source__action official-source__action--disabled"
+          role="link"
+          aria-disabled="true"
+          tabIndex={-1}
+        >
+          Abrir fonte oficial
+          <span className="sr-only"> (indisponível)</span>
+        </span>
+      )}
+    </section>
   );
 }
 

@@ -2,7 +2,13 @@ import { Fragment, type ReactNode } from 'react';
 import { ArrowRight } from '@phosphor-icons/react';
 
 import type { SearchDecisionMatch } from '../api/search';
-import { formatDate, getDisplayValue, NOT_INFORMED, normalizeText } from './decisionFormat';
+import {
+  formatDate,
+  getDisplayValue,
+  NOT_INFORMED,
+  normalizeOfficialUrl,
+  normalizeText,
+} from './decisionFormat';
 
 type DecisionCardData = Pick<
   SearchDecisionMatch,
@@ -26,25 +32,6 @@ type DecisionResultCardProps = {
   // The decision open in the detail panel, marked so the list says which.
   selected?: boolean;
 };
-
-function normalizeOfficialUrl(value: string | null | undefined): string | null {
-  const normalized = normalizeText(value);
-
-  if (!normalized) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(normalized);
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
-      return null;
-    }
-
-    return normalized;
-  } catch {
-    return null;
-  }
-}
 
 function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
   const normalized = normalizeText(value);
