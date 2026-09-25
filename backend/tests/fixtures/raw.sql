@@ -59,3 +59,37 @@ CREATE TABLE raw._dlt_loads (
 INSERT INTO raw._dlt_loads VALUES
 ('1789000000.0', 0, '2026-03-16 02:00:00+00'),
 ('1789000001.0', 0, '2026-03-17 02:00:00+00');
+
+CREATE TABLE raw.espelho_stj (
+    id                  TEXT,
+    "dataDecisao"       TEXT,
+    "dataPublicacao"    TEXT,
+    "numeroProcesso"    TEXT,
+    "nomeOrgaoJulgador" TEXT,
+    "ministroRelator"   TEXT,
+    ementa              TEXT,
+    decisao             TEXT,
+    _dlt_load_id        TEXT
+);
+
+-- A ementa vazia não entra. O órgão aparece com e sem acento para o mesmo
+-- colegiado, e a transformação tem de escolher a grafia acentuada.
+INSERT INTO raw.espelho_stj VALUES
+('8000001', '20260310', 'DJe DATA:15/03/2026 Pág. 122',
+ '2106100', 'PRIMEIRA SEÇÃO', 'JOÃO OTÁVIO DE NORONHA',
+ 'RECURSO ESPECIAL. Alienação fiduciária. Penhora de direitos aquisitivos.',
+ 'RECURSO ESPECIAL DESPROVIDO.', '1789000000.0'),
+
+('8000002', '20260311', 'DJe DATA:16/03/2026 Pág. 87',
+ '2106101', 'PRIMEIRA SECAO', 'NANCY ANDRIGHI',
+ 'PROCESSUAL CIVIL. Prescrição intercorrente em execução fiscal.',
+ 'RECURSO PROVIDO.', '1789000000.0'),
+
+('8000003', '20260312', 'DJe DATA:17/03/2026 Pág. 45',
+ '2106102', 'QUINTA TURMA', 'ANTONIO SALDANHA PALHEIRO',
+ 'PENAL. Dano moral coletivo. Dever de reparação reconhecido.',
+ 'AGRAVO REGIMENTAL NÃO PROVIDO.', '1789000000.0'),
+
+('8000004', '20260313', 'DJe DATA:18/03/2026 Pág. 12',
+ '2106103', 'QUINTA TURMA', 'ANTONIO SALDANHA PALHEIRO',
+ '', 'DECISAO SEM EMENTA PUBLICADA.', '1789000000.0');

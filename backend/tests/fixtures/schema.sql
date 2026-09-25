@@ -41,10 +41,11 @@ CREATE TABLE core.fonte (
     url_documento_template TEXT NOT NULL
 );
 
-INSERT INTO core.fonte VALUES (
-    'tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
-    'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'
-);
+INSERT INTO core.fonte VALUES
+('tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
+ 'https://jurisdf.tjdft.jus.br/detalhes/{identificador}'),
+('stj-espelhos', 'STJ Espelhos de Acórdãos', 'STJ',
+ 'https://processo.stj.jus.br/processo/revista/documento/mediado/?componente=ITA&sequencial={identificador}');
 
 -- Written by the pipeline's link check, read by the core model.
 DROP SCHEMA IF EXISTS verificacao CASCADE;
