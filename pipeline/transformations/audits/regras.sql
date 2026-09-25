@@ -59,20 +59,24 @@ AUDIT (
 );
 /* Cada fonte abre o documento por uma chave própria, e trocá-las não quebra
    nada visível: a URL continua bem formada e o site responde 200. O TJDFT é uma
-   SPA que só reconhece o uuid; o identificador leva para a home. O STJ usa o
-   próprio id. */
+   SPA que só reconhece o uuid; o identificador leva para a home. O STJ entrega
+   o inteiro teor pelo número de registro do processo; o id do espelho leva a
+   uma página que diz que houve erro ao buscar o documento. Nenhuma das duas
+   chaves é a que identifica o registro para nós, e é por isso que a primeira
+   condição basta para o caso que importa: trocar a chave de volta deixaria as
+   duas iguais em toda a coleção.
+
+   O formato só é exigido do TJDFT. O número de registro do STJ vem como a fonte
+   o publicou, e ela publica alguns quebrados — um registro de 1993 traz "19".
+   Reprovar a carga por isso esconderia uma decisão real; a verificação do link
+   é que tem de marcá-la como inalcançável. */
 SELECT *
 FROM @this_model
-WHERE (
-  fonte_codigo = 'tjdft-jurisdf'
-  AND (
-    identificador_documento !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    OR identificador_documento = identificador_fonte
-  )
-) OR (
-  fonte_codigo = 'stj-espelhos'
-  AND identificador_documento <> identificador_fonte
-);
+WHERE identificador_documento = identificador_fonte
+   OR (
+     fonte_codigo = 'tjdft-jurisdf'
+     AND identificador_documento !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+   );
 
 AUDIT (
   name verdito_de_fonte_conhecida,

@@ -61,7 +61,7 @@ bruto AS (
 
   SELECT
     e.id                                                     AS identificador,
-    e.id                                                     AS identificador_documento,
+    e."numeroRegistro"                                       AS identificador_documento,
     TO_DATE(NULLIF(e."dataDecisao", ''), 'YYYYMMDD')         AS data_julgamento,
     -- Free text with the gazette and the page around it: DJE DATA:01/09/2010
     TO_DATE(
