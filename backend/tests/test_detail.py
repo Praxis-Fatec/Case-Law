@@ -260,3 +260,81 @@ def test_the_search_term_never_changes_whether_it_is_structured(
             f"/decisions/{SOURCE}/{LONG}", params={"q": term}
         ).json()["sections"]
         assert with_term == plain, term
+
+
+# What the answer calls each column. Written out rather than derived from the
+# endpoint, so a rename has to be made twice and cannot pass unnoticed.
+FIELDS = {
+    "source": "fonte_codigo",
+    "identifier": "identificador_fonte",
+    "court": "tribunal_sigla",
+    "case_number": "processo",
+    "judging_body": "orgao_julgador",
+    "reporting_judge": "relator",
+    "small_claims": "turma_recursal",
+    "source_url": "url_fonte",
+    "source_url_reachable": "link_valido",
+}
+
+
+def test_every_field_carries_the_value_the_row_holds(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    The contract test fixes which keys come back; this fixes what is in them.
+    A field wired to the wrong column answers the right shape with another
+    decision's data, and the reader has no way to tell.
+    """
+    body = client.get(f"/decisions/{SOURCE}/{PRESENT}").json()
+
+    with db.cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM core.decisao "
+            "WHERE fonte_codigo = %s AND identificador_fonte = %s",
+            (SOURCE, PRESENT),
+        )
+        row = cursor.fetchone()
+
+    assert row is not None
+    for field, column in FIELDS.items():
+        assert body[field] == row[column], field
+
+    assert body["decided_on"] == row["data_referencia"].isoformat()
+
+
+def test_a_field_the_row_leaves_empty_comes_back_null(
+    client: TestClient, db: psycopg.Connection[DictRow]
+) -> None:
+    """
+    Null is an answer. Turning it into an empty string would put a blank line
+    on the screen where the card should leave the field out entirely.
+    """
+    db.execute(
+        "UPDATE core.decisao SET relator = NULL, processo = NULL "
+        "WHERE fonte_codigo = %s AND identificador_fonte = %s",
+        (SOURCE, PRESENT),
+    )
+
+    body = client.get(f"/decisions/{SOURCE}/{PRESENT}").json()
+
+    assert body["reporting_judge"] is None
+    assert body["case_number"] is None
+
+
+def test_the_detail_and_the_search_describe_the_same_decision(
+    client: TestClient,
+) -> None:
+    """
+    Two statements read the same row, and a reader moves from one to the other.
+    A column renamed on one side only would show a decision that changes its
+    court or its date on the way to the screen.
+    """
+    found = client.get("/decisions", params={"q": "dano moral", "page_size": 50}).json()
+    from_search = next(r for r in found["results"] if r["identifier"] == PRESENT)
+
+    from_detail = client.get(f"/decisions/{SOURCE}/{PRESENT}").json()
+
+    shared = set(from_search) & set(from_detail) - {"snippet", "ementa"}
+    assert len(shared) > 5, "too little in common to prove anything"
+    for field in shared:
+        assert from_search[field] == from_detail[field], field
