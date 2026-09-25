@@ -9,7 +9,7 @@ import {
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsSort from '../components/ResultsSort';
 
-// What the results on screen were searched with. Changing the order searches
+// What the results on screen were searched with. Changing the order searche
 // this again, never whatever is being typed in the box and not yet applied.
 type AppliedSearch = { q: string; order: SearchOrder };
 
