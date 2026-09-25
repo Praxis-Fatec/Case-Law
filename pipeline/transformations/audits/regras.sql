@@ -53,11 +53,12 @@ AUDIT (
   dialect postgres
 );
 /* O link sai do template do seed por REPLACE. Se o template perder o
-   {identificador}, nada falha: a fonte inteira passa a apontar para a mesma
-   página. */
+   {documento}, nada falha: a fonte inteira passa a apontar para a mesma página.
+   O token não é a chave do registro: o TJDFT abre o acórdão pelo uuid, o STJ
+   pelo próprio id. */
 SELECT *
 FROM @this_model
-WHERE POSITION(identificador_fonte IN url_fonte) = 0;
+WHERE POSITION(identificador_documento IN url_fonte) = 0;
 
 AUDIT (
   name ementa_nao_vazia,
@@ -68,3 +69,24 @@ AUDIT (
 SELECT *
 FROM @this_model
 WHERE TRIM(ementa) = '';
+
+AUDIT (
+  name token_do_documento_por_fonte,
+  dialect postgres
+);
+/* Cada fonte abre o documento por uma chave própria, e trocá-las não quebra
+   nada visível: a URL continua bem formada e o site responde 200. O TJDFT é uma
+   SPA que só reconhece o uuid; o identificador leva para a home. O STJ usa o
+   próprio id. */
+SELECT *
+FROM @this_model
+WHERE (
+  fonte_codigo = 'tjdft-jurisdf'
+  AND (
+    identificador_documento !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    OR identificador_documento = identificador_fonte
+  )
+) OR (
+  fonte_codigo = 'stj-espelhos'
+  AND identificador_documento <> identificador_fonte
+);
