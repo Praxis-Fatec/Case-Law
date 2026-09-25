@@ -10,6 +10,7 @@ import {
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
+import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
 import SearchFilters from '../components/SearchFilters';
 import {
@@ -25,6 +26,7 @@ import {
   type FilterErrors,
   type SearchFilterValues,
 } from '../search/filters';
+import type { PageInfo } from '../search/paging';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
@@ -76,17 +78,23 @@ const STACKED = '(max-width: 1100px)';
 const isStacked = () =>
   typeof window.matchMedia === 'function' && window.matchMedia(STACKED).matches;
 
-// What the results on screen were searched with: the expression, the filters
-// and the order, applied together. Changing the order searches this again,
-// never whatever is being edited in the box or the panel and not yet applied.
-type AppliedSearch = { q: string; filters: SearchFilterValues; order: SearchOrder };
+// What the results on screen were searched with: the expression, the filters,
+// the order and the page, applied together. Changing the order or the page
+// searches this again, never whatever is being edited in the box or the panel
+// and not yet applied.
+type AppliedSearch = {
+  q: string;
+  filters: SearchFilterValues;
+  order: SearchOrder;
+  page: number;
+};
 
-// The one place a request is built from the applied search. Paging, when it
-// comes, asks for another page of this same search — same expression, filters
-// and order — so a page can never be read in a different order than the first.
-const requestFor = (search: AppliedSearch, page = 1) => ({
+// The one place a request is built from the applied search. Another page is
+// another page of this same search — same expression, filters, order and page
+// size — so a page can never be read in a different cut than the first.
+const requestFor = (search: AppliedSearch) => ({
   ...toSearchParams(search.q, search.filters),
-  page,
+  page: search.page,
   order: search.order,
 });
 
@@ -112,6 +120,9 @@ function HomePage() {
   const [errorMessage, setErrorMessage] = useSessionState<string | null>('errorMessage', null);
   const [results, setResults] = useSessionState<SearchDecisionMatch[]>('results', []);
   const [totalResults, setTotalResults] = useSessionState<number | null>('totalResults', null);
+  // Where the page on screen sits in the total, as the API answered it. Null
+  // while a page loads or after one failed: no range is shown that was not read.
+  const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
@@ -222,9 +233,9 @@ function HomePage() {
     // old results never pass for the new filters or the new order.
     setTotalResults(null);
     setResults([]);
+    setPageInfo(null);
 
     try {
-      // Every new search, filter or order starts on the first page.
       const response = await searchDecisions(requestFor(search));
 
       if (!isLatestSearch(searchId)) {
@@ -235,6 +246,14 @@ function HomePage() {
       // the list does — without taking the list's address from it.
       setTotalResults(response.total);
       setResults(response.results);
+      setPageInfo({
+        page: response.page,
+        pageSize: response.page_size,
+        total: response.total,
+        count: response.results.length,
+        rangeFrom: response.range_from,
+        rangeTo: response.range_to,
+      });
 
       if (response.total === 0) {
         setErrorMessage(
@@ -300,11 +319,13 @@ function HomePage() {
     }
 
     setSubmitErrors({});
-    // A new expression or new filters keep the order already chosen.
+    // A new expression or new filters keep the order already chosen, and start
+    // on the first page.
     void runSearch({
       q: trimmedValue,
       filters: filterDraft,
       order: applied?.order ?? DEFAULT_ORDER,
+      page: 1,
     });
   };
 
@@ -314,8 +335,36 @@ function HomePage() {
       return;
     }
 
-    void runSearch({ ...applied, order }, 'Não foi possível reordenar os resultados.');
+    // Another order is another list: it starts on its first page.
+    void runSearch({ ...applied, order, page: 1 }, 'Não foi possível reordenar os resultados.');
   };
+
+  // Once another page arrives, the reader is taken to its first result, not
+  // left on a button at the foot of a list that changed.
+  const toPageStart = useRef(false);
+
+  // Only the page changes: the expression, filters and order are the applied
+  // ones, never an edit left in the box or the panel. Ignored while a page is
+  // loading, so repeated clicks ask for nothing more.
+  const goToPage = (page: number) => {
+    if (!applied || isLoading || page < 1 || page === applied.page) {
+      return;
+    }
+
+    toPageStart.current = true;
+    void runSearch({ ...applied, page }, `Não foi possível carregar a página ${page}.`);
+  };
+
+  // Keyed by text, as above: the result object is a new one on every answer.
+  const firstOpener = firstResult ? openButtonId(firstResult) : null;
+  useEffect(() => {
+    if (!isLoading && toPageStart.current) {
+      toPageStart.current = false;
+      const opener = firstOpener ? document.getElementById(firstOpener) : null;
+      opener?.scrollIntoView({ block: 'nearest' });
+      opener?.focus();
+    }
+  }, [firstOpener, isLoading]);
 
   // Retries what failed — the applied search — not an edit left in the box or
   // the panel.
@@ -493,6 +542,18 @@ function HomePage() {
                 </ul>
               )}
             </section>
+
+            {/* Under the list. Up while a later page loads, to say which, but
+                never with a range before the API has answered one; gone when
+                the page failed, so a failed page never reads as loaded. */}
+            {applied && (pageInfo || (isLoading && applied.page > 1)) && (
+              <ResultsPagination
+                info={pageInfo}
+                requestedPage={applied.page}
+                loading={isLoading}
+                onGo={goToPage}
+              />
+            )}
           </div>
 
           {/* Outside the results' live region, so a screen reader is not read the

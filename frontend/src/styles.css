@@ -608,6 +608,64 @@ input:focus-visible {
   cursor: pointer;
 }
 
+/* The range and the page buttons, under the list. Wraps rather than scrolls
+   when the column is narrow. */
+.results-pagination {
+  width: min(100%, 1200px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.results-pagination__range {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    600 14px/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.results-pagination__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.results-pagination__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 36px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--search-border);
+  border-radius: 9px;
+  background: var(--search-surface);
+  color: var(--search-primary);
+  font:
+    700 13px/1 'Source Sans 3',
+    sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.results-pagination__button:hover:not(:disabled) {
+  border-color: #cdb5ae;
+}
+
+.results-pagination__button:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 20%);
+  outline-offset: 2px;
+  border-color: var(--search-primary);
+}
+
+.results-pagination__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .result-list {
   margin: 0;
   padding: 0;

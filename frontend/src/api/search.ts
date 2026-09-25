@@ -17,9 +17,16 @@ export type SearchDecisionMatch = {
 };
 
 export type SearchDecisionResponse = {
+  // Every match of the cut, not only this page.
   total: number;
+  // The page served, counting from 1, and the size that was applied.
   page: number;
   page_size: number;
+  // Where this page sits inside the total, counting from 1; null when the page
+  // carries nothing. Optional: an API published before paging was stable does
+  // not send them.
+  range_from?: number | null;
+  range_to?: number | null;
   results: SearchDecisionMatch[];
 };
 
