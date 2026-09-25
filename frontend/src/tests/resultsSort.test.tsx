@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -51,12 +51,18 @@ function deferred<T>() {
 
 type Handler = (url: URL) => Response | Promise<Response>;
 
+// `answer` serves the search. The screen also opens the first result beside the
+// list, so the detail endpoint gets its own answer, and only searches are kept
+// in `sent` — the order is a matter of the search alone.
 function installApi(answer: Handler) {
   const sent: URL[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
+      if (url.pathname !== '/decisions') {
+        return json({ detail: 'Decision not found.' }, 404);
+      }
       sent.push(url);
       return answer(url);
     }),
@@ -132,6 +138,27 @@ describe('changing the order', () => {
 
     await waitFor(() => expect(api.sent).toHaveLength(3));
     expect(api.last().searchParams.has('order')).toBe(false);
+    expect(api.last().searchParams.get('q')).toBe(APPLIED);
+  });
+
+  it('keeps the applied filters, and not a filter still being edited', async () => {
+    const api = installApi(byOrder);
+    const user = userEvent.setup();
+    render(<HomePage />);
+    await user.click(screen.getByRole('button', { name: /filtros/i }));
+    const judged = screen.getByRole('group', { name: 'Data de julgamento' });
+    fireEvent.change(within(judged).getByLabelText('De'), { target: { value: '2026-01-01' } });
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await screen.findAllByRole('article');
+
+    // An edit to the panel after the search: not applied by the reorder.
+    fireEvent.change(within(judged).getByLabelText('Até'), { target: { value: '2026-03-31' } });
+    await user.selectOptions(sortBox(), 'date');
+
+    await waitFor(() => expect(api.sent).toHaveLength(2));
+    expect(api.last().searchParams.get('order')).toBe('date');
+    expect(api.last().searchParams.get('date_from')).toBe('2026-01-01');
+    expect(api.last().searchParams.has('date_to')).toBe(false);
     expect(api.last().searchParams.get('q')).toBe(APPLIED);
   });
 
@@ -214,7 +241,9 @@ describe('the reordered results', () => {
     await user.selectOptions(sortBox(), 'date');
 
     expect(screen.queryAllByRole('article')).toHaveLength(0);
-    expect(screen.getByText('Carregando resultados...')).toBeInTheDocument();
+    // In the list itself: the empty detail panel beside it says the same.
+    const list = document.querySelector<HTMLElement>('.search-results')!;
+    expect(within(list).getByText('Carregando resultados...')).toBeInTheDocument();
     expect(sortBox()).toBeDisabled();
 
     await act(async () => pending.resolve(json(page(1234, [decision('3', '2026-09-10')]))));

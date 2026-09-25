@@ -837,6 +837,14 @@ input:focus-visible {
   width: 100%;
 }
 
+/* The left column: the total and the order above the list they describe. */
+.results-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 /* In the narrower left column, a card lays its fields out in two columns. */
 .results-layout .decision-result-card__meta {
   grid-template-columns: repeat(2, minmax(0, 1fr));

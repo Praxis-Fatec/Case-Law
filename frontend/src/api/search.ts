@@ -29,13 +29,46 @@ export type SearchOrder = 'relevance' | 'date';
 
 export const DEFAULT_ORDER: SearchOrder = 'relevance';
 
-export async function searchDecisions(params: {
+export type SearchParams = {
   q: string;
   page?: number;
   page_size?: number;
+  // Court abbreviations. Sent as one `tribunal` per court, which the API reads
+  // as "any of these".
+  tribunal?: string[];
+  // `YYYY-MM-DD`, passed through untouched.
+  date_from?: string;
+  date_to?: string;
+  published_from?: string;
+  published_to?: string;
   // Applied by the API over every match, before paging — never on the page.
   order?: SearchOrder;
-}): Promise<SearchDecisionResponse> {
+};
+
+// A failed search, carrying what the API said so the screen can tell a
+// rejected filter from a server that is down.
+export class SearchRequestError extends Error {
+  readonly status: number;
+  readonly detail: string | null;
+
+  constructor(status: number, detail: string | null) {
+    super(`Search request failed with status ${status}`);
+    this.name = 'SearchRequestError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function readDetail(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return typeof body.detail === 'string' ? body.detail : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function searchDecisions(params: SearchParams): Promise<SearchDecisionResponse> {
   assertApiConfiguration();
 
   const url = new URL(`${apiBaseUrl}/decisions`, window.location.origin);
@@ -47,6 +80,17 @@ export async function searchDecisions(params: {
 
   if (params.page_size) {
     url.searchParams.set('page_size', String(params.page_size));
+  }
+
+  for (const court of params.tribunal ?? []) {
+    url.searchParams.append('tribunal', court);
+  }
+
+  for (const name of ['date_from', 'date_to', 'published_from', 'published_to'] as const) {
+    const value = params[name];
+    if (value) {
+      url.searchParams.set(name, value);
+    }
   }
 
   if (params.order && params.order !== DEFAULT_ORDER) {
