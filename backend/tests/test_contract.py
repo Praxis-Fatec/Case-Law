@@ -14,7 +14,7 @@ from tests.conftest import needs_database
 
 pytestmark = needs_database
 
-ENVELOPE = {"total", "page", "page_size", "results"}
+ENVELOPE = {"total", "page", "page_size", "range_from", "range_to", "results"}
 
 MATCH = {
     "source",
@@ -79,7 +79,19 @@ def test_the_envelope_types_are_what_a_screen_can_page_with(
     assert isinstance(body["total"], int)
     assert isinstance(body["page"], int)
     assert isinstance(body["page_size"], int)
+    assert isinstance(body["range_from"], int)
+    assert isinstance(body["range_to"], int)
     assert isinstance(body["results"], list)
+
+
+def test_the_envelope_declares_the_range_nullable(client: TestClient) -> None:
+    """A page with nothing on it has no position, and a caller reads `null`."""
+    properties = client.get("/openapi.json").json()["components"]["schemas"][
+        "SearchResults"
+    ]["properties"]
+
+    for field in ("range_from", "range_to"):
+        assert {"type": "null"} in properties[field]["anyOf"], field
 
 
 def test_a_result_carries_exactly_the_agreed_keys(client: TestClient) -> None:
@@ -123,6 +135,8 @@ def test_a_search_with_no_match_keeps_the_same_shape(client: TestClient) -> None
     assert set(body) == ENVELOPE
     assert body["total"] == 0
     assert body["results"] == []
+    assert body["range_from"] is None
+    assert body["range_to"] is None
 
 
 def test_the_detail_carries_exactly_the_agreed_keys(client: TestClient) -> None:

@@ -677,6 +677,55 @@ def test_page_size_is_capped(client: TestClient, database: FakeDatabase) -> None
     assert body["page_size"] == 100
 
 
+def test_the_range_reports_the_slice_this_page_holds(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.total = 57
+
+    body = client.get(
+        "/decisions", params={"q": "dano", "page": 2, "page_size": 20}
+    ).json()
+
+    assert body["range_from"] == 21
+    assert body["range_to"] == 40
+
+
+def test_the_range_ends_on_the_total_when_the_page_is_the_last_one(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.answer = lambda statement, parameters: (
+        [{"total": 3}] if statement.startswith(COUNT_SQL) else [MATCHING_ROW]
+    )
+
+    body = client.get(
+        "/decisions", params={"q": "dano", "page": 2, "page_size": 2}
+    ).json()
+
+    assert body["range_from"] == 3
+    assert body["range_to"] == 3
+
+
+def test_a_page_past_the_total_never_reaches_the_database(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    """
+    The offset is the only parameter a caller can push past what PostgreSQL
+    reads as a number. Not asking for a page that cannot hold anything keeps
+    that out of the database, and answers an empty list instead of a 400.
+    """
+    database.total = 40
+
+    body = client.get(
+        "/decisions", params={"q": "dano", "page": 3, "page_size": 20}
+    ).json()
+
+    assert body["total"] == 40
+    assert body["results"] == []
+    assert body["range_from"] is None
+    assert body["range_to"] is None
+    assert PAGE_SQL not in database.statements
+
+
 def test_search_rejects_a_term_that_is_too_short(client: TestClient) -> None:
     assert client.get("/decisions", params={"q": "a"}).status_code == 422
 
