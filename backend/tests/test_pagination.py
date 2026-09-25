@@ -13,6 +13,7 @@ six pairs left for the plan to serve in whatever order it likes.
 """
 
 from collections.abc import Iterator
+from itertools import pairwise
 from typing import Any
 
 import psycopg
@@ -69,6 +70,11 @@ def search(client: TestClient, **params: Any) -> dict[str, Any]:
     response = client.get("/decisions", params={"q": TERM, **params})
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def search_response(client: TestClient, **params: Any) -> Any:
+    """Whatever came back, refusal included, for the tests about refusals."""
+    return client.get("/decisions", params={"q": TERM, **params})
 
 
 def keys(body: dict[str, Any]) -> list[tuple[str, str]]:
@@ -211,3 +217,47 @@ def test_the_filter_and_the_order_travel_with_the_page(client: TestClient) -> No
 def test_the_total_counts_the_whole_cut_and_not_the_page(client: TestClient) -> None:
     for page_size in (1, 5, TOTAL):
         assert search(client, page_size=page_size)["total"] == TOTAL
+
+
+def test_a_page_size_below_one_is_refused(client: TestClient) -> None:
+    """
+    The maximum is capped in silence because asking for too much is a request
+    the API can still honour. Zero and below are not: there is no page of zero
+    results to serve, and answering an empty one would read as the end.
+    """
+    for page_size in (0, -1, -20):
+        response = search_response(client, page=1, page_size=page_size)
+
+        assert response.status_code == 422, page_size
+
+
+def test_the_ranges_walk_the_total_without_a_gap(client: TestClient) -> None:
+    """
+    Each page says where it sits, and the screen adds the number beside the
+    results from it. Read one after another they have to meet end to end: a gap
+    or an overlap is a count the reader can catch by paging twice.
+    """
+    seen: list[tuple[int, int]] = []
+    for page in range(1, TOTAL + 2):
+        body = search(client, page=page, page_size=4)
+        if not body["results"]:
+            assert body["range_from"] is None
+            assert body["range_to"] is None
+            break
+        seen.append((body["range_from"], body["range_to"]))
+
+    assert seen[0][0] == 1
+    assert seen[-1][1] == TOTAL
+    for (_, ends), (starts, _) in pairwise(seen):
+        assert starts == ends + 1
+
+
+def test_the_range_counts_what_the_page_actually_carries(client: TestClient) -> None:
+    for page_size in (1, 4, TOTAL):
+        for page in range(1, 3):
+            body = search(client, page=page, page_size=page_size)
+            if not body["results"]:
+                continue
+
+            carried = body["range_to"] - body["range_from"] + 1
+            assert carried == len(body["results"]), (page, page_size)
