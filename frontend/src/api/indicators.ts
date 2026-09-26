@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { readDetail, SearchRequestError, type SearchParams } from './search';
 
 // What `/indicators/coverage` answers: the base as a whole, never a search. It
 // takes no parameter, so no expression, filter, order or page can reach it.
@@ -56,12 +57,14 @@ export type LastUpdate = {
   updated_at: string | null;
 };
 
-export class CoverageRequestError extends Error {
+// An indicator that takes no search parameter failed: the coverage, or the
+// freshness. Only the status is kept; there is no filter to point back to.
+export class IndicatorRequestError extends Error {
   readonly status: number;
 
-  constructor(status: number) {
-    super(`Coverage request failed with status ${status}`);
-    this.name = 'CoverageRequestError';
+  constructor(indicator: string, status: number) {
+    super(`${indicator} request failed with status ${status}`);
+    this.name = 'IndicatorRequestError';
     this.status = status;
   }
 }
@@ -124,8 +127,107 @@ export async function getCoverage(options: { signal?: AbortSignal } = {}): Promi
   });
 
   if (!response.ok) {
-    throw new CoverageRequestError(response.status);
+    throw new IndicatorRequestError('Coverage', response.status);
   }
 
   return readCoverage(await response.json());
+}
+
+// The cut the volume counts: the search's expression and filters, and nothing
+// that only arranges the list. Order and page are not parameters here, so
+// turning a page or re-sorting can never change a count.
+export type VolumeParams = Pick<
+  SearchParams,
+  'q' | 'tribunal' | 'date_from' | 'date_to' | 'published_from' | 'published_to'
+>;
+
+function readCourtVolume(value: unknown): CourtVolume | null {
+  const court = (value ?? {}) as Record<string, unknown>;
+  const abbreviation = text(court.abbreviation);
+
+  if (!abbreviation) {
+    return null;
+  }
+
+  return { abbreviation, name: text(court.name), decisions: count(court.decisions) };
+}
+
+export function readVolume(body: unknown): VolumeByCourt {
+  const raw = (body ?? {}) as Record<string, unknown>;
+
+  return {
+    total: count(raw.total),
+    courts: Array.isArray(raw.courts)
+      ? raw.courts.map(readCourtVolume).filter((court): court is CourtVolume => court !== null)
+      : [],
+  };
+}
+
+// Fails the way the search does, with the API's detail, so a period the API
+// refuses reads the same on both views of the cut.
+export async function getVolumeByCourt(
+  params: VolumeParams,
+  options: { signal?: AbortSignal } = {},
+): Promise<VolumeByCourt> {
+  assertApiConfiguration();
+
+  const url = new URL(`${apiBaseUrl}/indicators/volume-by-court`, window.location.origin);
+  url.searchParams.set('q', params.q);
+
+  for (const court of params.tribunal ?? []) {
+    url.searchParams.append('tribunal', court);
+  }
+
+  for (const name of ['date_from', 'date_to', 'published_from', 'published_to'] as const) {
+    const value = params[name];
+    if (value) {
+      url.searchParams.set(name, value);
+    }
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new SearchRequestError(response.status, await readDetail(response));
+  }
+
+  return readVolume(await response.json());
+}
+
+export function readLastUpdate(body: unknown): LastUpdate {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const state = text(raw.state);
+
+  return {
+    state: state && LOAD_STATES.includes(state) ? (state as LoadState) : null,
+    updated_at: text(raw.updated_at),
+  };
+}
+
+// The collection's own date, as the load record has it — never the time the
+// screen asked.
+export async function getLastUpdate(options: { signal?: AbortSignal } = {}): Promise<LastUpdate> {
+  assertApiConfiguration();
+
+  const url = new URL(`${apiBaseUrl}/indicators/last-update`, window.location.origin);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new IndicatorRequestError('Last update', response.status);
+  }
+
+  return readLastUpdate(await response.json());
 }

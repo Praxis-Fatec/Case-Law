@@ -7,14 +7,13 @@ import { axisTicks } from './volumeFormat';
 const drawable = (court: CourtVolume): court is CourtVolume & { decisions: number } =>
   court.decisions !== null;
 
-// Horizontal bars from one baseline, busiest court first, each with its count
-// at the tip. The composition list carries the same numbers as text, so the
-// drawing itself is hidden from screen readers rather than read twice.
+// Horizontal bars from one baseline, in the order given — the panel ranks the
+// courts once for the chart and the list — each with its count at the tip.
+// Lengths are proportional from zero. The composition list carries the same
+// numbers as text, so the drawing is hidden from screen readers rather than
+// read twice.
 function CourtVolumeChart({ courts }: { courts: CourtVolume[] }) {
-  // Sorted here too, so the order never depends on the answer's.
-  const bars = courts
-    .filter(drawable)
-    .sort((a, b) => b.decisions - a.decisions || a.abbreviation.localeCompare(b.abbreviation));
+  const bars = courts.filter(drawable);
   const ticks = axisTicks(Math.max(0, ...bars.map((court) => court.decisions)));
   const top = ticks[ticks.length - 1] || 1;
   const at = (value: number) => `${(value / top) * 100}%`;

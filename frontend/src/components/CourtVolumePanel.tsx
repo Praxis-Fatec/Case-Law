@@ -2,14 +2,17 @@ import { Info } from '@phosphor-icons/react';
 
 import CourtVolumeChart from './CourtVolumeChart';
 import { formatCount, formatDateTime, NOT_INFORMED, UNAVAILABLE } from './coverageFormat';
-import type { LastUpdateState, VolumeState } from './volumeFormat';
+import { rankCourts, type LastUpdateState, type VolumeState } from './volumeFormat';
 
 const plural = (count: number, one: string, many: string) =>
   `${formatCount(count)} ${count === 1 ? one : many}`;
 
+const NO_DECISIONS =
+  'Nenhuma decisão encontrada para os filtros aplicados. Ajuste os termos ou amplie o período.';
+
 // What stands in place of the chart and of the list while there is nothing to
-// draw. Each state says what it is: no search yet, on its way, not available,
-// or a cut that matched nothing — never an empty frame.
+// draw. Each state says what it is: no search yet, a failure, or a cut that
+// matched nothing — never an empty frame, and never a scale drawn over zeros.
 function messages(state: VolumeState): { chart: string; list: string } | null {
   switch (state.status) {
     case 'idle':
@@ -17,24 +20,27 @@ function messages(state: VolumeState): { chart: string; list: string } | null {
         chart: 'Pesquise um tema para ver em quais tribunais ele aparece.',
         list: 'A composição aparece depois de uma pesquisa.',
       };
-    case 'unavailable':
+    case 'failed':
       return {
-        chart: 'O volume por tribunal está indisponível no momento.',
+        chart: state.message,
         list: 'A composição do recorte está indisponível no momento.',
       };
-    case 'loaded':
-      if (state.volume.total === 0 || state.volume.courts.length === 0) {
-        return state.volume.total === 0
-          ? {
-              chart: 'Nenhuma decisão atende ao recorte aplicado. Não há volume para mostrar.',
-              list: 'Nenhum tribunal no recorte.',
-            }
-          : {
-              chart: 'O volume por tribunal não foi informado.',
-              list: 'A composição do recorte não foi informada.',
-            };
+    case 'loaded': {
+      const { total, courts } = state.volume;
+      const counted = courts.some((court) => (court.decisions ?? 0) > 0);
+      // Zero is the answer only when the API says so. Courts it did not send,
+      // or sent without a count, are not the same as none.
+      if (total === 0) {
+        return { chart: NO_DECISIONS, list: 'Nenhum tribunal no recorte.' };
+      }
+      if (!counted) {
+        return {
+          chart: 'O volume por tribunal não foi informado.',
+          list: 'A composição do recorte não foi informada.',
+        };
       }
       return null;
+    }
     default:
       return null;
   }
@@ -72,12 +78,15 @@ function ChartSkeleton() {
 type CourtVolumePanelProps = {
   volume: VolumeState;
   lastUpdate: LastUpdateState;
+  onRetry: () => void;
 };
 
-function CourtVolumePanel({ volume, lastUpdate }: CourtVolumePanelProps) {
+function CourtVolumePanel({ volume, lastUpdate, onRetry }: CourtVolumePanelProps) {
   const loading = volume.status === 'loading';
   const message = messages(volume);
-  const loaded = volume.status === 'loaded' && !message ? volume.volume : null;
+  // Ranked once, so the bars and the list can never disagree on the order.
+  const courts = volume.status === 'loaded' && !message ? rankCourts(volume.volume.courts) : null;
+  // The API's own total: never summed or adjusted here to match anything else.
   const total = volume.status === 'loaded' ? volume.volume.total : null;
   const updated = lastUpdateText(lastUpdate);
 
@@ -110,8 +119,17 @@ function CourtVolumePanel({ volume, lastUpdate }: CourtVolumePanelProps) {
 
           <div className="panorama-card__body">
             {loading && <ChartSkeleton />}
-            {message && <p className="panorama-card__message">{message.chart}</p>}
-            {loaded && <CourtVolumeChart courts={loaded.courts} />}
+            {message && volume.status === 'failed' ? (
+              <div className="search-state search-state--error panorama-card__error" role="alert">
+                <p>{message.chart}</p>
+                <button type="button" className="search-state__retry" onClick={onRetry}>
+                  Tentar novamente
+                </button>
+              </div>
+            ) : (
+              message && <p className="panorama-card__message">{message.chart}</p>
+            )}
+            {courts && <CourtVolumeChart courts={courts} />}
           </div>
 
           <footer className="volume-card__footer">
@@ -120,7 +138,7 @@ function CourtVolumePanel({ volume, lastUpdate }: CourtVolumePanelProps) {
               Frequência não representa relevância jurídica.
             </p>
             <p className="volume-card__updated">
-              Última atualização da base:{' '}
+              Última atualização:{' '}
               {updated === null ? (
                 <span className="volume-card__updated-pending">
                   <span className="sr-only">Carregando</span>
@@ -158,10 +176,10 @@ function CourtVolumePanel({ volume, lastUpdate }: CourtVolumePanelProps) {
 
           {message && <p className="panorama-card__message">{message.list}</p>}
 
-          {/* The same answer the chart is drawn from, in the order it came. */}
-          {loaded && (
+          {/* The same courts, counts and order the chart is drawn from, as text. */}
+          {courts && (
             <ol className="composition__list">
-              {loaded.courts.map((court, index) => (
+              {courts.map((court, index) => (
                 <li key={court.abbreviation} className="composition__item">
                   <span className="composition__rank" aria-hidden="true">
                     {String(index + 1).padStart(2, '0')}

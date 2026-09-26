@@ -1890,6 +1890,11 @@ input:focus-visible {
   padding: 4.5rem 1rem;
 }
 
+/* A failed count, in the chart's own place, with the way to ask again. */
+.panorama-card__error {
+  margin: 2.5rem 0;
+}
+
 /* The chart. The label column and the room kept for the count at the tip of
    the longest bar are shared by the rows, the grid and the axis. */
 .volume-chart {

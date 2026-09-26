@@ -1,17 +1,31 @@
-import type { LastUpdate, VolumeByCourt } from '../api/indicators';
+import type { CourtVolume, LastUpdate, VolumeByCourt } from '../api/indicators';
 
 // What the panorama has to show. `idle` is before any search: there is no cut
 // to count yet. Until the cut is counted, no bar and no number is shown — never
-// a zero that could be read as the answer.
+// a zero that could be read as the answer, and never the previous cut's.
 export type VolumeState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'unavailable' }
+  | { status: 'failed'; message: string }
   | { status: 'loaded'; volume: VolumeByCourt };
 
 // The base's freshness, asked on its own: the volume does not carry it.
 export type LastUpdateState =
   { status: 'loading' } | { status: 'unavailable' } | { status: 'loaded'; lastUpdate: LastUpdate };
+
+// One order for the chart and the list beside it: the largest count first, ties
+// by abbreviation — the order the API itself answers in. A count that did not
+// come goes last, in the list only: it has no length to draw.
+export function rankCourts(courts: CourtVolume[]): CourtVolume[] {
+  return [...courts].sort((a, b) => {
+    if (a.decisions !== b.decisions) {
+      if (a.decisions === null) return 1;
+      if (b.decisions === null) return -1;
+      return b.decisions - a.decisions;
+    }
+    return a.abbreviation < b.abbreviation ? -1 : a.abbreviation > b.abbreviation ? 1 : 0;
+  });
+}
 
 const STEPS = [1, 2, 2.5, 5];
 
