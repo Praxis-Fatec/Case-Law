@@ -6,6 +6,7 @@
   --search-border: #dfd2ce;
   --search-text: #2d131b;
   --search-muted: #77686b;
+  --app-header-height: 62px;
 }
 
 * {
@@ -46,7 +47,7 @@ input:focus-visible {
 }
 
 .search-page {
-  min-height: 100vh;
+  min-height: calc(100vh - var(--app-header-height));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1278,5 +1279,450 @@ input:focus-visible {
   .filter-button,
   .search-button {
     width: 100%;
+  }
+}
+
+/* The bar above every screen. It holds one thing, the coverage, at the right. */
+.app-header {
+  height: var(--app-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 1.9rem;
+  border-bottom: 1px solid #ece4e1;
+  background: var(--search-surface);
+}
+
+.app-header__nav {
+  display: flex;
+}
+
+.app-header__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 38px;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9px;
+  color: var(--search-text);
+  text-decoration: none;
+}
+
+.app-header__link:hover,
+.app-header__link.active {
+  background: #fbede8;
+}
+
+.app-header__link:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 20%);
+  outline-offset: 2px;
+}
+
+.app-header__icon {
+  flex: none;
+  color: var(--search-primary);
+}
+
+.app-header__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.app-header__title {
+  font:
+    700 10.5px/1.2 'Source Sans 3',
+    sans-serif;
+}
+
+.app-header__subtitle {
+  color: var(--search-muted);
+  font:
+    500 8.5px/1.2 'Source Sans 3',
+    sans-serif;
+}
+
+/* The coverage page: the base as a whole, read before trusting a search. */
+.coverage-page {
+  min-height: calc(100vh - var(--app-header-height));
+  padding: 3rem 1.25rem 4rem;
+  background: #faf8f6;
+}
+
+.coverage-layout {
+  width: min(100%, 984px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.coverage-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid #e7dedb;
+}
+
+.coverage-header__text {
+  max-width: 560px;
+}
+
+.coverage-eyebrow {
+  margin: 0;
+  color: #6f6064;
+  font:
+    700 9px/1.3 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coverage-title {
+  margin: 0.85rem 0 0;
+  color: #2a1016;
+  font:
+    700 40px/1.1 'Source Sans 3',
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.coverage-lead {
+  margin: 1.1rem 0 0;
+  color: #5f5256;
+  font:
+    400 13px/1.55 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-back {
+  flex: none;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 1rem;
+  border: 1px solid #ddd2cf;
+  border-radius: 8px;
+  background: var(--search-surface);
+  color: var(--search-text);
+  font:
+    700 11px/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.coverage-back:hover {
+  background: #fcf6f3;
+}
+
+/* A failed request, above the block it left empty. */
+.coverage-error {
+  margin-top: 1.5rem;
+}
+
+/* One block: the total on a peach ground, the four facts on white beside it. */
+.coverage-summary {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 36%) minmax(0, 1fr);
+  border: 1px solid #e7dedb;
+  border-radius: 12px;
+  background: var(--search-surface);
+  overflow: hidden;
+}
+
+.coverage-summary__total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background: #fdf0ea;
+}
+
+.coverage-summary__icon {
+  color: var(--search-primary);
+}
+
+.coverage-summary__total-label {
+  margin: 1rem 0 0;
+  color: #5f5256;
+  font:
+    500 10px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-summary__total-value {
+  margin: 0.35rem 0 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  color: #2a1016;
+  font:
+    700 41px/1.05 'Source Sans 3',
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.coverage-summary__total-value .coverage-unavailable {
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+.coverage-summary__courts {
+  margin: 0.35rem 0 0;
+  color: #5f5256;
+  font:
+    500 10px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-summary__details {
+  margin: 0;
+  padding: 0.5rem 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: center;
+}
+
+.coverage-summary__field {
+  padding: 1.35rem 1rem 1.35rem 1.1rem;
+}
+
+/* The line between the two rows, inset by the block's own padding. */
+.coverage-summary__field:nth-child(-n + 2) {
+  border-bottom: 1px solid #ece4e1;
+}
+
+.coverage-summary__field dt {
+  color: #6f6064;
+  font:
+    500 9.5px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-summary__field dd {
+  margin: 0.45rem 0 0;
+  min-height: 17px;
+  color: #2a1016;
+  font:
+    700 12.5px/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #2d3b33;
+  font-weight: 700;
+}
+
+.coverage-status svg {
+  flex: none;
+  color: #4a7c59;
+}
+
+.coverage-status--warning {
+  color: #6b3a1c;
+}
+
+.coverage-status--warning svg {
+  color: #b76e2a;
+}
+
+.coverage-unavailable {
+  color: var(--search-muted);
+  font-weight: 600;
+}
+
+.coverage-skeleton {
+  display: inline-block;
+  width: 7rem;
+  height: 0.85em;
+  border-radius: 4px;
+  background: #eee4e0;
+}
+
+.coverage-skeleton--large {
+  width: 11rem;
+  height: 32px;
+  background: #f5ddd4;
+}
+
+/* The courts, each with its own period. */
+.coverage-courts {
+  margin-top: 1.75rem;
+}
+
+.coverage-courts__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.coverage-courts__title {
+  margin: 0.6rem 0 0;
+  color: #2a1016;
+  font:
+    700 19px/1.25 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-courts__total {
+  margin: 0;
+  color: #6f6064;
+  font:
+    500 9.5px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+/* Scrolls inside its own border when the screen is too narrow, never the page. */
+.court-coverage {
+  border: 1px solid #e7dedb;
+  border-radius: 12px;
+  background: var(--search-surface);
+  overflow-x: auto;
+}
+
+.court-coverage__table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.court-coverage__table th,
+.court-coverage__table td {
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  vertical-align: middle;
+  color: var(--search-text);
+  font:
+    500 10.5px/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.court-coverage__table thead th {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #ece4e1;
+  background: #faf6f4;
+  color: #5f5256;
+  font-weight: 700;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.court-coverage__table thead th:nth-child(1) {
+  width: 38%;
+}
+
+.court-coverage__table thead th:nth-child(2) {
+  width: 12.5%;
+}
+
+.court-coverage__table thead th:nth-child(3) {
+  width: 17.5%;
+}
+
+.court-coverage__table thead th:nth-child(4) {
+  width: 19.5%;
+}
+
+.court-coverage__table tbody tr + tr > * {
+  border-top: 1px solid #ece4e1;
+}
+
+.court-coverage__table .court-coverage__abbreviation {
+  display: block;
+  font-size: 11px;
+  color: #2a1016;
+  font-weight: 700;
+}
+
+.court-coverage__name {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6f6064;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.court-coverage__table .court-coverage__message {
+  padding: 1.4rem 0.9rem;
+  color: var(--search-muted);
+  font-size: 12px;
+}
+
+/* How to read the page, under a thin line. */
+.coverage-note {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  border-top: 1px solid #e7dedb;
+}
+
+.coverage-note__icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--search-text);
+}
+
+.coverage-note__title {
+  margin: 0;
+  color: #2a1016;
+  font:
+    700 12.5px/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.coverage-note__text {
+  margin: 0.3rem 0 0;
+  color: #5f5256;
+  font:
+    400 10.5px/1.55 'Source Sans 3',
+    sans-serif;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    padding: 0 1rem;
+  }
+
+  .coverage-page {
+    padding: 2rem 1rem 3rem;
+  }
+
+  .coverage-header {
+    flex-direction: column-reverse;
+  }
+
+  .coverage-title {
+    font-size: 34px;
+  }
+
+  .coverage-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .coverage-summary__details {
+    padding: 0.25rem 0.5rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .coverage-summary__details {
+    grid-template-columns: 1fr;
+  }
+
+  .coverage-summary__field:nth-child(-n + 3) {
+    border-bottom: 1px solid #ece4e1;
   }
 }
