@@ -718,12 +718,15 @@ function HomePage() {
           )}
         </div>
 
+        {/* Focusable itself: the panorama holds no control until a count fails,
+            and Tab from its tab must still reach what it says. */}
         <div
           className="results-panorama"
           role="tabpanel"
           id={panelId('panorama')}
           aria-labelledby={tabId('panorama')}
           hidden={view !== 'panorama'}
+          tabIndex={0}
         >
           <CourtVolumePanel
             volume={volumeState}

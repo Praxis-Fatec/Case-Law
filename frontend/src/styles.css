@@ -1788,6 +1788,12 @@ input:focus-visible {
   display: none;
 }
 
+.results-panorama:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 20%);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+
 /* The panorama: how the applied cut divides between the courts. */
 .panorama {
   width: min(100%, 964px);
@@ -1830,7 +1836,7 @@ input:focus-visible {
 }
 
 .panorama__grid {
-  margin-top: 1.6rem;
+  margin-top: 1.3rem;
   display: grid;
   grid-template-columns: minmax(0, 608fr) minmax(0, 337fr);
   gap: 18px;
@@ -2013,8 +2019,8 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1.5rem;
-  margin: 0.9rem 1.15rem 0;
-  padding: 0.9rem 0 1.1rem;
+  margin: 0.2rem 1.15rem 0;
+  padding: 0.9rem 0 1rem;
   border-top: 1px solid #ece3e0;
 }
 
