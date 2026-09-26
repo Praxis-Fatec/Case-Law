@@ -12,7 +12,12 @@ import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
+import CourtVolumePanel from '../components/CourtVolumePanel';
+import ResultsTabs from '../components/ResultsTabs';
+import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
+import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
+import { getLastUpdate, getVolumeByCourt, type VolumeParams } from '../api/indicators';
 import {
   countFilters,
   errorsFromApi,
@@ -98,6 +103,41 @@ const requestFor = (search: AppliedSearch) => ({
   order: search.order,
 });
 
+// The cut the panorama counts: the applied expression and filters, built by the
+// same function as the search, without the page, its size or the order. Those
+// only arrange the list, so changing them leaves the counts as they were.
+const volumeFor = (search: AppliedSearch): VolumeParams => {
+  const params = toSearchParams(search.q, search.filters);
+  return {
+    q: params.q,
+    tribunal: params.tribunal,
+    date_from: params.date_from,
+    date_to: params.date_to,
+    published_from: params.published_from,
+    published_to: params.published_to,
+  };
+};
+
+// Every parameter that defines the set, and only those. The courts are a set,
+// so the order they were ticked in does not make a different cut.
+const volumeKey = (params: VolumeParams) =>
+  JSON.stringify({ ...params, tribunal: params.tribunal && [...params.tribunal].sort() });
+
+// A counted cut, kept under the key of the cut it counts.
+type PanoramaCache = { key: string; volume: VolumeState } | null;
+
+function volumeFailure(error: unknown): string {
+  if (error instanceof SearchRequestError) {
+    if (errorsFromApi(error.status, error.detail)) {
+      return 'A busca recusou um dos períodos. Revise as datas destacadas nos filtros.';
+    }
+    if (error.status === 422) {
+      return 'Um dos filtros tem um valor que a busca não aceita. Revise-o e tente novamente.';
+    }
+  }
+  return 'Não foi possível carregar o volume por tribunal. Tente novamente.';
+}
+
 function HomePage() {
   // Everything the reader would lose by leaving and coming back lives in the
   // search session, above the routes: the list can unmount and still come back
@@ -116,6 +156,9 @@ function HomePage() {
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  // Which view of the applied search is up. In the session, so it is still the
+  // one chosen after a decision or the coverage page is left.
+  const [view, setView] = useSessionState<ResultsView>('view', 'documents');
   const [isLoading, setIsLoading] = useSessionState('isLoading', false);
   const [errorMessage, setErrorMessage] = useSessionState<string | null>('errorMessage', null);
   const [results, setResults] = useSessionState<SearchDecisionMatch[]>('results', []);
@@ -163,10 +206,20 @@ function HomePage() {
     }
   };
 
-  // Back on the list's address, focus returns to the card that was read, so a
-  // keyboard reader carries on from where they were. Keyed by text, not by the
-  // decision object, which is a new one on every render.
+  // Keyed by text, not by the decision object, which is a new one on every
+  // render.
   const chosenKey = chosenDecision ? keyOf(chosenDecision) : null;
+
+  // A decision's address is read in the documents: arriving at one — from a
+  // link, or Back and Forward — shows them, whichever view was up before.
+  useEffect(() => {
+    if (chosenKey !== null) {
+      setView('documents');
+    }
+  }, [chosenKey, setView]);
+
+  // Back on the list's address, focus returns to the card that was read, so a
+  // keyboard reader carries on from where they were.
   useEffect(() => {
     if (chosenKey === null && returnTo.current) {
       const opener = document.getElementById(openButtonId(returnTo.current));
@@ -373,6 +426,67 @@ function HomePage() {
     }
   }, [firstOpener, isLoading]);
 
+  // The panorama counts the applied cut, in the session so switching views or
+  // leaving the screen does not ask again. The base's freshness is kept beside
+  // it: one date for every cut.
+  const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
+  const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
+  const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
+  const panoramaKey = panorama?.key ?? null;
+
+  // Asked when the panorama is up and what it holds is not this cut: a new
+  // expression or new filters, applied while it was up or before it opened.
+  // An answer is written only if it is still for the cut on screen, so a late
+  // one never replaces the counts of a newer search.
+  useEffect(() => {
+    if (view !== 'panorama' || !applied || cutKey === null || panoramaKey === cutKey) {
+      return;
+    }
+
+    const key = cutKey;
+    const settle = (volume: VolumeState) =>
+      setPanorama((current) => (current?.key === key ? { key, volume } : current));
+
+    setPanorama({ key, volume: { status: 'loading' } });
+    getVolumeByCourt(volumeFor(applied)).then(
+      (volume) => settle({ status: 'loaded', volume }),
+      (error: unknown) => settle({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    // Read again with each cut, so the date shown is the one the counts were
+    // read against — never the time of the request.
+    getLastUpdate().then(
+      (update) => setLastUpdate({ status: 'loaded', lastUpdate: update }),
+      () => setLastUpdate({ status: 'unavailable' }),
+    );
+  }, [view, applied, cutKey, panoramaKey, setPanorama, setLastUpdate]);
+
+  // Before any search there is no cut, but the base still has a date.
+  useEffect(() => {
+    if (view === 'panorama' && lastUpdate === null) {
+      setLastUpdate({ status: 'loading' });
+      getLastUpdate().then(
+        (update) => setLastUpdate({ status: 'loaded', lastUpdate: update }),
+        () => setLastUpdate({ status: 'unavailable' }),
+      );
+    }
+  }, [view, lastUpdate, setLastUpdate]);
+
+  // Held counts of another cut are never shown for this one: until this cut's
+  // answer arrives, the panorama is loading.
+  const volumeState: VolumeState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.volume
+        : { status: 'loading' };
+  const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+
+  const retryPanorama = () => {
+    setPanorama(null);
+    setLastUpdate((current) => (current?.status === 'unavailable' ? null : current));
+  };
+
   // Retries what failed — the applied search — not an edit left in the box or
   // the panel.
   const retry = () => {
@@ -480,9 +594,19 @@ function HomePage() {
           )}
         </form>
 
+        <ResultsTabs value={view} onChange={setView} />
+
         {/* Always two columns, as in the reference: the list on the left, the
-            decision on the right. */}
-        <div className="results-layout">
+            decision on the right. Hidden rather than unmounted while the
+            panorama is up, so the list, its page and the open decision are
+            exactly as they were when the tab comes back. */}
+        <div
+          className="results-layout"
+          role="tabpanel"
+          id={panelId('documents')}
+          aria-labelledby={tabId('documents')}
+          hidden={view !== 'documents'}
+        >
           <div className="results-column">
             {/* Beside the total and above the list. Kept up while a new order
                 loads or fails, so it can be changed back or retried. Outside
@@ -592,6 +716,23 @@ function HomePage() {
               </p>
             </aside>
           )}
+        </div>
+
+        {/* Focusable itself: the panorama holds no control until a count fails,
+            and Tab from its tab must still reach what it says. */}
+        <div
+          className="results-panorama"
+          role="tabpanel"
+          id={panelId('panorama')}
+          aria-labelledby={tabId('panorama')}
+          hidden={view !== 'panorama'}
+          tabIndex={0}
+        >
+          <CourtVolumePanel
+            volume={volumeState}
+            lastUpdate={lastUpdateState}
+            onRetry={retryPanorama}
+          />
         </div>
       </div>
     </main>

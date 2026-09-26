@@ -66,7 +66,7 @@ export class SearchRequestError extends Error {
   }
 }
 
-async function readDetail(response: Response): Promise<string | null> {
+export async function readDetail(response: Response): Promise<string | null> {
   try {
     const body = (await response.json()) as { detail?: unknown };
     return typeof body.detail === 'string' ? body.detail : null;
