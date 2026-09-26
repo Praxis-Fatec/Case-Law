@@ -80,7 +80,7 @@ function CoveragePage() {
           </div>
 
           <button type="button" className="coverage-back" onClick={backToSearch}>
-            <ArrowLeft size={15} aria-hidden="true" />
+            <ArrowLeft size={13} aria-hidden="true" />
             Voltar à pesquisa
           </button>
         </header>

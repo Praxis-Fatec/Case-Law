@@ -19,7 +19,7 @@ function AppHeader() {
     <header className="app-header">
       <nav className="app-header__nav" aria-label="Informações do sistema">
         <NavLink to={COVERAGE_PATH} state={state} replace={onCoverage} className="app-header__link">
-          <Database size={17} aria-hidden="true" className="app-header__icon" />
+          <Database size={14} aria-hidden="true" className="app-header__icon" />
           <span className="app-header__text">
             <span className="app-header__title">Cobertura da base</span>
             <span className="app-header__subtitle">Informações do sistema</span>

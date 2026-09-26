@@ -75,7 +75,7 @@ function CourtCoverageTable({ state }: { state: CoverageState }) {
                       makes it searchable — so that, and nothing more. */}
                   {court.documents !== null && court.documents > 0 ? (
                     <span className="coverage-status">
-                      <CheckCircle size={15} weight="fill" aria-hidden="true" />
+                      <CheckCircle size={13} weight="fill" aria-hidden="true" />
                       Pesquisável
                     </span>
                   ) : (

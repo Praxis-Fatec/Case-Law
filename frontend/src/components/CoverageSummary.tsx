@@ -106,7 +106,7 @@ function CoverageSummary({ state }: { state: CoverageState }) {
   return (
     <section className="coverage-summary" aria-label="Resumo da base" aria-busy={loading}>
       <div className="coverage-summary__total">
-        <Database size={22} aria-hidden="true" className="coverage-summary__icon" />
+        <Database size={20} aria-hidden="true" className="coverage-summary__icon" />
         <p className="coverage-summary__total-label">Total de documentos públicos</p>
         <p className="coverage-summary__total-value">
           {coverage ? (
@@ -133,7 +133,7 @@ function CoverageSummary({ state }: { state: CoverageState }) {
             pending
           ) : situation ? (
             <span className={`coverage-status${situation.ok ? '' : ' coverage-status--warning'}`}>
-              <SituationIcon size={15} weight="fill" aria-hidden="true" />
+              <SituationIcon size={13} weight="fill" aria-hidden="true" />
               {situation.label}
             </span>
           ) : (
