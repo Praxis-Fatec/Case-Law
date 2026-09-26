@@ -33,6 +33,29 @@ export type Coverage = {
   updated_at: string | null;
 };
 
+// What `/indicators/volume-by-court` answers: the search's own cut, counted by
+// court. It takes the search's expression and filters, never its order or
+// page, and narrows through the same builder, so the total is the list's.
+export type CourtVolume = {
+  abbreviation: string;
+  name: string | null;
+  decisions: number | null;
+};
+
+export type VolumeByCourt = {
+  // The courts' counts add up to it.
+  total: number | null;
+  // Busiest court first, as the API orders them. Empty when nothing matches.
+  courts: CourtVolume[];
+};
+
+// What `/indicators/last-update` answers: when the collection was last
+// refreshed. It is the base's date, one for every court, not the cut's.
+export type LastUpdate = {
+  state: LoadState | null;
+  updated_at: string | null;
+};
+
 export class CoverageRequestError extends Error {
   readonly status: number;
 

@@ -12,7 +12,11 @@ import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
+import CourtVolumePanel from '../components/CourtVolumePanel';
+import ResultsTabs from '../components/ResultsTabs';
+import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
+import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
 import {
   countFilters,
   errorsFromApi,
@@ -116,6 +120,9 @@ function HomePage() {
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  // Which view of the applied search is up. In the session, so it is still the
+  // one chosen after a decision or the coverage page is left.
+  const [view, setView] = useSessionState<ResultsView>('view', 'documents');
   const [isLoading, setIsLoading] = useSessionState('isLoading', false);
   const [errorMessage, setErrorMessage] = useSessionState<string | null>('errorMessage', null);
   const [results, setResults] = useSessionState<SearchDecisionMatch[]>('results', []);
@@ -163,10 +170,20 @@ function HomePage() {
     }
   };
 
-  // Back on the list's address, focus returns to the card that was read, so a
-  // keyboard reader carries on from where they were. Keyed by text, not by the
-  // decision object, which is a new one on every render.
+  // Keyed by text, not by the decision object, which is a new one on every
+  // render.
   const chosenKey = chosenDecision ? keyOf(chosenDecision) : null;
+
+  // A decision's address is read in the documents: arriving at one — from a
+  // link, or Back and Forward — shows them, whichever view was up before.
+  useEffect(() => {
+    if (chosenKey !== null) {
+      setView('documents');
+    }
+  }, [chosenKey, setView]);
+
+  // Back on the list's address, focus returns to the card that was read, so a
+  // keyboard reader carries on from where they were.
   useEffect(() => {
     if (chosenKey === null && returnTo.current) {
       const opener = document.getElementById(openButtonId(returnTo.current));
@@ -373,6 +390,11 @@ function HomePage() {
     }
   }, [firstOpener, isLoading]);
 
+  // The panorama counts the applied cut. Not asked for yet: until it is, it
+  // says so rather than draw a number nobody read.
+  const volumeState: VolumeState = applied ? { status: 'unavailable' } : { status: 'idle' };
+  const lastUpdateState: LastUpdateState = { status: 'unavailable' };
+
   // Retries what failed — the applied search — not an edit left in the box or
   // the panel.
   const retry = () => {
@@ -480,9 +502,19 @@ function HomePage() {
           )}
         </form>
 
+        <ResultsTabs value={view} onChange={setView} />
+
         {/* Always two columns, as in the reference: the list on the left, the
-            decision on the right. */}
-        <div className="results-layout">
+            decision on the right. Hidden rather than unmounted while the
+            panorama is up, so the list, its page and the open decision are
+            exactly as they were when the tab comes back. */}
+        <div
+          className="results-layout"
+          role="tabpanel"
+          id={panelId('documents')}
+          aria-labelledby={tabId('documents')}
+          hidden={view !== 'documents'}
+        >
           <div className="results-column">
             {/* Beside the total and above the list. Kept up while a new order
                 loads or fails, so it can be changed back or retried. Outside
@@ -592,6 +624,16 @@ function HomePage() {
               </p>
             </aside>
           )}
+        </div>
+
+        <div
+          className="results-panorama"
+          role="tabpanel"
+          id={panelId('panorama')}
+          aria-labelledby={tabId('panorama')}
+          hidden={view !== 'panorama'}
+        >
+          <CourtVolumePanel volume={volumeState} lastUpdate={lastUpdateState} />
         </div>
       </div>
     </main>

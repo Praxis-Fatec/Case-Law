@@ -1726,3 +1726,437 @@ input:focus-visible {
     border-bottom: 1px solid #ece4e1;
   }
 }
+
+/* The two views of the applied search, under the form. */
+.results-tabs {
+  display: flex;
+  align-items: stretch;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border-top: 1px solid #f1e8e5;
+  border-bottom: 1px solid #ebe1de;
+  background: #fbf7f5;
+}
+
+.results-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 1rem;
+  border: 0;
+  border-right: 1px solid transparent;
+  border-left: 1px solid transparent;
+  background: transparent;
+  color: #4b3c40;
+  font:
+    600 11px/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.results-tabs__tab:hover {
+  color: var(--search-text);
+}
+
+.results-tabs__tab.is-active {
+  border-right-color: #e5dbd8;
+  border-left-color: #e5dbd8;
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+/* The wine rule under the selected tab, sitting on the strip's own border. */
+.results-tabs__tab.is-active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 3px;
+  background: var(--search-primary);
+}
+
+.results-tabs__tab:focus-visible {
+  outline: 3px solid rgb(69 21 31 / 20%);
+  outline-offset: -3px;
+}
+
+/* A panel's own display (the results are a grid) would otherwise win over
+   `hidden`. */
+[role='tabpanel'][hidden] {
+  display: none;
+}
+
+/* The panorama: how the applied cut divides between the courts. */
+.panorama {
+  width: min(100%, 964px);
+  margin: 1.1rem auto 0;
+}
+
+.panorama__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.panorama__eyebrow {
+  margin: 0;
+  color: #6f6064;
+  font:
+    700 9px/1.3 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panorama__title {
+  margin: 0.55rem 0 0;
+  color: #2a1016;
+  font:
+    700 24px/1.2 'Source Sans 3',
+    sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.panorama__lead {
+  max-width: 420px;
+  margin: 0;
+  color: #5f5256;
+  font:
+    400 10.5px/1.6 'Source Sans 3',
+    sans-serif;
+}
+
+.panorama__grid {
+  margin-top: 1.6rem;
+  display: grid;
+  grid-template-columns: minmax(0, 608fr) minmax(0, 337fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.panorama-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ece3e0;
+  border-radius: 14px;
+  background: var(--search-surface);
+  box-shadow: 0 1px 3px rgb(45 19 27 / 4%);
+  overflow: hidden;
+}
+
+.panorama-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.35rem 1.15rem 0.9rem;
+}
+
+.panorama-card__title {
+  margin: 0;
+  color: #2a1016;
+  font:
+    700 12.5px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.panorama-card__meta {
+  margin: 0;
+  color: #6f6064;
+  font:
+    500 9px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.panorama-card__body {
+  flex: 1;
+  padding: 0.35rem 1.15rem 0;
+}
+
+.panorama-card__message {
+  margin: 0;
+  padding: 2.5rem 1.15rem;
+  color: var(--search-muted);
+  font:
+    500 12px/1.5 'Source Sans 3',
+    sans-serif;
+  text-align: center;
+}
+
+.panorama-card__body .panorama-card__message {
+  padding: 4.5rem 1rem;
+}
+
+/* The chart. The label column and the room kept for the count at the tip of
+   the longest bar are shared by the rows, the grid and the axis. */
+.volume-chart {
+  --label: 44px;
+  --gap: 6px;
+  --reserve: 56px;
+}
+
+.volume-chart__plot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 29px;
+  padding: 15px 0;
+}
+
+.volume-chart__scale {
+  position: absolute;
+  top: 0;
+  right: var(--reserve);
+  bottom: 0;
+  left: calc(var(--label) + var(--gap));
+}
+
+.volume-chart__grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #e9e1de;
+}
+
+.volume-chart__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--label) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--gap);
+  padding-right: var(--reserve);
+}
+
+.volume-chart__label {
+  color: #2a1016;
+  font:
+    700 9.5px/1 'Source Sans 3',
+    sans-serif;
+  text-align: right;
+}
+
+.volume-chart__track {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Square at the baseline, rounded at the data end. */
+.volume-chart__bar {
+  flex: none;
+  height: 28px;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background: #4a1520;
+}
+
+.volume-chart__value {
+  flex: none;
+  margin-left: 0.4rem;
+  color: #2a1016;
+  font:
+    700 11px/1 'Source Sans 3',
+    sans-serif;
+  white-space: nowrap;
+}
+
+.volume-chart__axis {
+  position: relative;
+  height: 16px;
+  margin-top: 4px;
+}
+
+.volume-chart__tick {
+  position: absolute;
+  top: 0;
+  color: #6f6064;
+  font:
+    500 10px/1 'Source Sans 3',
+    sans-serif;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.volume-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 29px;
+  padding: 15px 0 35px 50px;
+}
+
+.volume-skeleton__bar {
+  height: 28px;
+  border-radius: 0 4px 4px 0;
+  background: #f1e9e6;
+}
+
+.volume-skeleton__line {
+  display: block;
+  width: 70%;
+  height: 12px;
+  border-radius: 4px;
+  background: #f1e9e6;
+}
+
+.volume-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  margin: 0.9rem 1.15rem 0;
+  padding: 0.9rem 0 1.1rem;
+  border-top: 1px solid #ece3e0;
+}
+
+.volume-card__note,
+.volume-card__updated {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: #4b3c40;
+  font:
+    600 9.5px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.volume-card__updated {
+  color: #6f6064;
+  font-weight: 500;
+}
+
+.volume-card__updated strong {
+  color: #2a1016;
+  font-weight: 700;
+}
+
+.volume-card__updated strong.is-missing {
+  color: var(--search-muted);
+  font-weight: 600;
+}
+
+.volume-card__updated-pending {
+  display: inline-block;
+  width: 5.5rem;
+  height: 10px;
+  border-radius: 3px;
+  background: #f1e9e6;
+}
+
+/* The same counts as a list, in the answer's order. */
+.composition__list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #ece3e0;
+  list-style: none;
+}
+
+.composition__item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 52px;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid #ece3e0;
+}
+
+.composition__item--pending {
+  display: flex;
+}
+
+.composition__rank {
+  color: #8a7c80;
+  font:
+    400 12px/1 'Source Sans 3',
+    sans-serif;
+}
+
+.composition__court {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.composition__abbreviation {
+  color: #2a1016;
+  font:
+    700 11px/1.2 'Source Sans 3',
+    sans-serif;
+}
+
+.composition__name {
+  color: #6f6064;
+  font:
+    500 10px/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.composition__count {
+  color: #2a1016;
+  font:
+    700 12px/1 'Source Sans 3',
+    sans-serif;
+  white-space: nowrap;
+}
+
+.composition__count.is-missing {
+  color: var(--search-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.panorama-card--composition .panorama-card__message {
+  border-top: 1px solid #ece3e0;
+  border-bottom: 1px solid #ece3e0;
+}
+
+.composition__explain {
+  margin-bottom: 1.1rem;
+  padding: 0.85rem 0.9rem 0.95rem;
+  background: #f6f3f2;
+}
+
+.composition__explain-title {
+  margin: 0;
+  color: #2a1016;
+  font:
+    700 9.5px/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.composition__explain-text {
+  margin: 0.45rem 0 0;
+  color: #6f6064;
+  font:
+    400 9px/1.55 'Source Sans 3',
+    sans-serif;
+}
+
+@media (max-width: 900px) {
+  .panorama__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .panorama__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .panorama__title {
+    font-size: 21px;
+  }
+
+  .results-tabs {
+    padding: 0;
+  }
+}
