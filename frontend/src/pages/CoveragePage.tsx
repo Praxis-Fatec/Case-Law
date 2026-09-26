@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Info } from '@phosphor-icons/react';
 
+import { getCoverage } from '../api/indicators';
 import CourtCoverageTable from '../components/CourtCoverageTable';
 import CoverageSummary from '../components/CoverageSummary';
 import { formatCount, type CoverageState } from '../components/coverageFormat';
@@ -10,14 +12,47 @@ export const COVERAGE_PATH = '/cobertura';
 // What the entry carries when the page was opened from inside the app.
 export type CoverageEntry = { fromApp?: boolean } | null;
 
-// Not asked for yet: until the base answers, the page says the data is
-// unavailable rather than show a number nobody read.
-const PENDING: CoverageState = { status: 'unavailable' };
-
-function CoveragePage({ state = PENDING }: { state?: CoverageState }) {
+function CoveragePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const fromApp = (location.state as CoverageEntry)?.fromApp === true;
+  const [state, setState] = useState<CoverageState>({ status: 'loading' });
+  const [attempt, setAttempt] = useState(0);
+
+  // Asked each time the page opens, and of the base alone: nothing from the
+  // search — its expression, filters, order, page or results — goes with it,
+  // so a narrow or empty search never makes the base look smaller.
+  useEffect(() => {
+    // Leaving the page, or retrying, abandons the request in flight, so a late
+    // answer never replaces the one on screen.
+    const controller = new AbortController();
+    let active = true;
+
+    getCoverage({ signal: controller.signal }).then(
+      (coverage) => {
+        if (active) {
+          setState({ status: 'loaded', coverage });
+        }
+      },
+      () => {
+        if (active) {
+          setState({ status: 'failed' });
+        }
+      },
+    );
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [attempt]);
+
+  const retry = () => {
+    setState({ status: 'loading' });
+    setAttempt((current) => current + 1);
+  };
+
+  const documents = state.status === 'loaded' ? state.coverage.documents : null;
 
   // The search lives above the routes, so its results, filters and page are
   // still there. Opened from the app, Back returns to the exact entry — the
@@ -50,6 +85,18 @@ function CoveragePage({ state = PENDING }: { state?: CoverageState }) {
           </button>
         </header>
 
+        {/* A failure is said as one, never shown as an empty base. */}
+        {state.status === 'failed' && (
+          <div className="search-state search-state--error coverage-error" role="alert">
+            <p>
+              Não foi possível carregar a cobertura da base. Verifique a conexão e tente novamente.
+            </p>
+            <button type="button" className="search-state__retry" onClick={retry}>
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         <CoverageSummary state={state} />
 
         <section className="coverage-courts" aria-labelledby="coverage-courts-title">
@@ -60,9 +107,9 @@ function CoveragePage({ state = PENDING }: { state?: CoverageState }) {
                 Cobertura por tribunal
               </h2>
             </div>
-            {state.status === 'loaded' && (
+            {documents !== null && (
               <p className="coverage-courts__total">
-                {formatCount(state.coverage.documents)} documentos no total
+                {formatCount(documents)} {documents === 1 ? 'documento' : 'documentos'} no total
               </p>
             )}
           </div>

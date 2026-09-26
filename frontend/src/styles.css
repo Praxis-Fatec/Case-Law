@@ -1417,6 +1417,11 @@ input:focus-visible {
   background: #fcf6f3;
 }
 
+/* A failed request, above the block it left empty. */
+.coverage-error {
+  margin-top: 1.5rem;
+}
+
 /* One block: the total on a peach ground, the four facts on white beside it. */
 .coverage-summary {
   margin-top: 1.5rem;

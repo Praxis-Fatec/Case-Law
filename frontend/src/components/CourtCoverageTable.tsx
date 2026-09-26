@@ -1,6 +1,6 @@
 import { CheckCircle } from '@phosphor-icons/react';
 
-import { formatCount, UNAVAILABLE, type CoverageState } from './coverageFormat';
+import { formatCount, isEmptyBase, NOT_INFORMED, type CoverageState } from './coverageFormat';
 import { formatDate } from './decisionFormat';
 
 const COLUMNS = [
@@ -18,13 +18,21 @@ function stateMessage(state: CoverageState): string | null {
     return 'Carregando a cobertura por tribunal...';
   }
 
-  if (state.status === 'unavailable') {
+  if (state.status === 'failed') {
     return 'A cobertura por tribunal está indisponível no momento.';
   }
 
-  return state.coverage.courts.length === 0
-    ? 'Nenhum tribunal tem documentos na base ainda.'
-    : null;
+  if (isEmptyBase(state.coverage)) {
+    return 'Ainda não há documentos disponíveis na base.';
+  }
+
+  // Documents without rows, or rows the answer did not carry: the courts are
+  // unknown, which is not the same as none.
+  return state.coverage.courts.length === 0 ? 'A cobertura por tribunal não foi informada.' : null;
+}
+
+function Missing() {
+  return <span className="coverage-unavailable">{NOT_INFORMED}</span>;
 }
 
 function CourtCoverageTable({ state }: { state: CoverageState }) {
@@ -56,19 +64,23 @@ function CourtCoverageTable({ state }: { state: CoverageState }) {
               <tr key={court.abbreviation}>
                 <th scope="row" className="court-coverage__court">
                   <span className="court-coverage__abbreviation">{court.abbreviation}</span>
-                  <span className="court-coverage__name">{court.name}</span>
+                  {court.name && <span className="court-coverage__name">{court.name}</span>}
                 </th>
-                <td>{formatCount(court.documents)}</td>
-                <td>{formatDate(court.first) ?? UNAVAILABLE}</td>
-                <td>{formatDate(court.last) ?? UNAVAILABLE}</td>
+                <td>{formatCount(court.documents) ?? <Missing />}</td>
+                <td>{formatDate(court.first) ?? <Missing />}</td>
+                <td>{formatDate(court.last) ?? <Missing />}</td>
                 <td>
                   {/* The API has no status per court. What it does say is that
                       the court has decisions in the base, which is exactly what
                       makes it searchable — so that, and nothing more. */}
-                  <span className="coverage-status">
-                    <CheckCircle size={15} weight="fill" aria-hidden="true" />
-                    Pesquisável
-                  </span>
+                  {court.documents !== null && court.documents > 0 ? (
+                    <span className="coverage-status">
+                      <CheckCircle size={15} weight="fill" aria-hidden="true" />
+                      Pesquisável
+                    </span>
+                  ) : (
+                    <Missing />
+                  )}
                 </td>
               </tr>
             ))
