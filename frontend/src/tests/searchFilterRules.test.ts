@@ -5,6 +5,7 @@ import {
   errorsFromApi,
   INVERTED_RANGE_MESSAGE,
   NO_FILTERS,
+  PAGE_SIZE,
   rangeErrors,
   sameFilters,
   toSearchParams,
@@ -46,7 +47,7 @@ describe('the parameters sent to the search', () => {
     expect(toSearchParams('dano moral', NO_FILTERS)).toEqual({
       q: 'dano moral',
       page: 1,
-      page_size: 20,
+      page_size: PAGE_SIZE,
       tribunal: undefined,
       date_from: undefined,
       date_to: undefined,

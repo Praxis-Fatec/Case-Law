@@ -271,24 +271,19 @@ describe('applying the filters', () => {
     expect(sent.get('page')).toBe('1');
   });
 
-  it('keeps the expression and the chosen search mode', async () => {
+  it('keeps the expression', async () => {
     const api = installApi();
     const user = await renderPage();
     const box = screen.getByLabelText('Pesquisar decisões');
 
     await user.clear(box);
     await user.type(box, 'dano moral');
-    await user.click(screen.getByRole('button', { name: 'Frase exata' }));
     await user.click(await court('TJDFT'));
     await search(user);
 
     await waitFor(() => expect(api.searches()).toHaveLength(1));
     expect(api.lastSearch()?.searchParams.get('q')).toBe('dano moral');
     await waitFor(() => expect(box).toHaveValue('dano moral'));
-    expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
   });
 
   it('accepts the same day on both ends', async () => {

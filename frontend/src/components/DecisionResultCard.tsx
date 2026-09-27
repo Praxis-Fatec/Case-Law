@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { Link, type To } from 'react-router-dom';
-import { ArrowRight } from '@phosphor-icons/react';
+import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import type { SearchDecisionMatch } from '../api/search';
 import {
@@ -38,6 +38,8 @@ type DecisionResultCardProps = {
   openButtonId?: string;
   // The decision open in the detail panel, marked so the list says which.
   selected?: boolean;
+  // Its place in the whole result, counting from 1 across pages.
+  rank?: number;
 };
 
 function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
@@ -97,23 +99,22 @@ function DecisionResultCard({
   onOpen,
   openButtonId,
   selected = false,
+  rank,
 }: DecisionResultCardProps) {
   const officialUrl = normalizeOfficialUrl(decision.source_url);
   const linkIsUnavailable = !officialUrl || decision.source_url_reachable === false;
 
+  // The court and the case number head the card and the date sits beside
+  // them, so the list below carries only what they do not.
   const metadata = [
-    { label: 'Processo', value: getDisplayValue(decision.case_number) },
     { label: 'Órgão julgador', value: getDisplayValue(decision.judging_body) },
     { label: 'Relator', value: getDisplayValue(decision.reporting_judge) },
-    {
-      label: 'Data de julgamento',
-      value: formatDate(decision.decided_on) ?? NOT_INFORMED,
-    },
     {
       label: 'Data de publicação',
       value: formatDate(decision.published_on) ?? NOT_INFORMED,
     },
   ];
+  const decided = formatDate(decision.decided_on);
 
   return (
     <article
@@ -143,61 +144,71 @@ function DecisionResultCard({
         </Link>
       )}
 
-      <header className="decision-result-card__header">
-        {to && <ArrowRight className="decision-result-card__arrow" size={16} aria-hidden="true" />}
-        <div className="decision-result-card__title">
-          <span className="decision-result-card__court">{getDisplayValue(decision.court)}</span>
-          <span className="decision-result-card__separator">•</span>
-          <span className="decision-result-card__process">
-            {getDisplayValue(decision.case_number)}
-          </span>
-        </div>
-      </header>
+      {rank !== undefined && (
+        <span className="decision-result-card__rank" aria-hidden="true">
+          {String(rank).padStart(2, '0')}
+        </span>
+      )}
 
-      <div className="decision-result-card__content">
+      <div className="decision-result-card__body">
+        <header className="decision-result-card__header">
+          <div className="decision-result-card__title">
+            <span className="decision-result-card__court">{getDisplayValue(decision.court)}</span>
+            <span className="decision-result-card__process">
+              {getDisplayValue(decision.case_number)}
+            </span>
+          </div>
+          {decided && <span className="decision-result-card__date">{decided}</span>}
+        </header>
+
         <p className="decision-result-card__snippet">{renderSafeSnippet(decision.snippet)}</p>
+
+        <dl className="decision-result-card__meta">
+          {metadata
+            .filter((item) => item.value !== NOT_INFORMED)
+            .map((item) => (
+              <div className="decision-result-card__meta-item" key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+        </dl>
+
+        <div className="decision-result-card__actions" aria-live="polite">
+          {officialUrl && decision.source_url_reachable !== false ? (
+            <a
+              className="decision-result-card__source-link"
+              href={officialUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Abrir fonte oficial em nova aba"
+            >
+              <ArrowSquareOut size={12} aria-hidden="true" />
+              Fonte oficial
+              <span className="sr-only"> (abre em nova aba)</span>
+            </a>
+          ) : (
+            <span
+              className="decision-result-card__source-link decision-result-card__source-link--disabled"
+              aria-disabled="true"
+              aria-label="Fonte oficial indisponível"
+              tabIndex={-1}
+              role="link"
+            >
+              Fonte oficial
+              <span className="sr-only"> (indisponível)</span>
+            </span>
+          )}
+
+          {linkIsUnavailable && (
+            <span className="decision-result-card__source-status">
+              Link indisponível no momento.
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="decision-result-card__actions" aria-live="polite">
-        {officialUrl && decision.source_url_reachable !== false ? (
-          <a
-            className="decision-result-card__source-link"
-            href={officialUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Abrir fonte oficial em nova aba"
-          >
-            Fonte oficial
-            <span className="sr-only"> (abre em nova aba)</span>
-          </a>
-        ) : (
-          <span
-            className="decision-result-card__source-link decision-result-card__source-link--disabled"
-            aria-disabled="true"
-            aria-label="Fonte oficial indisponível"
-            tabIndex={-1}
-            role="link"
-          >
-            Fonte oficial
-            <span className="sr-only"> (indisponível)</span>
-          </span>
-        )}
-
-        {linkIsUnavailable && (
-          <span className="decision-result-card__source-status">Link indisponível no momento.</span>
-        )}
-      </div>
-
-      <dl className="decision-result-card__meta">
-        {metadata
-          .filter((item) => item.value !== NOT_INFORMED)
-          .map((item) => (
-            <div className="decision-result-card__meta-item" key={item.label}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-      </dl>
+      {to && <ArrowRight className="decision-result-card__arrow" size={14} aria-hidden="true" />}
     </article>
   );
 }

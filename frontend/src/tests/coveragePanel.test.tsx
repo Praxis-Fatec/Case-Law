@@ -135,7 +135,7 @@ async function openCoverage() {
   return user;
 }
 
-// An expression, a mode and a court and period filter, applied: the cut the
+// An expression and a court and period filter, applied: the cut the
 // coverage must never inherit.
 async function searchFiltered(expression: string) {
   const user = userEvent.setup();
@@ -143,7 +143,6 @@ async function searchFiltered(expression: string) {
   const box = screen.getByLabelText('Pesquisar decisões');
   await user.clear(box);
   await user.type(box, expression);
-  await user.click(screen.getByRole('button', { name: 'Frase exata' }));
   await user.click(screen.getByRole('button', { name: /filtros/i }));
   await user.click(await screen.findByRole('checkbox', { name: /TJDFT/ }));
   const judged = screen.getByRole('group', { name: 'Data de julgamento' });
@@ -161,14 +160,28 @@ afterEach(() => {
 });
 
 describe('the top bar', () => {
-  it('holds the way to the coverage and nothing else', () => {
+  it('holds the search and the way to the coverage, and nothing else', () => {
     installApi();
     renderApp();
 
     const bar = within(topBar());
     expect(bar.getAllByRole('link')).toHaveLength(1);
-    expect(bar.queryAllByRole('button')).toHaveLength(0);
+    expect(bar.getByRole('searchbox', { name: 'Pesquisar decisões' })).toBeInTheDocument();
+    expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Filtros',
+      'Pesquisar',
+    ]);
     expect(coverageLink()).toHaveTextContent('Informações do sistema');
+  });
+
+  it('on the coverage, holds only the way to it: there is no search there', () => {
+    installApi();
+    renderApp('/cobertura');
+
+    const bar = within(topBar());
+    expect(bar.getAllByRole('link')).toHaveLength(1);
+    expect(bar.queryByRole('searchbox')).toBeNull();
+    expect(bar.queryAllByRole('button')).toHaveLength(0);
   });
 
   it('reaches the coverage from the search screen', async () => {
@@ -398,10 +411,6 @@ describe('going to the coverage and back', () => {
 
     expect(currentAddress()).toBe('/');
     expect(screen.getByLabelText('Pesquisar decisões')).toHaveValue('dano moral');
-    expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
     expect(screen.getAllByRole('article')).toHaveLength(3);
     expect(screen.getByRole('button', { name: /Filtros/ })).toHaveTextContent('2');
     expect(searches).toHaveLength(1);

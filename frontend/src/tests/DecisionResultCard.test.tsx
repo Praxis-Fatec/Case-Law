@@ -22,9 +22,10 @@ describe('DecisionResultCard', () => {
     expect(screen.getByText('3ª TURMA CÍVEL')).toBeInTheDocument();
     expect(screen.getByText('JOÃO EGMONT')).toBeInTheDocument();
 
-    // The case number is written twice on purpose: once in the header, where
-    // it identifies the card, and once in the metadata list beside its label.
-    expect(screen.getAllByText('0712598-03.2019.8.07.0003')).toHaveLength(2);
+    // The case number heads the card, where it identifies it, beside the
+    // court; the list under the text carries only what the head does not.
+    expect(screen.getByText('0712598-03.2019.8.07.0003')).toBeInTheDocument();
+    expect(screen.getByText('11/06/2026')).toBeInTheDocument();
   });
 
   it('leaves out a field the search did not send, rather than an empty label', () => {
