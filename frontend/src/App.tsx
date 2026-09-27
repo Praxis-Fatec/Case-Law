@@ -6,7 +6,8 @@ import SearchSessionProvider from './search/SearchSessionProvider';
 
 function App() {
   return (
-    <div>
+    // The window's height and no more: each screen scrolls inside itself.
+    <div className="app-shell">
       <AppHeader />
       {/* Above the routes, so the search outlives whichever screen shows it. */}
       <SearchSessionProvider>

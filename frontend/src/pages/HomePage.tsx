@@ -499,11 +499,18 @@ function HomePage() {
 
   return (
     <main className="search-page">
-      <div className="search-layout">
+      {/* The band across the top: what the screen is for, and the search. */}
+      <div className="search-band">
+        <div className="search-band__intro">
+          <p className="search-band__eyebrow">Pesquisa jurisprudencial</p>
+          <p className="search-band__title">
+            {hasSearch ? 'Ajuste a consulta a qualquer momento' : 'O que você precisa entender?'}
+          </p>
+        </div>
         <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
           <div className="legal-search">
             <div className="legal-search__field">
-              <MagnifyingGlass size={20} aria-hidden="true" />
+              <MagnifyingGlass size={18} aria-hidden="true" />
 
               <label className="sr-only" htmlFor="legal-search-input">
                 Pesquisar decisões
@@ -558,7 +565,7 @@ function HomePage() {
                 onClick={() => setFiltersOpen((open) => !open)}
                 disabled={isLoading}
               >
-                <SlidersHorizontal size={17} aria-hidden="true" />
+                <SlidersHorizontal size={14} aria-hidden="true" />
                 <span>Filtros</span>
                 {appliedCount > 0 && (
                   <span className="filter-button__count">
@@ -593,9 +600,13 @@ function HomePage() {
             </p>
           )}
         </form>
+      </div>
 
-        <ResultsTabs value={view} onChange={setView} />
+      <ResultsTabs value={view} onChange={setView} />
 
+      {/* The rest of the window. The page itself never scrolls: the list, the
+          decision and the panorama each scroll inside their own box. */}
+      <div className="search-content">
         {/* Always two columns, as in the reference: the list on the left, the
             decision on the right. Hidden rather than unmounted while the
             panorama is up, so the list, its page and the open decision are
