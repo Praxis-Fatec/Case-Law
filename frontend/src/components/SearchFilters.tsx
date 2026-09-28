@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
-import { listCourts, type Court } from '../api/courts';
+import type { CourtsList } from '../search/useCourts';
 import type { FilterErrors, SearchFilterValues } from '../search/filters';
 
 // Chrome does not submit a form on Enter from a date input, and the search
@@ -87,9 +86,6 @@ function DateRangeGroup({
   );
 }
 
-type CourtsState =
-  { status: 'loading' } | { status: 'loaded'; courts: Court[] } | { status: 'failed' };
-
 type SearchFiltersProps = {
   id: string;
   values: SearchFilterValues;
@@ -97,6 +93,7 @@ type SearchFiltersProps = {
   errors?: FilterErrors;
   hidden: boolean;
   disabled?: boolean;
+  courts: CourtsList;
 };
 
 function SearchFilters({
@@ -106,36 +103,8 @@ function SearchFilters({
   errors = {},
   hidden,
   disabled = false,
+  courts: { state: courtsState, retry },
 }: SearchFiltersProps) {
-  const [courtsState, setCourtsState] = useState<CourtsState>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-
-    listCourts().then(
-      (courts) => {
-        if (active) {
-          setCourtsState({ status: 'loaded', courts });
-        }
-      },
-      () => {
-        if (active) {
-          setCourtsState({ status: 'failed' });
-        }
-      },
-    );
-
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
-
-  const retry = () => {
-    setCourtsState({ status: 'loading' });
-    setAttempt((current) => current + 1);
-  };
-
   const toggleCourt = (abbreviation: string) => {
     const courts = values.courts.includes(abbreviation)
       ? values.courts.filter((selected) => selected !== abbreviation)

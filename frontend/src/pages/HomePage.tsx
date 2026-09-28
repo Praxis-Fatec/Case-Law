@@ -34,6 +34,7 @@ import {
 } from '../search/filters';
 import type { PageInfo } from '../search/paging';
 import { HeaderSearchSlot } from '../search/headerSearchSlot';
+import { useCourts } from '../search/useCourts';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
@@ -508,6 +509,7 @@ function HomePage() {
   // rendered there from here, where its state lives. With no bar to hold it,
   // it stays in the screen.
   const searchSlot = useContext(HeaderSearchSlot);
+  const courts = useCourts();
   const searchForm = (
     <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
       <div className="legal-search">
@@ -565,6 +567,7 @@ function HomePage() {
           errors={filterErrors}
           hidden={!filtersOpen}
           disabled={isLoading}
+          courts={courts}
         />
 
         {/* The results below were searched with the applied filters, not with
