@@ -25,12 +25,3 @@ The stories are grouped in the same table. The last column distinguishes the com
 | 6 | High | As a legal analyst, I want to sort results by relevance or date to see the most pertinent or most recent content first. | 3 | 1 | No |
 | 7 | High | As a legal analyst, I want to navigate between result pages to browse a large set of results without losing my place. | 3 | 1 | No |
 | 8 | High | As a magistrate, I want to see how many documents and courts the database covers and the available time period to understand the search scope before relying on the results. | 2 | 1 | No |
-
----
-
-## Team <a id="team"></a>
-
-| Member | Role | GitHub | LinkedIn |
-|---|---|---|---|
-| **Giovana Zucareli** | Product Owner | [View Profile](https://github.com/GiovanaZucareli) | [View Profile](https://linkedin.com/in/giovana-zucareli-1aa205202) |
-| **Pedro Ribeiro** | Developer | [View Profile](https://github.com/pedrohenribeiro) | [View Profile](https://linkedin.com/in/pedrohenribeiro1) |
