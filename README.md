@@ -18,7 +18,13 @@
 
 **Project Status** 🚧 Sprint 1 delivered  
 **Documentation Folder** 📄 [documentation/](documentation/)  
-**Project Video** 📽️ [Sprint 1 increment](SPRINT_1_VIDEO_URL)  
+**Project Video** 📽️ [Sprint 1 increment](https://www.youtube.com/watch?v=82bR--xO6Fs)  
+
+<p align="left">
+  <a href="https://www.youtube.com/watch?v=82bR--xO6Fs">
+    <img src="https://img.shields.io/badge/Sprint%201%20Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Sprint 1 video on YouTube" />
+  </a>
+</p>
 
 ---
 
@@ -120,7 +126,7 @@ The profiles represent who receives value from the feature. They do not indicate
 
 | Sprint | Period | Goal | Documentation | Increment |
 |---|---|---|---|---|
-| **1** | 07/09/2026 – 27/09/2026 | Search decisions across courts, read them and check the reach of the base | [Backlog](documentation/sprints/sprint-1/sprint-1-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Video](SPRINT_1_VIDEO_URL) |
+| **1** | 07/09/2026 – 27/09/2026 | Search decisions across courts, read them and check the reach of the base | [Backlog](documentation/sprints/sprint-1/sprint-1-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://www.youtube.com/watch?v=82bR--xO6Fs) |
 | **2** | to be defined | — | — | — |
 | **3** | to be defined | — | — | — |
 
