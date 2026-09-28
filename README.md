@@ -10,7 +10,6 @@
   <a href="#sprintdor">DoR and DoD</a> •
   <a href="#technologies">Technologies</a> •
   <a href="#branches">Branches and Commits</a> •
-  <a href="#burndown">Burn Down</a> •
   <a href="#team">Team</a>
 </p>
 
@@ -19,12 +18,6 @@
 **Project Status** 🚧 Sprint 1 delivered  
 **Documentation Folder** 📄 [documentation/](documentation/)  
 **Project Video** 📽️ [Sprint 1 increment](https://www.youtube.com/watch?v=82bR--xO6Fs)  
-
-<p align="left">
-  <a href="https://www.youtube.com/watch?v=82bR--xO6Fs">
-    <img src="https://img.shields.io/badge/Sprint%201%20Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Sprint 1 video on YouTube" />
-  </a>
-</p>
 
 ---
 
@@ -243,15 +236,6 @@ court list once per visit*, not *fix: change HomePage.tsx*.
 
 The protected branches are guarded by a workflow: a PR into `dev` or `producao`
 only merges with the CI green.
-
----
-
-## Burn Down <a id="burndown"></a>
-
-The sprint's burn down is kept on the Jira board and reviewed at every daily.
-
-> **To be added:** export the chart from Jira at the end of the sprint and place
-> it in `documentation/sprints/sprint-1/`, then link it here.
 
 ---
 
