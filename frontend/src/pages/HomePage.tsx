@@ -4,7 +4,6 @@ import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import {
   DEFAULT_ORDER,
-  searchDecisions,
   SearchRequestError,
   type SearchDecisionMatch,
   type SearchOrder,
@@ -34,6 +33,7 @@ import {
 } from '../search/filters';
 import type { PageInfo } from '../search/paging';
 import { HeaderSearchSlot } from '../search/headerSearchSlot';
+import { fetchPage, heldPage, prefetchAfter, resetBuffer } from '../search/resultsBuffer';
 import { useCourts } from '../search/useCourts';
 import { useSearchSession, useSessionState } from '../search/session';
 
@@ -289,6 +289,26 @@ function HomePage() {
         navigate({ pathname: '/', search: location.search }, { replace: true });
       }
     }
+    // A page whose block was already fetched is shown as it is: emptying the
+    // list first would blink it away and back for an answer already in hand.
+    const inHand = heldPage(requestFor(search));
+
+    if (inHand) {
+      setErrorMessage(null);
+      setTotalResults(inHand.total);
+      setResults(inHand.results);
+      setPageInfo({
+        page: inHand.page,
+        pageSize: inHand.page_size,
+        total: inHand.total,
+        count: inHand.results.length,
+        rangeFrom: inHand.range_from,
+        rangeTo: inHand.range_to,
+      });
+      prefetchAfter(requestFor(search), inHand.total);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
     // Nothing from the previous answer stays up while the new one loads, so
@@ -298,11 +318,13 @@ function HomePage() {
     setPageInfo(null);
 
     try {
-      const response = await searchDecisions(requestFor(search));
+      const response = await fetchPage(requestFor(search));
 
       if (!isLatestSearch(searchId)) {
         return;
       }
+
+      prefetchAfter(requestFor(search), response.total);
 
       // As in the reference, the first result shows beside the list as soon as
       // the list does — without taking the list's address from it.
@@ -381,6 +403,7 @@ function HomePage() {
     }
 
     setSubmitErrors({});
+    resetBuffer();
     // A new expression or new filters keep the order already chosen, and start
     // on the first page.
     void runSearch({
@@ -398,6 +421,7 @@ function HomePage() {
     }
 
     // Another order is another list: it starts on its first page.
+    resetBuffer();
     void runSearch({ ...applied, order, page: 1 }, 'Não foi possível reordenar os resultados.');
   };
 

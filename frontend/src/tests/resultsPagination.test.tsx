@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The application's page size, not one chosen for the test.
 import { PAGE_SIZE } from '../search/filters';
+import { BLOCK_SIZE, PAGES_PER_BLOCK } from '../search/resultsBuffer';
 import { currentAddress, renderApp } from './renderApp';
 
 // Only the address is replaced: the request code under test is the real one.
@@ -101,8 +102,15 @@ function installApi(total: number, answer?: Answer) {
   return {
     searches,
     last: () => searches[searches.length - 1],
+    // The blocks asked for, in order, as the API was asked for them.
+    blocks: () => searches.map((url) => url.searchParams.get('page')),
   };
 }
+
+// The screen's pages come in blocks: page N is served from block
+// ceil(N / PAGES_PER_BLOCK), and that is the number the API is asked for. A
+// block is asked for once, so the other pages it holds ask for nothing.
+const block = (page: number) => String(Math.ceil(page / PAGES_PER_BLOCK));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -162,8 +170,8 @@ describe('the range of results', () => {
     await searchFirst();
 
     await waitForRange('Exibindo 1–6 de 45 resultados');
-    expect(api.last().searchParams.get('page')).toBe('1');
-    expect(api.last().searchParams.get('page_size')).toBe(String(PAGE_SIZE));
+    expect(api.blocks()).toEqual([block(1)]);
+    expect(api.last().searchParams.get('page_size')).toBe(String(BLOCK_SIZE));
     expect(shown()).toHaveLength(PAGE_SIZE);
   });
 
@@ -172,12 +180,13 @@ describe('the range of results', () => {
     const user = await searchFirst();
     await waitForRange('Exibindo 1–6 de 15 resultados');
 
+    // The second page is already in the first block: it shows without asking.
     await next(user, 'Exibindo 7–12 de 15 resultados');
-    expect(api.last().searchParams.get('page')).toBe('2');
+    expect(api.blocks()).toEqual([block(1), block(3)]);
     expect(shown()[0]).toHaveTextContent('Trecho 7.');
 
     await next(user, 'Exibindo 13–15 de 15 resultados');
-    expect(api.last().searchParams.get('page')).toBe('3');
+    expect(api.blocks()).toEqual([block(1), block(3)]);
     expect(shown()).toHaveLength(3);
     expect(button('Próxima')).toBeDisabled();
   });
@@ -189,9 +198,11 @@ describe('the range of results', () => {
 
     await next(user, 'Exibindo 7–12 de 12 resultados');
 
+    // Nothing is fetched ahead past the end of the list.
+    expect(api.blocks()).toEqual([block(1)]);
     expect(button('Próxima')).toBeDisabled();
     await user.click(button('Próxima'));
-    expect(api.searches).toHaveLength(2);
+    expect(api.searches).toHaveLength(1);
   });
 
   it('with a single page, has every way out of it disabled', async () => {
@@ -248,7 +259,7 @@ describe('moving between pages', () => {
 
     await user.click(within(pagination()).getByRole('button', { name: 'Página 4' }));
     await waitForRange('Exibindo 19–24 de 137 resultados');
-    expect(api.last().searchParams.get('page')).toBe('4');
+    expect(api.blocks()).toEqual([block(1), block(4), block(5)]);
     expect(within(pagination()).getByRole('button', { name: 'Página 4' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -263,13 +274,13 @@ describe('moving between pages', () => {
     await user.click(button('Última página'));
 
     await waitForRange('Exibindo 133–137 de 137 resultados');
-    expect(api.last().searchParams.get('page')).toBe('23');
+    expect(api.last().searchParams.get('page')).toBe(block(23));
     expect(numbers()).toEqual(['1', '…', '19', '20', '21', '22', '23']);
     expect(button('Próxima')).toBeDisabled();
     expect(button('Última página')).toBeDisabled();
   });
 
-  it('from a middle page, goes forward and back, asking for each page by number', async () => {
+  it('from a middle page, goes forward and back, asking only for what it does not hold', async () => {
     const api = installApi(137);
     const user = await searchFirst();
     await next(user, 'Exibindo 7–12 de 137 resultados');
@@ -282,13 +293,9 @@ describe('moving between pages', () => {
     await user.click(button('Anterior'));
     await waitForRange('Exibindo 13–18 de 137 resultados');
 
-    expect(api.searches.map((url) => url.searchParams.get('page'))).toEqual([
-      '1',
-      '2',
-      '3',
-      '4',
-      '3',
-    ]);
+    // Pages 2 and 3 came from blocks already held, and coming back to 3 asked
+    // for nothing: only the block behind a page never reached is fetched.
+    expect(api.blocks()).toEqual([block(1), block(3), block(5)]);
   });
 
   it('back to the first page from a later one, with its first and previous disabled', async () => {
@@ -300,7 +307,8 @@ describe('moving between pages', () => {
     await user.click(button('Primeira página'));
 
     await waitForRange('Exibindo 1–6 de 137 resultados');
-    expect(api.last().searchParams.get('page')).toBe('1');
+    // Coming back asks for nothing: the first block is still held.
+    expect(api.blocks()).toEqual([block(1), block(3)]);
     expect(shown()[0]).toHaveTextContent('Trecho 1.');
     expect(button('Primeira página')).toBeDisabled();
     expect(button('Anterior')).toBeDisabled();
@@ -321,12 +329,12 @@ describe('moving between pages', () => {
     await next(user, 'Exibindo 7–12 de 137 resultados');
 
     const second = api.last();
-    expect(second.searchParams.get('page')).toBe('2');
+    expect(second.searchParams.get('page')).toBe(block(3));
     expect(cut(second)).toBe(cut(first));
     expect(second.searchParams.get('q')).toBe(APPLIED);
     expect(second.searchParams.getAll('tribunal')).toEqual(['TJDFT']);
     expect(second.searchParams.get('order')).toBe('date');
-    expect(second.searchParams.get('page_size')).toBe(String(PAGE_SIZE));
+    expect(second.searchParams.get('page_size')).toBe(String(BLOCK_SIZE));
   });
 
   it('never applies an expression or a filter still being edited', async () => {
@@ -401,10 +409,11 @@ describe('a page that fails', () => {
     const user = await searchFirst();
     await waitForRange('Exibindo 1–6 de 137 resultados');
 
-    await user.click(button('Próxima'));
+    // The third page is the first one the held block does not answer.
+    await user.click(within(pagination()).getByRole('button', { name: 'Página 3' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Não foi possível carregar a página 2. Tente novamente.',
+      'Não foi possível carregar a página 3. Tente novamente.',
     );
     // Page 1 is gone, and nothing claims page 2 was loaded.
     expect(screen.queryAllByRole('article')).toHaveLength(0);
@@ -414,8 +423,8 @@ describe('a page that fails', () => {
     failing = false;
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
 
-    await waitForRange('Exibindo 7–12 de 137 resultados');
-    expect(api.searches.map((url) => url.searchParams.get('page'))).toEqual(['1', '2', '2']);
+    await waitForRange('Exibindo 13–18 de 137 resultados');
+    expect(api.blocks()).toEqual([block(1), block(3), block(3)]);
     expect(cut(api.searches[2])).toBe(cut(api.searches[0]));
   });
 
@@ -428,7 +437,8 @@ describe('a page that fails', () => {
     );
     const user = await searchFirst();
 
-    await next(user, 'Esta página não tem mais resultados de 137');
+    await user.click(within(pagination()).getByRole('button', { name: 'Página 3' }));
+    await waitForRange('Esta página não tem mais resultados de 137');
 
     expect(pagination()).not.toHaveTextContent(/\d–\d/);
     expect(button('Próxima')).toBeDisabled();
@@ -457,18 +467,19 @@ describe('disabled controls', () => {
     const user = await searchFirst();
     await waitForRange('Exibindo 1–6 de 137 resultados');
 
-    await user.click(button('Próxima'));
+    // Only a page whose block is not held loads; the second page is in hand.
+    await user.click(within(pagination()).getByRole('button', { name: 'Página 3' }));
 
-    await waitForRange('Carregando a página 2...');
+    await waitForRange('Carregando a página 3...');
     expect(button('Primeira página')).toBeDisabled();
     expect(button('Anterior')).toBeDisabled();
     expect(button('Próxima')).toBeDisabled();
     await user.click(button('Próxima'));
     expect(api.searches).toHaveLength(2);
 
-    const second = new URL(`http://api.test/decisions?page=2&page_size=${PAGE_SIZE}`);
+    const second = new URL(`http://api.test/decisions?page=2&page_size=${BLOCK_SIZE}`);
     await act(async () => pending.resolve(json(pageOf(second, 137))));
-    await waitForRange('Exibindo 7–12 de 137 resultados');
+    await waitForRange('Exibindo 13–18 de 137 resultados');
     expect(api.searches).toHaveLength(2);
   });
 });
@@ -554,7 +565,9 @@ describe('back from a decision to a later page', () => {
   ) {
     const third = api.last();
     await next(user, 'Exibindo 19–24 de 137 resultados');
-    expect(api.last().searchParams.get('page')).toBe('4');
+    // The fourth page came from the block already held; what was asked for is
+    // the block behind the fifth, fetched ahead from the last page of a block.
+    expect(api.last().searchParams.get('page')).toBe(block(5));
     expect(cut(api.last())).toBe(cut(third));
   }
 
@@ -638,7 +651,9 @@ describe('back from a decision to a later page', () => {
 
     await next(user, 'Exibindo 19–24 de 137 resultados');
     expect(currentAddress()).toBe('/');
-    expect(api.last().searchParams.get('page')).toBe('4');
+    // The fourth page came from the block already held; what was asked for is
+    // the block behind the fifth, fetched ahead from the last page of a block.
+    expect(api.last().searchParams.get('page')).toBe(block(5));
 
     // One Back leaves the list: it does not land on a copy of it.
     await browserBack();
