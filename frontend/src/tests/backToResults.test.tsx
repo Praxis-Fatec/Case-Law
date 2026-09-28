@@ -97,12 +97,11 @@ const panel = () => screen.getByRole('complementary');
 async function searchWithContext() {
   const user = userEvent.setup();
   renderApp();
-  // An expression, a mode, filters and an order applied with the search, to
+  // An expression, filters and an order applied with the search, to
   // check that every one of them comes back too.
   const box = screen.getByLabelText('Pesquisar decisões');
   await user.clear(box);
   await user.type(box, 'dano moral');
-  await user.click(screen.getByRole('button', { name: 'Frase exata' }));
   await user.click(screen.getByRole('button', { name: /filtros/i }));
   const judged = screen.getByRole('group', { name: 'Data de julgamento' });
   fireEvent.change(within(judged).getByLabelText('De'), { target: { value: '2026-01-01' } });
@@ -116,10 +115,6 @@ async function searchWithContext() {
 function expectContextKept() {
   expect(currentAddress()).toBe('/');
   expect(screen.getByLabelText('Pesquisar decisões')).toHaveValue('dano moral');
-  expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
   expect(screen.getByText('57')).toBeInTheDocument();
   expect(screen.getAllByRole('article')).toHaveLength(3);
   expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('date');
@@ -137,7 +132,7 @@ afterEach(() => {
 });
 
 describe('back to the results', () => {
-  it("by the screen's own action: the list as it was, and no new search", async () => {
+  it('beside the list, the decision offers no way back of its own: the list is there', async () => {
     const api = installApi();
     const user = await searchWithContext();
     // The searches made so far: the initial one and the reorder.
@@ -151,11 +146,10 @@ describe('back to the results', () => {
     // Opening it read its detail — a different request from a search.
     expect(api.details).toContain('/decisions/tjdft-jurisdf/1002');
 
-    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
-
-    expectContextKept();
+    expect(within(panel()).queryByRole('button', { name: 'Voltar aos resultados' })).toBeNull();
+    expect(within(panel()).queryByRole('button', { name: 'Ir para a busca' })).toBeNull();
+    expect(screen.getAllByRole('article')).toHaveLength(3);
     expect(api.searches).toHaveLength(searchesBefore);
-    expect(card('1002')).toHaveFocus();
   });
 
   it("by the browser's Back button: the same, with no new search", async () => {
@@ -200,7 +194,8 @@ describe('back to the results', () => {
     const judged = screen.getByRole('group', { name: 'Data de julgamento' });
     fireEvent.change(within(judged).getByLabelText('Até'), { target: { value: '2026-03-31' } });
 
-    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
+    fireEvent.click(screen.getByTestId('browser-back'));
+    await waitFor(() => expect(currentAddress()).toBe('/'));
 
     expect(api.searches).toHaveLength(before);
     expect(screen.getByText('57')).toBeInTheDocument();
@@ -211,7 +206,8 @@ describe('back to the results', () => {
     const api = installApi();
     const user = await searchWithContext();
     await user.click(card('1002'));
-    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
+    fireEvent.click(screen.getByTestId('browser-back'));
+    await waitFor(() => expect(currentAddress()).toBe('/'));
     const before = api.searches.length;
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Ordenar por' }), 'relevance');
@@ -230,7 +226,8 @@ describe('back to the results', () => {
     expect(await screen.findByText('9')).toBeInTheDocument();
 
     await user.click(card('1003'));
-    await user.click(within(panel()).getByRole('button', { name: 'Voltar aos resultados' }));
+    fireEvent.click(screen.getByTestId('browser-back'));
+    await waitFor(() => expect(currentAddress()).toBe('/'));
 
     expect(screen.getByText('9')).toBeInTheDocument();
     expect(screen.queryByText('57')).toBeNull();

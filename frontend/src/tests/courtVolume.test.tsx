@@ -41,14 +41,18 @@ function decision(identifier: string) {
 }
 
 // 45 matches over three pages, so a later page can be asked for.
-function page(number: number) {
-  const size = number === 3 ? 5 : 20;
+// Paged as the API pages: the size asked for is the size answered.
+function page(url: URL) {
+  const number = Number(url.searchParams.get('page') ?? 1);
+  const pageSize = Number(url.searchParams.get('page_size') ?? 1);
+  const offset = (number - 1) * pageSize;
+  const size = Math.max(0, Math.min(pageSize, 45 - offset));
   return {
     total: 45,
     page: number,
-    page_size: 20,
-    range_from: (number - 1) * 20 + 1,
-    range_to: (number - 1) * 20 + size,
+    page_size: pageSize,
+    range_from: size ? offset + 1 : null,
+    range_to: size ? offset + size : null,
     results: Array.from({ length: size }, (_, i) => ({
       ...decision(`${number}${String(i).padStart(3, '0')}`),
       snippet: 'Trecho.',
@@ -100,7 +104,7 @@ function installApi({
       }
       if (url.pathname === '/decisions') {
         searches.push(url);
-        return json(page(Number(url.searchParams.get('page') ?? 1)));
+        return json(page(url));
       }
       const detail = url.pathname.match(/^\/decisions\/[^/]+\/([^/]+)$/);
       if (detail) {
@@ -212,7 +216,7 @@ describe('the result tabs', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Ordenar por' }), 'date');
     await screen.findAllByRole('article');
     await user.click(screen.getByRole('button', { name: /próxima/i }));
-    expect(await screen.findByText(/21–40 de 45/)).toBeVisible();
+    expect(await screen.findByText(/7–12 de 45/)).toBeVisible();
     const asked = searches.length;
 
     await user.click(tab('Panorama'));
@@ -222,7 +226,7 @@ describe('the result tabs', () => {
     expect(screen.getByLabelText('Pesquisar decisões')).toHaveValue('dano moral');
     expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('date');
     expect(screen.getByRole('button', { name: /Filtros/ })).toHaveTextContent('2');
-    expect(screen.getByText(/21–40 de 45/)).toBeVisible();
+    expect(screen.getByText(/7–12 de 45/)).toBeVisible();
     expect(searches).toHaveLength(asked);
   });
 });
@@ -260,7 +264,7 @@ describe('the aggregation request', () => {
     // its first page again, which would hide a page that leaked into the cut.
     await user.click(tab('Documentos'));
     await user.click(screen.getByRole('button', { name: /próxima/i }));
-    await screen.findByText(/21–40 de 45/);
+    await screen.findByText(/7–12 de 45/);
     await user.click(tab('Panorama'));
 
     expect(panorama().getByText('11 decisões no recorte')).toBeVisible();

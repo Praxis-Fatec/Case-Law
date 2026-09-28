@@ -1,9 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
 import {
   DEFAULT_ORDER,
-  searchDecisions,
   SearchRequestError,
   type SearchDecisionMatch,
   type SearchOrder,
@@ -32,6 +32,9 @@ import {
   type SearchFilterValues,
 } from '../search/filters';
 import type { PageInfo } from '../search/paging';
+import { HeaderSearchSlot } from '../search/headerSearchSlot';
+import { fetchPage, heldPage, prefetchAfter, resetBuffer } from '../search/resultsBuffer';
+import { useCourts } from '../search/useCourts';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
@@ -144,7 +147,6 @@ function HomePage() {
   // as it was, with no new request. Only what belongs to this one render — the
   // form element — stays local.
   const [value, setValue] = useSessionState('value', 'prescrição intercorrente em execução fiscal');
-  const [mode, setMode] = useSessionState<'free' | 'exact'>('mode', 'free');
   // What the panel shows while it is being edited. A change here never starts a
   // search: only Pesquisar applies it.
   const [filterDraft, setFilterDraft] = useSessionState<SearchFilterValues>(
@@ -287,6 +289,26 @@ function HomePage() {
         navigate({ pathname: '/', search: location.search }, { replace: true });
       }
     }
+    // A page whose block was already fetched is shown as it is: emptying the
+    // list first would blink it away and back for an answer already in hand.
+    const inHand = heldPage(requestFor(search));
+
+    if (inHand) {
+      setErrorMessage(null);
+      setTotalResults(inHand.total);
+      setResults(inHand.results);
+      setPageInfo({
+        page: inHand.page,
+        pageSize: inHand.page_size,
+        total: inHand.total,
+        count: inHand.results.length,
+        rangeFrom: inHand.range_from,
+        rangeTo: inHand.range_to,
+      });
+      prefetchAfter(requestFor(search), inHand.total);
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
     // Nothing from the previous answer stays up while the new one loads, so
@@ -296,11 +318,13 @@ function HomePage() {
     setPageInfo(null);
 
     try {
-      const response = await searchDecisions(requestFor(search));
+      const response = await fetchPage(requestFor(search));
 
       if (!isLatestSearch(searchId)) {
         return;
       }
+
+      prefetchAfter(requestFor(search), response.total);
 
       // As in the reference, the first result shows beside the list as soon as
       // the list does — without taking the list's address from it.
@@ -379,6 +403,7 @@ function HomePage() {
     }
 
     setSubmitErrors({});
+    resetBuffer();
     // A new expression or new filters keep the order already chosen, and start
     // on the first page.
     void runSearch({
@@ -396,6 +421,7 @@ function HomePage() {
     }
 
     // Another order is another list: it starts on its first page.
+    resetBuffer();
     void runSearch({ ...applied, order, page: 1 }, 'Não foi possível reordenar os resultados.');
   };
 
@@ -487,6 +513,12 @@ function HomePage() {
     setLastUpdate((current) => (current?.status === 'unavailable' ? null : current));
   };
 
+  // Where the page on screen starts in the whole result, for the numbers the
+  // list shows beside each decision.
+  const firstRank = pageInfo
+    ? (pageInfo.rangeFrom ?? (pageInfo.page - 1) * pageInfo.pageSize + 1)
+    : 1;
+
   // Retries what failed — the applied search — not an edit left in the box or
   // the panel.
   const retry = () => {
@@ -497,105 +529,92 @@ function HomePage() {
     }
   };
 
-  return (
-    <main className="search-page">
-      <div className="search-layout">
-        <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
-          <div className="legal-search">
-            <div className="legal-search__field">
-              <MagnifyingGlass size={20} aria-hidden="true" />
+  // The search sits in the top bar, which is above the routes; it is
+  // rendered there from here, where its state lives. With no bar to hold it,
+  // it stays in the screen.
+  const searchSlot = useContext(HeaderSearchSlot);
+  const courts = useCourts();
+  const searchForm = (
+    <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
+      <div className="legal-search">
+        <div className="legal-search__field">
+          <MagnifyingGlass size={18} aria-hidden="true" />
 
-              <label className="sr-only" htmlFor="legal-search-input">
-                Pesquisar decisões
-              </label>
+          <label className="sr-only" htmlFor="legal-search-input">
+            Pesquisar decisões
+          </label>
 
-              <input
-                id="legal-search-input"
-                type="search"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                placeholder="Pesquise um assunto, fundamento ou frase exata"
-                autoComplete="off"
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="legal-search__actions">
-              <div className="search-mode" role="group" aria-label="Modalidade da pesquisa">
-                <span
-                  className="search-mode__indicator"
-                  style={{
-                    transform: mode === 'free' ? 'translateX(0%)' : 'translateX(100%)',
-                  }}
-                />
-
-                <button
-                  type="button"
-                  className={mode === 'free' ? 'is-active' : ''}
-                  aria-pressed={mode === 'free'}
-                  onClick={() => setMode('free')}
-                  disabled={isLoading}
-                >
-                  Termo livre
-                </button>
-
-                <button
-                  type="button"
-                  className={mode === 'exact' ? 'is-active' : ''}
-                  aria-pressed={mode === 'exact'}
-                  onClick={() => setMode('exact')}
-                  disabled={isLoading}
-                >
-                  Frase exata
-                </button>
-              </div>
-
-              <button
-                type="button"
-                className="filter-button"
-                aria-expanded={filtersOpen}
-                aria-controls={FILTERS_PANEL_ID}
-                onClick={() => setFiltersOpen((open) => !open)}
-                disabled={isLoading}
-              >
-                <SlidersHorizontal size={17} aria-hidden="true" />
-                <span>Filtros</span>
-                {appliedCount > 0 && (
-                  <span className="filter-button__count">
-                    {appliedCount}
-                    <span className="sr-only"> aplicados</span>
-                  </span>
-                )}
-              </button>
-
-              <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
-                {isLoading ? 'Pesquisando...' : 'Pesquisar'}
-              </button>
-            </div>
-          </div>
-
-          {/* Hidden rather than unmounted, so closing it keeps what was chosen. */}
-          <SearchFilters
-            id={FILTERS_PANEL_ID}
-            values={filterDraft}
-            onChange={updateFilters}
-            errors={filterErrors}
-            hidden={!filtersOpen}
+          <input
+            id="legal-search-input"
+            type="search"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="Pesquise um assunto, fundamento ou frase exata"
+            autoComplete="off"
             disabled={isLoading}
           />
+        </div>
 
-          {/* The results below were searched with the applied filters, not with
-              what the panel shows now. Said, so they are not read as the new cut. */}
-          {hasPendingFilters && !isLoading && (
-            <p className="filters-pending" role="status">
-              Há alterações nos filtros que ainda não foram aplicadas. Clique em Pesquisar para
-              aplicá-las.
-            </p>
-          )}
-        </form>
+        <div className="legal-search__actions">
+          <button
+            type="button"
+            className="filter-button"
+            aria-expanded={filtersOpen}
+            aria-controls={FILTERS_PANEL_ID}
+            onClick={() => setFiltersOpen((open) => !open)}
+            disabled={isLoading}
+          >
+            <SlidersHorizontal size={14} aria-hidden="true" />
+            <span>Filtros</span>
+            {appliedCount > 0 && (
+              <span className="filter-button__count">
+                {appliedCount}
+                <span className="sr-only"> aplicados</span>
+              </span>
+            )}
+          </button>
 
-        <ResultsTabs value={view} onChange={setView} />
+          <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
+            {isLoading ? 'Pesquisando...' : 'Pesquisar'}
+          </button>
+        </div>
+      </div>
 
+      {/* Below the bar, over the screen, so opening them takes nothing
+          from the list. */}
+      <div className="search-form__drop">
+        {/* Hidden rather than unmounted, so closing it keeps what was chosen. */}
+        <SearchFilters
+          id={FILTERS_PANEL_ID}
+          values={filterDraft}
+          onChange={updateFilters}
+          errors={filterErrors}
+          hidden={!filtersOpen}
+          disabled={isLoading}
+          courts={courts}
+        />
+
+        {/* The results below were searched with the applied filters, not with
+            what the panel shows now. Said, so they are not read as the new cut. */}
+        {hasPendingFilters && !isLoading && (
+          <p className="filters-pending" role="status">
+            Há alterações nos filtros que ainda não foram aplicadas. Clique em Pesquisar para
+            aplicá-las.
+          </p>
+        )}
+      </div>
+    </form>
+  );
+
+  return (
+    <main className="search-page">
+      {searchSlot ? createPortal(searchForm, searchSlot) : searchForm}
+
+      <ResultsTabs value={view} onChange={setView} />
+
+      {/* The rest of the window. The page itself never scrolls: the list, the
+          decision and the panorama each scroll inside their own box. */}
+      <div className="search-content">
         {/* Always two columns, as in the reference: the list on the left, the
             decision on the right. Hidden rather than unmounted while the
             panorama is up, so the list, its page and the open decision are
@@ -614,14 +633,14 @@ function HomePage() {
                 new result. */}
             {applied && (
               <div className="results-toolbar">
-                <div className="search-summary" aria-live="polite">
+                <h2 className="search-summary" aria-live="polite">
                   {!isLoading && totalResults !== null && (
                     <>
-                      <span>Total de resultados:</span>
-                      <strong>{totalResults}</strong>
+                      <span className="sr-only">Total de resultados:</span>
+                      <strong>{totalResults}</strong> {totalResults === 1 ? 'decisão' : 'decisões'}
                     </>
                   )}
-                </div>
+                </h2>
                 <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
               </div>
             )}
@@ -649,7 +668,7 @@ function HomePage() {
 
               {!isLoading && results.length > 0 && (
                 <ul className="result-list">
-                  {results.map((result) => {
+                  {results.map((result, index) => {
                     const decision = { source: result.source, identifier: result.identifier };
                     const selected =
                       openDecision !== null && keyOf(openDecision) === keyOf(decision);
@@ -666,6 +685,7 @@ function HomePage() {
                           onOpen={openDetail}
                           openButtonId={openButtonId(decision)}
                           selected={selected}
+                          rank={firstRank + index}
                         />
                       </li>
                     );
@@ -696,14 +716,12 @@ function HomePage() {
               id={DETAIL_PANEL_ID}
               source={openDecision.source}
               identifier={openDecision.identifier}
-              // Only a decision with its own address has somewhere to go back
-              // from; the first result shown beside the list is already there.
+              // With a search, the list is beside the decision and is the way
+              // back to it; the browser's Back still is too. Only a decision
+              // opened from a link, with no list, offers the way to the search.
               back={
-                chosenDecision
-                  ? {
-                      label: hasSearch ? 'Voltar aos resultados' : 'Ir para a busca',
-                      onClick: backToResults,
-                    }
+                chosenDecision && !hasSearch
+                  ? { label: 'Ir para a busca', onClick: backToResults }
                   : undefined
               }
             />

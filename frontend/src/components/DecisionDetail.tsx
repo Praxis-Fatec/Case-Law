@@ -156,6 +156,13 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
   const metadata = metadataOf(decision);
   const court = normalizeText(decision.court);
   const caseNumber = normalizeText(decision.case_number);
+  // Under the title, as in the reference: who judged and when, from the same
+  // fields the list below states in full. Only what the decision carries.
+  const judged = formatDate(decision.judged_on) ?? formatDate(decision.decided_on);
+  const byline = [
+    normalizeText(decision.judging_body),
+    judged ? `Julgado em ${judged}` : '',
+  ].filter(Boolean);
 
   return (
     <>
@@ -164,6 +171,7 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         <h2 id={titleId} tabIndex={-1} className="decision-detail__title">
           {caseNumber ? `Processo ${caseNumber}` : 'Decisão sem número de processo informado'}
         </h2>
+        {byline.length > 0 && <p className="decision-detail__byline">{byline.join(' · ')}</p>}
       </header>
 
       {metadata.length > 0 && (

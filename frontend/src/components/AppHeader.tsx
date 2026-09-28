@@ -3,7 +3,12 @@ import { Database } from '@phosphor-icons/react';
 
 import { COVERAGE_PATH, type CoverageEntry } from '../pages/CoveragePage';
 
-function AppHeader() {
+type AppHeaderProps = {
+  // Given the place where a screen may put its search, empty on the others.
+  searchSlotRef?: (element: HTMLElement | null) => void;
+};
+
+function AppHeader({ searchSlotRef }: AppHeaderProps) {
   const location = useLocation();
   const onCoverage = useMatch(COVERAGE_PATH) !== null;
 
@@ -17,6 +22,7 @@ function AppHeader() {
 
   return (
     <header className="app-header">
+      <div ref={searchSlotRef} className="app-header__search" />
       <nav className="app-header__nav" aria-label="Informações do sistema">
         <NavLink to={COVERAGE_PATH} state={state} replace={onCoverage} className="app-header__link">
           <Database size={14} aria-hidden="true" className="app-header__icon" />

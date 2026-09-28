@@ -18,7 +18,9 @@ const HINT_ID = 'results-sort-hint';
 function ResultsSort({ value, onChange, disabled = false }: ResultsSortProps) {
   return (
     <div className="results-sort">
-      <label className="results-sort__label" htmlFor="results-sort">
+      {/* Named for assistive technology; on screen the field stands alone
+          under the total, as in the reference. */}
+      <label className="results-sort__label sr-only" htmlFor="results-sort">
         Ordenar por
       </label>
       <select

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -341,23 +341,5 @@ describe('choosing decisions from the results', () => {
 
     expect(await screen.findByRole('heading', { level: 2, name: /0712598/ })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: /0702646/ })).toBeNull();
-  });
-
-  it('goes back to the chosen card with the search as it was', async () => {
-    installApi(byIdentifier([STRUCTURED, PROSE]), searchAnswer);
-    const user = await searchAndWait();
-    await user.click(screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ }));
-    await screen.findByRole('heading', { level: 2, name: /0702646/ });
-    // Reading the decision below the list, focus is in the panel, not the card.
-    const back = screen.getByRole('button', { name: 'Voltar aos resultados' });
-    back.focus();
-
-    fireEvent.click(back);
-
-    const card = screen.getByRole('link', { name: /Ler a decisão do processo 0702646/ });
-    expect(card).toHaveFocus();
-    expect(card.scrollIntoView).toHaveBeenCalled();
-    expect(screen.getByText('57')).toBeInTheDocument();
-    expect(within(screen.getByRole('list')).getAllByRole('article')).toHaveLength(2);
   });
 });

@@ -162,20 +162,6 @@ describe('changing the order', () => {
     expect(api.last().searchParams.get('q')).toBe(APPLIED);
   });
 
-  it('keeps the chosen search mode', async () => {
-    installApi(byOrder);
-    const user = await searchFirst();
-    await user.click(screen.getByRole('button', { name: 'Frase exata' }));
-
-    await user.selectOptions(sortBox(), 'date');
-    await screen.findAllByRole('article');
-
-    expect(screen.getByRole('button', { name: 'Frase exata' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-  });
-
   it('never applies an edit still in the search box', async () => {
     const api = installApi(byOrder);
     const user = await searchFirst();

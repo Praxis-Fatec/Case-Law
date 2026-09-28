@@ -65,7 +65,7 @@ function ResultsTabs({ value, onChange }: ResultsTabsProps) {
             className={`results-tabs__tab${selected ? ' is-active' : ''}`}
             onClick={() => onChange(view)}
           >
-            <TabIcon size={14} aria-hidden="true" />
+            <TabIcon size={13} aria-hidden="true" />
             {label}
           </button>
         );

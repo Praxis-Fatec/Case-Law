@@ -53,3 +53,33 @@ export function describePosition(position: PagePosition): string {
   const noun = position.total === 1 ? 'resultado' : 'resultados';
   return `Exibindo ${number.format(position.from)}–${number.format(position.to)} de ${number.format(position.total)} ${noun}`;
 }
+
+// How many pages a result has, from the API's own total and page size; one at
+// least, so an empty result still has the page it is on.
+export function lastPageOf(info: PageInfo): number {
+  return Math.max(1, Math.ceil(info.total / info.pageSize));
+}
+
+// How many numbered places the row holds, the gaps included, so it keeps one
+// width wherever the reader is and the arrows never move under the pointer.
+const SLOTS = 7;
+
+export type PageSlot = number | 'gap-start' | 'gap-end';
+
+// The first and the last page always, the current one with its neighbours,
+// and a gap for what lies between: 1 2 3 4 5 … 60, 1 … 29 30 31 … 60.
+export function pageSlots(current: number, last: number): PageSlot[] {
+  if (last <= SLOTS) {
+    return Array.from({ length: last }, (_, index) => index + 1);
+  }
+  const range = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, index) => from + index);
+
+  if (current <= SLOTS - 3) {
+    return [...range(1, SLOTS - 2), 'gap-end', last];
+  }
+  if (current >= last - (SLOTS - 4)) {
+    return [1, 'gap-start', ...range(last - (SLOTS - 3), last)];
+  }
+  return [1, 'gap-start', current - 1, current, current + 1, 'gap-end', last];
+}

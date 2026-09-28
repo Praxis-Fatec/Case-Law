@@ -29,7 +29,7 @@ export const INVERTED_RANGE_MESSAGE = 'A data final deve ser igual ou posterior 
 
 export const INCOMPLETE_DATE_MESSAGE = 'Preencha a data completa, no formato dd/mm/aaaa.';
 
-export const PAGE_SIZE = 20;
+export const PAGE_SIZE = 6;
 
 // Both ends are `YYYY-MM-DD`, so comparing the strings compares the days, with
 // no Date object and so no time zone to move a day. The same day on both ends
