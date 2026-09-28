@@ -35,14 +35,6 @@ Padrão de qualidade único do time. Uma sub-task está **pronta** quando:
 - Quando a sub-task encontra um defeito fora do seu escopo, ele vira card
   próprio do tipo Bug, vinculado à sub-task que o causou.
 
-> O modelo original tem quatro itens. Os acréscimos vieram do que deu errado na
-> Sprint 1: o PR #57 mergeou com CI vermelho e quebrou a `dev`; a verificação de
-> link aprovou 107.828 URLs que não abriam nada; e duas vezes o código foi
-> mergeado sem os dados serem publicados, deixando o ambiente de
-> desenvolvimento mostrando o comportamento antigo.
-
----
-
 ## 3. DoR detalhado por User Story
 
 ### SCRUM-62 — Pesquisar decisões por termo ou frase exata
@@ -79,13 +71,6 @@ Padrão de qualidade único do time. Uma sub-task está **pronta** quando:
 - [ ] Apresenta carregamento, ausência de resultados e erro de consulta.
 - [ ] Registro em segredo de justiça não aparece no resultado.
 
-**Verificado por:** `test_search_against_postgres.py`, `test_seal_filter.py`
-(inclusive um teste que prova que remover o filtro deixaria o sigiloso passar).
-
-> **Divergência do modelo:** o original exigia mínimo de 3 caracteres. São 2 —
-> siglas de duas letras são comuns em jurisprudência. A ordenação por relevância
-> é o padrão, e não havia essa definição no modelo.
-
 ---
 
 ### SCRUM-50 — Ver resultados com trecho da ementa e link para a fonte
@@ -120,13 +105,6 @@ Padrão de qualidade único do time. Uma sub-task está **pronta** quando:
 - [ ] Cada resultado leva ao documento na fonte que o publicou.
 - [ ] Link inacessível é informado ao usuário sem esconder o resultado.
 - [ ] O documento oficial é apresentado como referência principal.
-
-**Verificado por:** `test_document_url.py`, `test_link_validity.py`,
-`snippet.test.tsx`, `officialLink.test.tsx`.
-
-> **Divergência do modelo:** o original tratava o link como ativo/inativo. São
-> três estados: *não verificado* não é o mesmo que *quebrado*. Colapsar os dois
-> desabilitaria link que funciona, ou esconderia link que não.
 
 ---
 
@@ -163,13 +141,6 @@ Padrão de qualidade único do time. Uma sub-task está **pronta** quando:
 - [ ] O acesso ao documento oficial aparece em destaque.
 - [ ] Identificador inexistente devolve 404, não erro de servidor.
 
-**Verificado por:** `test_detail.py`, `test_ementa.py` (13 testes, um deles
-conferindo que nenhuma ementa real perde texto ao ser dividida),
-`decisionDetail.test.tsx`, `decisionAddress.test.tsx`.
-
-> **Medido:** 78,9% das 107.828 ementas do TJDFT seguem o padrão de quatro
-> seções, e a divisão não perdeu nenhum caractere.
-
 ---
 
 ### SCRUM-63 — Filtrar por tribunal e por período
@@ -204,12 +175,6 @@ conferindo que nenhuma ementa real perde texto ao ser dividida),
 - [ ] O total é atualizado a cada filtro.
 - [ ] Período invertido é recusado com mensagem.
 
-**Verificado por:** `test_search_filters.py` (29 testes), `searchFilterPanel.test.tsx`.
-
-> **Divergência do modelo:** o original dizia "lista pré-definida" de tribunais.
-> A lista sai dos dados — é o que permitiu o STJ aparecer no filtro sem tocar em
-> código.
-
 ---
 
 ### SCRUM-51 — Ver o volume de decisões por tribunal
@@ -240,9 +205,6 @@ conferindo que nenhuma ementa real perde texto ao ser dividida),
 - [ ] Recorte sem resultado devolve lista vazia, não erro.
 - [ ] Informa que frequência não representa relevância jurídica.
 
-**Verificado por:** `test_volume_by_court.py` (7 testes, a soma conferida em
-seis combinações de filtro).
-
 ---
 
 ### SCRUM-64 — Ordenar os resultados por relevância ou por data
@@ -272,14 +234,6 @@ seis combinações de filtro).
 - [ ] A ordenação permanece ao paginar e ao filtrar.
 - [ ] A ordenação vigente fica visível.
 - [ ] Valor inválido é recusado sem erro de servidor.
-
-**Verificado por:** `test_ordering.py`, `test_ordering_with_filters.py`,
-`resultsSort.test.tsx`.
-
-> **Divergência do modelo:** o original previa três critérios, incluindo data de
-> publicação. São dois. A data de publicação está ausente em 12% dos registros do
-> TJDFT, e ordenar por um campo que falta em um de cada oito documentos
-> produziria uma lista que o leitor não entenderia.
 
 ---
 
@@ -313,13 +267,6 @@ seis combinações de filtro).
 - [ ] Empatados mantêm a ordem entre consultas.
 - [ ] Filtros e ordenação são preservados.
 - [ ] Página além do total devolve vazio, não erro.
-
-**Verificado por:** `test_pagination.py` (17 testes, sobre uma coleção construída
-para empatar em tudo que a busca ordena).
-
-> **Divergência do modelo:** o original fixava o tamanho de página. Ele é
-> ajustável com teto, porque a agregação por tribunal e a exportação precisam de
-> páginas maiores que a tela.
 
 ---
 
@@ -360,52 +307,3 @@ para empatar em tudo que a busca ordena).
 - [ ] Identifica fonte com cobertura parcial.
 - [ ] Deixa explícito que o recorte é a base inteira, não a busca atual.
 - [ ] Base vazia mostra mensagem apropriada.
-
-**Verificado por:** `test_coverage.py` (7 testes, incluindo a base vazia).
-
-> **Divergência do modelo:** o original não previa período por tribunal. Com duas
-> fontes de alcance muito diferente, o intervalo agregado passou a ser a
-> informação mais enganosa do painel.
-
----
-
-### SCRUM-32 — Fundação do projeto
-*Épica: Plataforma e Entrega · 19 sub-tasks*
-
-Não é User Story: é o que precisa existir para as User Stories poderem ser
-desenvolvidas, testadas e publicadas. Não tem critério de aceitação de usuário;
-o DoD dela é o DoD do time.
-
-**Dependências identificadas**
-- API pública do TJDFT JurisDF, sem credencial.
-- Portal de dados abertos do STJ (CKAN), licença CC-BY.
-- Servidores: Raspberry Pi 5 (ARM64) para desenvolvimento, VPS x86 para produção.
-- Rede privada Tailscale entre o CI e os servidores.
-
----
-
-## 4. Bugs abertos na Sprint 1
-
-Card do tipo **Bug** é aberto quando o defeito atinge algo já marcado como
-concluído. Enquanto a sub-task está em andamento, o conserto é dela.
-
-| Card | Defeito | Causa |
-|---|---|---|
-| SCRUM-92 | O painel de filtros não compila | Chave não fechada na resolução de um conflito de merge |
-| SCRUM-94 | O link do TJDFT abre a home, não o acórdão | A URL usava rota e chave que o portal não reconhece |
-| SCRUM-95 | A verificação de link ignorava a fonte | O verificador perguntava ao tribunal errado |
-
-Os três têm a mesma lição, e ela virou item de DoD: **o CI já apontava o
-problema em dois deles, e o merge aconteceu assim mesmo.**
-
----
-
-## 5. Responsabilidade
-
-A responsabilidade pelos artefatos é compartilhada pelo time. O Product Owner
-contribui principalmente com os critérios de aceitação, mas a definição e a
-evolução desses acordos são de todos.
-
-Este documento é revisado ao fim de cada Sprint, comparando o que ficou escrito
-com o que o sistema passou a fazer. Um DoR que descreve o plano e não o produto
-deixa de servir para decidir se a próxima história está pronta.
