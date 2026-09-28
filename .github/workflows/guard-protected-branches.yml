@@ -1,0 +1,21 @@
+name: Guard protected branches
+
+on:
+  pull_request:
+    branches: [main, producao]
+
+jobs:
+  check-source-branch:
+    name: Source branch must be dev
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Reject pull requests that do not come from dev
+        if: github.head_ref != 'dev'
+        run: |
+          echo "::error::Pull requests into '${{ github.base_ref }}' must come from 'dev'."
+          echo "This one comes from '${{ github.head_ref }}'."
+          exit 1
+
+      - name: Approve
+        run: echo "Source branch is '${{ github.head_ref }}'."

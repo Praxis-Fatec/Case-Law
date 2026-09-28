@@ -1,0 +1,36 @@
+# Development database.
+#
+# Only the database runs in Docker. The backend, the frontend and the pipeline
+# run natively, each with its own package manager — that keeps hot reload and
+# the debugger working without extra setup.
+#
+#   docker compose up -d      start
+#   docker compose down       stop, keeping the data
+#   docker compose down -v    stop and erase the data
+
+name: case-law
+
+services:
+  postgres:
+    # The official postgres:17 image does NOT ship pgvector. This one is the
+    # same PostgreSQL with the extension already compiled in.
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-caselaw}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the extensions on first start.
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-caselaw}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
