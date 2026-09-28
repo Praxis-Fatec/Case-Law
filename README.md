@@ -9,54 +9,65 @@
   <a href="#sprints">Sprint Schedule</a> •
   <a href="#sprintdor">DoR and DoD</a> •
   <a href="#technologies">Technologies</a> •
-  <a href="#environment">Environment</a> •
   <a href="#branches">Branches and Commits</a> •
   <a href="#burndown">Burn Down</a> •
-  <a href="#team">Team</a> •
-  <a href="#manual">User Manual</a>
+  <a href="#team">Team</a>
 </p>
 
 ---
 
-**Project Status** 🚧 In progress  
-**Documentation Folder** 📄 Available in the repository  
-**Project Video** 📽️ Not started  
+**Project Status** 🚧 Sprint 1 delivered  
+**Documentation Folder** 📄 [documentation/](documentation/)  
+**Project Video** 📽️ [Sprint 1 increment](https://www.youtube.com/watch?v=82bR--xO6Fs)  
+
+<p align="left">
+  <a href="https://www.youtube.com/watch?v=82bR--xO6Fs">
+    <img src="https://img.shields.io/badge/Sprint%201%20Video-FF0000?style=for-the-badge&logo=youtube&logoColor=white" alt="Sprint 1 video on YouTube" />
+  </a>
+</p>
 
 ---
 
-## Development Environment <a id="environment"></a>
+## Challenge <a id="challenge"></a>
 
-Only the database runs in Docker. The backend, the frontend and the pipeline run
-natively, so hot reload and the debugger keep working.
+Brazilian case law is public, but it is not in one place. Each court publishes
+its decisions on its own portal, with its own search, its own vocabulary and its
+own way of naming a document. Someone researching a subject opens one portal at
+a time, repeats the search in each, and copies what they find into a document of
+their own.
 
-```bash
-docker compose up -d      # start the database
-docker compose down       # stop it, keeping the data
-docker compose down -v    # stop it and erase the data
-```
+That costs time, and it costs certainty. A decision found in a list is not yet
+usable: before citing it, the researcher has to open the original on the court's
+site and read it. When the list does not carry the address of the document, that
+verification is done by hand — by case number, on the portal, one at a time.
 
-It works with no setup: every value has a default. Copy `.env.example` to `.env`
-only if you need to change the port or the credentials.
+Our academic partner brought this as the problem to solve: **searching decisions
+from different courts as if they were one collection, without losing the link
+back to the original.**
 
-| Service | Port | Image |
-|---|---|---|
-| PostgreSQL | 5432 | `pgvector/pgvector:pg17` |
+---
 
-The image is not the official `postgres:17` on purpose — that one does not ship
-`pgvector`. On first start, `infra/postgres/init.sql` creates three extensions:
+## Solution <a id="solution"></a>
 
-| Extension | What it gives us |
+A single search over decisions from every integrated court, where each result
+keeps the address of its own document on the court's site.
+
+| | |
 |---|---|
-| `pg_trgm` | search that tolerates typing errors: *usucapiao* finds *usucapião* |
-| `unaccent` | accents stop mattering: *acao* finds *ação* |
-| `vector` | vector column and distance operators, for semantic search later |
+| **One search, many courts** | 984,824 decisions from the STJ and the TJDFT, searched together |
+| **Full-text in Portuguese** | accents and word endings do not matter: *acao* finds *ação*, *usucapiao* finds *usucapião* |
+| **The terms, highlighted** | the excerpt shows why the decision matched |
+| **Always the official source** | every result links to the document on the court's own site, and the screen says that the original prevails |
+| **Filters that narrow** | court, judgment date, publication date, in any combination |
+| **What the base holds** | coverage per court and period, so the reach of a search is known before it is trusted |
 
-The init script only runs when the database is created. If you already have the
-volume and need to replay it, run `docker compose down -v` first — that erases
-the data.
+The reach today:
 
-Each part has its own instructions: [backend](backend/README.md) ·
-[frontend](frontend/README.md) · [pipeline](pipeline/README.md)
+| Court | Decisions | Coverage |
+|---|---|---|
+| **STJ** — Superior Tribunal de Justiça | 876,996 | 19/02/1989 – 26/08/2026 |
+| **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 107,828 | 17/09/2025 – 17/09/2026 |
+| **Total** | **984,824** | **19/02/1989 – 17/09/2026** |
 
 ---
 
@@ -110,6 +121,139 @@ The profiles represent who receives value from the feature. They do not indicate
     <img src="https://img.shields.io/badge/Backlog%20Sprint%201-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 1" />
   </a>
 </p>
+
+## Sprint Schedule <a id="sprints"></a>
+
+| Sprint | Period | Goal | Documentation | Increment |
+|---|---|---|---|---|
+| **1** | 07/09/2026 – 27/09/2026 | Search decisions across courts, read them and check the reach of the base | [Backlog](documentation/sprints/sprint-1/sprint-1-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://www.youtube.com/watch?v=82bR--xO6Fs) |
+| **2** | to be defined | — | — | — |
+| **3** | to be defined | — | — | — |
+
+---
+
+## DoR and DoD <a id="sprintdor"></a>
+
+The team's Definition of Ready, Definition of Done and the acceptance criteria
+written for each User Story of the sprint:
+
+<p align="left">
+  <a href="documentation/sprints/Artefatos.md">
+    <img src="https://img.shields.io/badge/DoR%20and%20DoD-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="DoR and DoD" />
+  </a>
+</p>
+
+Two rules there are ours, not inherited from the model, and they are the ones
+that changed how the sprint ran:
+
+- **A source is verified, never presumed.** A story that depends on a court or on
+  a field only enters the sprint after someone has confirmed that the field
+  exists and is reachable — not after someone assumed it does.
+- **A link is not done until it opens.** A result that carries the address of a
+  document is only finished when that address has been opened and shown to lead
+  to the decision it claims. Two bugs of this sprint (SCRUM-94 and SCRUM-95)
+  exist because the first version of this rule only checked that the identifier
+  was there.
+
+---
+
+## Technologies <a id="technologies"></a>
+
+**Frontend**
+
+<p align="left">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/React%20Router-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white" alt="React Router" />
+  <img src="https://img.shields.io/badge/Vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white" alt="Vitest" />
+  <img src="https://img.shields.io/badge/ESLint-4B32C3?style=for-the-badge&logo=eslint&logoColor=white" alt="ESLint" />
+</p>
+
+**Backend**
+
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white" alt="Pydantic" />
+  <img src="https://img.shields.io/badge/pytest-0A9EDC?style=for-the-badge&logo=pytest&logoColor=white" alt="pytest" />
+  <img src="https://img.shields.io/badge/Ruff-D7FF64?style=for-the-badge&logo=ruff&logoColor=black" alt="Ruff" />
+  <img src="https://img.shields.io/badge/uv-DE5FE9?style=for-the-badge&logo=uv&logoColor=white" alt="uv" />
+</p>
+
+**Data**
+
+<p align="left">
+  <img src="https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/pgvector-4169E1?style=for-the-badge" alt="pgvector" />
+  <img src="https://img.shields.io/badge/dlt-2E8B57?style=for-the-badge&logo=dlthub&logoColor=white" alt="dlt" />
+  <img src="https://img.shields.io/badge/SQLMesh-1E1E1E?style=for-the-badge" alt="SQLMesh" />
+</p>
+
+**Infrastructure**
+
+<p align="left">
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white" alt="GitHub Actions" />
+  <img src="https://img.shields.io/badge/nginx-009639?style=for-the-badge&logo=nginx&logoColor=white" alt="nginx" />
+  <img src="https://img.shields.io/badge/Tailscale-242424?style=for-the-badge&logo=tailscale&logoColor=white" alt="Tailscale" />
+</p>
+
+---
+
+## Branches and Commits <a id="branches"></a>
+
+**Two long-lived branches, and a short one for each task.**
+
+| Branch | What it is |
+|---|---|
+| `main` | the project as it is presented: documentation and the delivered code |
+| `dev` | what is integrated and published to the development environment |
+| `producao` | what is published to production |
+
+A task branch is opened from `dev`, named after its card, and closed by a Pull
+Request back into `dev`. It is never pushed to directly from another task.
+
+```
+<type>/SCRUM-<number>-<what-it-does>
+
+feat/SCRUM-91-stj-as-second-source
+test/SCRUM-60-chart-agrees-with-search
+bugfix/SCRUM-94-tjdft-link-opens-the-home
+docs/SCRUM-43-sprint-video-and-readme-sections
+```
+
+**Why this and not trunk-based:** the published environments are deployed by the
+branch they sit on. `dev` deploys to the development server on merge, `producao`
+deploys to production on merge. Keeping them as branches makes the deploy a
+reviewable event rather than a command someone runs.
+
+**Commit messages** follow the same types, in the imperative:
+
+```
+<type>: <what the commit does>
+
+feat: integrate filtered court volume chart
+fix: ask the court list once per visit
+test: hold the chart and the results to the same number
+```
+
+A commit says what it does to the product, not what was touched: *fix: ask the
+court list once per visit*, not *fix: change HomePage.tsx*.
+
+The protected branches are guarded by a workflow: a PR into `dev` or `producao`
+only merges with the CI green.
+
+---
+
+## Burn Down <a id="burndown"></a>
+
+The sprint's burn down is kept on the Jira board and reviewed at every daily.
+
+> **To be added:** export the chart from Jira at the end of the sprint and place
+> it in `documentation/sprints/sprint-1/`, then link it here.
+
+---
 
 ## Team <a id="team"></a>
 
