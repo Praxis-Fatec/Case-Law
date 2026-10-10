@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Link, type To } from 'react-router-dom';
 import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
+import { readThesis } from '../api/decisions';
 import type { SearchDecisionMatch } from '../api/search';
 import {
   formatDate,
@@ -21,6 +22,7 @@ type DecisionCardData = Pick<
   | 'source_url'
   | 'source_url_reachable'
   | 'snippet'
+  | 'thesis'
 > & {
   published_on?: string | null;
 };
@@ -115,6 +117,7 @@ function DecisionResultCard({
     },
   ];
   const decided = formatDate(decision.decided_on);
+  const thesis = readThesis(decision.thesis);
 
   return (
     <article
@@ -162,6 +165,22 @@ function DecisionResultCard({
         </header>
 
         <p className="decision-result-card__snippet">{renderSafeSnippet(decision.snippet)}</p>
+
+        {/* Closed by default: the thesis block runs to 441 characters on
+            average, and six of them open would stop the list being scannable.
+            It sits above the stretched link, like the official link does, so
+            opening it does not open the decision. */}
+        {thesis.length > 0 && (
+          <details className="decision-result-card__thesis">
+            <summary>Por que esta decisão está aqui</summary>
+            <p className="decision-result-card__thesis-origin">Tese firmada pelo tribunal</p>
+            <ol className="decision-result-card__thesis-list">
+              {thesis.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ol>
+          </details>
+        )}
 
         <dl className="decision-result-card__meta">
           {metadata
