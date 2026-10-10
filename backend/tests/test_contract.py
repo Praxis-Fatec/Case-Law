@@ -27,6 +27,7 @@ MATCH = {
     "small_claims",
     "source_url",
     "source_url_reachable",
+    "thesis",
     "snippet",
 }
 
@@ -36,6 +37,7 @@ DETAIL = (MATCH - {"snippet"}) | {
     "published_on",
     "summary",
     "outcome",
+    "thesis",
     "full_text_available",
     "sections",
 }

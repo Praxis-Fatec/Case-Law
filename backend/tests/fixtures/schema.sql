@@ -24,6 +24,7 @@ CREATE TABLE core.decisao (
     ementa               TEXT    NOT NULL,
     tipo_texto           TEXT,
     decisao_texto        TEXT,
+    tese                 TEXT,
     turma_recursal       BOOLEAN NOT NULL,
     possui_inteiro_teor  BOOLEAN NOT NULL,
     url_fonte            TEXT    NOT NULL,

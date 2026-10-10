@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
+from app.ementa import theses as split_theses
 from app.errors import (
     DATABASE_RESPONSES,
     MALFORMED,
@@ -195,6 +196,7 @@ SELECT
     decisao.url_fonte,
     decisao.link_valido,
     decisao.ementa,
+    decisao.tese,
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
@@ -221,6 +223,7 @@ SELECT
     data_referencia,
     ementa,
     decisao_texto,
+    tese,
     turma_recursal,
     possui_inteiro_teor,
     url_fonte,
@@ -281,6 +284,22 @@ class DecisionBase(BaseModel):
 
 
 class DecisionMatch(DecisionBase):
+    thesis: list[str] = Field(
+        description=(
+            "The thesis the court itself wrote, one entry per numbered item. "
+            "Empty when the court did not record one — which is most of the "
+            "collection, because the structured ementa is a 2024 standard."
+        ),
+        examples=[
+            [
+                (
+                    "A palavra da vítima possui especial relevância em crimes "
+                    "de violência doméstica, quando coerente e corroborada por "
+                    "outros elementos de prova."
+                )
+            ]
+        ],
+    )
     snippet: str = Field(
         description=(
             "The part of the ementa that matched, with every hit wrapped in "
@@ -316,6 +335,13 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         "4. Apelação conhecida e desprovida."
     ),
     "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
+    "thesis": [
+        (
+            "O prazo de suspensão da execução fiscal corre da ciência da "
+            "primeira diligência infrutífera, independentemente de despacho "
+            "que a declare."
+        )
+    ],
     "full_text_available": True,
     "sections": {
         "headnote": (
@@ -395,6 +421,22 @@ class Decision(DecisionBase):
     outcome: str | None = Field(
         description="The operative part, when the court records it separately.",
         examples=["ADMITIR. JULGAR IMPROCEDENTE A REVISÃO CRIMINAL. UNÂNIME."],
+    )
+    thesis: list[str] = Field(
+        description=(
+            "The thesis the court itself wrote, one entry per numbered item. "
+            "It is the court's own text, not ours: citable as it stands. Empty "
+            "when the court did not record one."
+        ),
+        examples=[
+            [
+                (
+                    "A palavra da vítima possui especial relevância em crimes "
+                    "de violência doméstica, quando coerente e corroborada por "
+                    "outros elementos de prova."
+                )
+            ]
+        ],
     )
     full_text_available: bool = Field(
         description="Whether the court offers the complete document."
@@ -793,6 +835,7 @@ def search_decisions(
         results=[
             DecisionMatch(
                 **_base_fields(row),
+                thesis=split_theses(row.get("tese")),
                 snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
             )
             for row in rows
@@ -888,6 +931,7 @@ def read_decision(
         published_on=row["data_publicacao"],
         summary=summary,
         outcome=row["decisao_texto"],
+        thesis=split_theses(row["tese"]),
         full_text_available=row["possui_inteiro_teor"],
         sections=_sections(row["ementa"]),
     )
