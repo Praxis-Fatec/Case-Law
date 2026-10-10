@@ -13,6 +13,9 @@ export type SearchDecisionMatch = {
   small_claims: string | null;
   source_url: string;
   source_url_reachable: boolean | null;
+  // What the court itself settled. Empty on most of the collection, and an
+  // API published before the field existed sends nothing at all.
+  thesis?: string[];
   snippet: string;
 };
 
