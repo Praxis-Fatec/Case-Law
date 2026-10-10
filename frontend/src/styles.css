@@ -2320,3 +2320,24 @@ input:focus-visible {
     padding: 0;
   }
 }
+
+/* The thesis the court wrote, on the reading screen. Open, unlike the card:
+   someone who opened the decision wants it. */
+.decision-detail__thesis {
+  margin-top: 1.2rem;
+}
+
+.decision-detail__thesis-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.3rem;
+  color: #45151f;
+  line-height: 1.6;
+}
+
+.decision-detail__thesis-list li {
+  margin-bottom: 0.45rem;
+}
+
+.decision-detail__thesis-list li:last-child {
+  margin-bottom: 0;
+}
