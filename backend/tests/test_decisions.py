@@ -52,6 +52,7 @@ DETAIL_ROW = {
     "data_publicacao": date(2026, 2, 26),
     "ementa": "Ementa: Direito do consumidor. Dano moral configurado.",
     "decisao_texto": "RECURSOS PARCIALMENTE PROVIDOS. UNÂNIME.",
+    "deliberacao": "unanime",
     "possui_inteiro_teor": True,
 }
 

@@ -36,6 +36,7 @@ DETAIL = (MATCH - {"snippet"}) | {
     "published_on",
     "summary",
     "outcome",
+    "deliberation",
     "full_text_available",
     "sections",
 }
@@ -48,6 +49,7 @@ NULLABLE = {
     "judged_on",
     "published_on",
     "outcome",
+    "deliberation",
     "source_url_reachable",
     "sections",
 }

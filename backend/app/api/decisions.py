@@ -221,6 +221,7 @@ SELECT
     data_referencia,
     ementa,
     decisao_texto,
+    deliberacao,
     turma_recursal,
     possui_inteiro_teor,
     url_fonte,
@@ -316,6 +317,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         "4. Apelação conhecida e desprovida."
     ),
     "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
+    "deliberation": "unanime",
     "full_text_available": True,
     "sections": {
         "headnote": (
@@ -395,6 +397,16 @@ class Decision(DecisionBase):
     outcome: str | None = Field(
         description="The operative part, when the court records it separately.",
         examples=["ADMITIR. JULGAR IMPROCEDENTE A REVISÃO CRIMINAL. UNÂNIME."],
+    )
+    deliberation: str | None = Field(
+        description=(
+            "How the panel voted, read from the operative part: `unanime` "
+            "when it was of one mind, `maioria` when someone dissented. "
+            "`null` when the court records no vote, and also when the "
+            "decision holds two appeals voted differently, where there is no "
+            "single answer to give. 99,8% of the collection carries one."
+        ),
+        examples=["unanime"],
     )
     full_text_available: bool = Field(
         description="Whether the court offers the complete document."
@@ -888,6 +900,7 @@ def read_decision(
         published_on=row["data_publicacao"],
         summary=summary,
         outcome=row["decisao_texto"],
+        deliberation=row["deliberacao"],
         full_text_available=row["possui_inteiro_teor"],
         sections=_sections(row["ementa"]),
     )
