@@ -29,6 +29,7 @@ MATCHING_ROW = {
     "turma_recursal": False,
     "url_fonte": "https://jurisdf.tjdft.jus.br/detalhes/2084700",
     "link_valido": True,
+    "deliberacao": "unanime",
     "ementa": "Ilícito contratual. Dano moral. Ação procedente. Recurso não provido.",
     "snippet": "Ilícito contratual. <mark>Dano</mark> <mark>moral</mark>.",
 }
@@ -52,7 +53,6 @@ DETAIL_ROW = {
     "data_publicacao": date(2026, 2, 26),
     "ementa": "Ementa: Direito do consumidor. Dano moral configurado.",
     "decisao_texto": "RECURSOS PARCIALMENTE PROVIDOS. UNÂNIME.",
-    "deliberacao": "unanime",
     "possui_inteiro_teor": True,
 }
 
