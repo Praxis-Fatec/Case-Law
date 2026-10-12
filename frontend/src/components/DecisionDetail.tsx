@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, type Decision } from '../api/decisions';
-import { formatDate, normalizeOfficialUrl, normalizeText } from './decisionFormat';
+import {
+  DELIBERATION_LABELS,
+  deliberationStateOf,
+  formatDate,
+  normalizeOfficialUrl,
+  normalizeText,
+} from './decisionFormat';
 
 type DetailState =
   | { status: 'loading' }
@@ -187,6 +193,8 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
 
       <Ementa decision={decision} headingId={`${titleId}-ementa`} />
 
+      <Deliberation decision={decision} headingId={`${titleId}-deliberacao`} />
+
       <OfficialSource decision={decision} />
     </>
   );
@@ -246,6 +254,39 @@ function Ementa({ decision, headingId }: EmentaProps) {
       ) : (
         <p className="decision-detail__missing">
           A ementa desta decisão não está disponível. Consulte o documento na fonte oficial.
+        </p>
+      )}
+    </section>
+  );
+}
+
+type DeliberationProps = { decision: Decision; headingId: string };
+
+// The label on top and the sentence it was read from underneath, so the reader
+// checks the reading instead of taking it on trust.
+function Deliberation({ decision, headingId }: DeliberationProps) {
+  const state = deliberationStateOf(decision.deliberation, decision.outcome);
+  const outcome = normalizeText(decision.outcome);
+
+  if (state === null) {
+    return null;
+  }
+
+  return (
+    <section className="decision-detail__reading" aria-labelledby={headingId}>
+      <h3 id={headingId} className="decision-detail__section-title">
+        Deliberação
+      </h3>
+
+      <p className="decision-detail__deliberation" data-state={state}>
+        {DELIBERATION_LABELS[state]}
+      </p>
+
+      {outcome ? (
+        <p className="decision-detail__text">{outcome}</p>
+      ) : (
+        <p className="decision-detail__missing">
+          O tribunal não publicou o dispositivo desta decisão, então não há o que interpretar.
         </p>
       )}
     </section>

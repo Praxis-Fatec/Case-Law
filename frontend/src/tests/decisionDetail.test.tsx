@@ -28,7 +28,8 @@ const STRUCTURED: Decision = {
   published_on: '2026-06-18',
   summary:
     'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE. I. CASO EM EXAME 1. Apelação. II. QUESTÃO EM DISCUSSÃO 2. Termo inicial. III. RAZÕES DE DECIDIR 3. O prazo corre. IV. DISPOSITIVO 4. Desprovida.',
-  outcome: 'APELAÇÃO CONHECIDA E DESPROVIDA.',
+  outcome: 'APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.',
+  deliberation: 'unanime',
   full_text_available: true,
   sections: {
     headnote: 'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE.',

@@ -1180,6 +1180,39 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
+/* The vote the panel took. The word carries the state and the colour only
+   repeats it, so the label still reads where the colour does not. */
+.decision-detail__deliberation {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--search-border);
+  border-radius: 999px;
+  color: var(--search-muted);
+  font:
+    700 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.decision-detail__deliberation[data-state='unanime'] {
+  border-color: #b9d3c3;
+  background: #eef6f1;
+  color: #2f6b4f;
+}
+
+.decision-detail__deliberation[data-state='maioria'] {
+  border-color: #e0c9a6;
+  background: #fbf3e6;
+  color: #8a5a1b;
+}
+
+.decision-detail__deliberation[data-state='nao-informado'],
+.decision-detail__deliberation[data-state='nao-aplicavel'] {
+  border-style: dashed;
+}
+
 .decision-detail__missing {
   margin: 0;
   padding: 0.8rem 0.9rem;
