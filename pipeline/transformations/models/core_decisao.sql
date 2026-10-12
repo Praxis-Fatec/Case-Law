@@ -178,6 +178,23 @@ lida AS (
            END
     END AS deliberacao
   FROM votacao
+),
+/* A ordem é a regra: "negar provimento" contém "provimento", e "parcialmente
+   provido" contém "provido". Sem padrão, nulo — nunca a categoria mais comum,
+   que daria viés a um indicador feito para ser citado em petição. */
+julgamento AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    CASE
+      WHEN texto ~ 'parcial\w*\s+(provi|procedent)|provi\w*\s+(em\s+)?parte|provimento\s+parcial|acolh\w+\s+(em\s+)?parte|em\s+parte\s+provi'
+        THEN 'parcialmente_provido'
+      WHEN texto ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi|\mnao\s+conhec|\mrejeit|\mindeferi|\mnao\s+acolh|\mdenega'
+        THEN 'negado'
+      WHEN texto ~ '\md[aeo]\w*\s+provimento|\mprovi[dm]|\macolh|\mconced|\mdeferi'
+        THEN 'provido'
+    END AS resultado
+  FROM dispositivo
 )
 
 SELECT
@@ -196,7 +213,7 @@ SELECT
   'ementa_completa'                                     AS tipo_texto,
   b.decisao_texto                                       AS decisao_texto,
   CAST(NULL AS TEXT)                                    AS conhecimento,
-  CAST(NULL AS TEXT)                                    AS resultado,
+  j.resultado                                           AS resultado,
   l.deliberacao                                         AS deliberacao,
   b.turma_recursal                                      AS turma_recursal,
   b.possui_inteiro_teor                                 AS possui_inteiro_teor,
@@ -213,6 +230,9 @@ LEFT JOIN verificacao.link AS v
 LEFT JOIN lida AS l
   ON l.fonte_codigo = b.fonte_codigo
  AND l.identificador = b.identificador
+LEFT JOIN julgamento AS j
+  ON j.fonte_codigo = b.fonte_codigo
+ AND j.identificador = b.identificador
 
 ;
 
