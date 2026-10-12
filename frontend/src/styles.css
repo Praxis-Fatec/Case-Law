@@ -1180,15 +1180,12 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
-/* The band of fields and the sentence that backs one of them, as one block. */
 .decision-detail__facts {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-/* Evidence for the deliberation above, not a section of its own: the court's
-   own sentence, quiet, where it can be checked against the label. */
 .decision-detail__dispositive {
   margin: 0;
   padding: 0 18px;

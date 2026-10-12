@@ -13,7 +13,10 @@ MODEL (
     token_do_documento_por_fonte,
     verdito_de_fonte_conhecida,
     deliberacao_de_valor_conhecido,
-    deliberacao_com_cobertura
+    deliberacao_com_cobertura,
+    resultado_de_valor_conhecido,
+    resultado_com_cobertura,
+    resultado_sem_contradicao
   )
 );
 

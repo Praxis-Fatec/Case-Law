@@ -105,3 +105,46 @@ FROM @this_model
 WHERE decisao_texto IS NOT NULL
 HAVING COUNT(*) > 100000
    AND COUNT(deliberacao) < COUNT(*) * 0.95;
+
+AUDIT (
+  name resultado_de_valor_conhecido,
+  dialect postgres
+);
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND resultado NOT IN ('provido', 'parcialmente_provido', 'negado');
+
+AUDIT (
+  name resultado_com_cobertura,
+  dialect postgres
+);
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+WHERE decisao_texto IS NOT NULL
+HAVING COUNT(*) > 100000
+   AND COUNT(resultado) < COUNT(*) * 0.90;
+
+AUDIT (
+  name resultado_sem_contradicao,
+  dialect postgres
+);
+/* Os padrões se contêm, então a ordem da cascata é a regra — e trocá-la não
+   quebra nada visível, só erra o rótulo. Aqui cada rótulo é confrontado com o
+   padrão que tem prioridade sobre ele. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND (
+    (resultado = 'provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi|\mnao\s+conhec|\mrejeit|\mindeferi|\mnao\s+acolh|\mdenega')
+    OR (resultado <> 'parcialmente_provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ 'parcial\w*\s+(provi|procedent)|provi\w*\s+(em\s+)?parte|provimento\s+parcial|acolh\w+\s+(em\s+)?parte|em\s+parte\s+provi')
+    OR ((SELECT COUNT(*) FROM REGEXP_MATCHES(UNACCENT(LOWER(decisao_texto)), 'recurso d[eo] |recurso interposto|opostos? pel|interposto pel|apelacao d[eo] ', 'g')) >= 2
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\md[aeo]\w*\s+(-lhe\s+)?provimento|deu-lhe\s+provimento|\mprovi[dm]')
+  );

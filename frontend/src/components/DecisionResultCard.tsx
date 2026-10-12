@@ -109,8 +109,7 @@ function DecisionResultCard({
 
   // The court and the case number head the card and the date sits beside
   // them, so the list below carries only what they do not.
-  // Without the dispositive the card cannot tell an unread vote from an absent
-  // one, so it says nothing rather than pick one. The detail has both.
+  // The card has no dispositive, so an undecided vote stays unsaid.
   const deliberation = deliberationStateOf(decision.deliberation);
   const metadata = [
     { label: 'Órgão julgador', value: getDisplayValue(decision.judging_body) },

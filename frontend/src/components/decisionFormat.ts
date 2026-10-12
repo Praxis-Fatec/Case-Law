@@ -12,9 +12,7 @@ export const DELIBERATION_LABELS = {
 
 export type DeliberationState = keyof typeof DELIBERATION_LABELS;
 
-// The dispositive tells the last two apart: the court published one and no
-// pattern matched it, or it published none at all. A screen that does not
-// carry the dispositive omits it, and gets no answer instead of a guess.
+// Without the dispositive the last two cannot be told apart, so omit it.
 export function deliberationStateOf(
   deliberation: string | null | undefined,
   outcome?: string | null,
