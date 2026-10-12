@@ -86,35 +86,10 @@ bruto AS (
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
 ),
 
-/*
-  Unânime ou por maioria, lido do dispositivo.
-
-  989.291 de 990.628 decisões com dispositivo declaram uma das duas — 99,87%.
-  O trabalho é nos 3.162 que declaram AS DUAS, porque o acórdão decidiu mais
-  de uma coisa e cada uma teve sua votação. A deliberação da decisão é a do
-  mérito, e três degraus a encontram:
-
-  1. O tribunal marca onde o mérito começa.
-     "PRELIMINAR REJEITADA. UNÂNIME. NO MÉRITO, PROVIDO. MAIORIA"
-     Só o que vem depois de "no mérito" conta. Em 68% desses a ordem é
-     invertida, então pegar o primeiro ou o último erraria.
-
-  2. A maioria é sobre um acessório.
-     "Embargos desprovidos. Unânime. Multa aplicada. Maioria"
-     Multa, honorários e custas não decidem a deliberação do recurso. Em
-     91,8% desses o mérito vem primeiro, então vale o primeiro marcador.
-
-  3. Nenhum sinal: vale o último.
-     "por unanimidade, conhecer o recurso e, por maioria, dar provimento"
-     A admissibilidade vem antes, o mérito depois.
-
-  Fica NULO quando o acórdão julgou dois recursos com votações diferentes:
-  "RECURSO DE X ... UNÂNIME. RECURSO DE Y ... MAIORIA". Não existe UMA
-  deliberação ali, e escolher uma seria inventar. São 263 decisões.
-
-  Nunca deduzir a deliberação do resultado: recurso negado não é por isso
-  unânime. São dimensões independentes.
-*/
+/* Três degraus acham o mérito quando o acórdão decidiu mais de uma coisa e
+   cada uma teve sua votação: o que vem depois de "no mérito"; o primeiro
+   marcador quando a maioria é sobre multa, honorários ou custas; senão o
+   último. Dois recursos com votações diferentes não têm UMA deliberação. */
 dispositivo AS (
   SELECT
     fonte_codigo,
@@ -181,12 +156,16 @@ lida AS (
 ),
 /* A ordem é a regra: "negar provimento" contém "provimento", e "parcialmente
    provido" contém "provido". Sem padrão, nulo — nunca a categoria mais comum,
-   que daria viés a um indicador feito para ser citado em petição. */
+   que daria viés a um indicador feito para ser citado em petição. Dois recursos
+   decididos ao contrário não têm UM resultado, então também ficam nulos. */
 julgamento AS (
   SELECT
     fonte_codigo,
     identificador,
     CASE
+      WHEN (SELECT COUNT(*) FROM REGEXP_MATCHES(texto, 'recurso d[eo] |recurso interposto|opostos? pel|interposto pel|apelacao d[eo] ', 'g')) >= 2
+       AND texto ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi'
+       AND texto ~ '\md[aeo]\w*\s+(-lhe\s+)?provimento|deu-lhe\s+provimento|\mprovi[dm]' THEN NULL
       WHEN texto ~ 'parcial\w*\s+(provi|procedent)|provi\w*\s+(em\s+)?parte|provimento\s+parcial|acolh\w+\s+(em\s+)?parte|em\s+parte\s+provi'
         THEN 'parcialmente_provido'
       WHEN texto ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi|\mnao\s+conhec|\mrejeit|\mindeferi|\mnao\s+acolh|\mdenega'

@@ -87,9 +87,7 @@ AUDIT (
   name deliberacao_de_valor_conhecido,
   dialect postgres
 );
-/* Uma captura de grupo que vaze texto cru, ou um erro de digitação na
-   expressão, enche a coluna de valor que a tela não sabe traduzir — e a tela
-   não reclama, só mostra em branco. */
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
 SELECT *
 FROM @this_model
 WHERE deliberacao IS NOT NULL
@@ -99,15 +97,9 @@ AUDIT (
   name deliberacao_com_cobertura,
   dialect postgres
 );
-/* O dispositivo declara unanimidade ou maioria em 99,81% das decisões que o
-   trazem. No dia em que o TJDFT mudar a redação, ou o STJ mudar o preâmbulo do
-   acórdão, a expressão para de casar e a coluna fica nula em silêncio: a tela
-   mostra "não informado" para a coleção inteira, com aparência de normalidade.
-
-   O piso é 95% das decisões COM dispositivo, não do acervo: 535 decisões não
-   trazem o campo, e cobrá-las seria cobrar o que a fonte não mandou. Só vale a
-   partir de 100 mil linhas, senão todo ambiente de amostra reprova e a equipe
-   aprende a ignorar a auditoria. */
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
 SELECT 1 AS falha
 FROM @this_model
 WHERE decisao_texto IS NOT NULL
