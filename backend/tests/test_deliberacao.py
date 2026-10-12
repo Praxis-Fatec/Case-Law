@@ -79,6 +79,31 @@ def test_the_merits_marker_wins_over_the_preliminary() -> None:
     )
 
 
+def test_the_merits_are_read_from_where_the_merits_begin() -> None:
+    """
+    Two real dispositives from the STJ, mirror images of each other, where the
+    preliminary and the merits were voted differently. Reading the whole
+    sentence answers the preliminary in both; reading from "no merito" answers
+    the decision. 41 dispositives change their answer with this step alone, and
+    the second one says who dissented, so it can be checked against the court.
+    """
+    assert (
+        deliberation(
+            "PRELIMINARMENTE, POR MAIORIA, REJEITAR A ARGUIÇÃO DE INCOMPETENCIA "
+            "DA CORTE, E NO MERITO, POR UNANIMIDADE, JULGAR PREJUDICADO O PEDIDO."
+        )
+        == "unanime"
+    )
+    assert (
+        deliberation(
+            "POR UNANIMIDADE, CONHECER DO RECURSO; NO MERITO, POR MAIORIA, "
+            "NEGAR-LHE PROVIMENTO E JULGAR PREJUDICADO O HC 6.035/DF. "
+            "VOTOU VENCIDO O MIN. EDSON VIDIGAL."
+        )
+        == "maioria"
+    )
+
+
 def test_a_penalty_decided_by_majority_does_not_decide_the_appeal() -> None:
     """
     The appeal was unanimous; only the fine went by majority. Reading the last
