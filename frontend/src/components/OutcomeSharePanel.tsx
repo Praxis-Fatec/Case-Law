@@ -126,7 +126,7 @@ function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
           <footer className="volume-card__footer">
             <p className="volume-card__note">
               <Info size={13} aria-hidden="true" />
-              Os percentuais são sobre as decisões com resultado declarado, não sobre o recorte.
+              Cada percentual é calculado sobre o número acima, não sobre o recorte inteiro.
             </p>
           </footer>
         </article>
