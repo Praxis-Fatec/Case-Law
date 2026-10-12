@@ -13,6 +13,7 @@ export type SearchDecisionMatch = {
   small_claims: string | null;
   source_url: string;
   source_url_reachable: boolean | null;
+  deliberation: string | null;
   snippet: string;
 };
 

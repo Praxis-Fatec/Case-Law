@@ -4,6 +4,8 @@ import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import type { SearchDecisionMatch } from '../api/search';
 import {
+  DELIBERATION_LABELS,
+  deliberationStateOf,
   formatDate,
   getDisplayValue,
   NOT_INFORMED,
@@ -20,6 +22,7 @@ type DecisionCardData = Pick<
   | 'decided_on'
   | 'source_url'
   | 'source_url_reachable'
+  | 'deliberation'
   | 'snippet'
 > & {
   published_on?: string | null;
@@ -106,9 +109,16 @@ function DecisionResultCard({
 
   // The court and the case number head the card and the date sits beside
   // them, so the list below carries only what they do not.
+  // Without the dispositive the card cannot tell an unread vote from an absent
+  // one, so it says nothing rather than pick one. The detail has both.
+  const deliberation = deliberationStateOf(decision.deliberation);
   const metadata = [
     { label: 'Órgão julgador', value: getDisplayValue(decision.judging_body) },
     { label: 'Relator', value: getDisplayValue(decision.reporting_judge) },
+    {
+      label: 'Deliberação',
+      value: deliberation ? DELIBERATION_LABELS[deliberation] : NOT_INFORMED,
+    },
     {
       label: 'Data de publicação',
       value: formatDate(decision.published_on) ?? NOT_INFORMED,
