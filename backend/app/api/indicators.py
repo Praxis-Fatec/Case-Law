@@ -270,6 +270,13 @@ class OutcomeCount(BaseModel):
         description="How many of the search's decisions were read this way.",
         examples=[752293],
     )
+    share: float = Field(
+        description=(
+            "Percentage over `classified`, not over `total`. Rounded to one "
+            "decimal, so the counts are what add up, not these."
+        ),
+        examples=[75.9],
+    )
 
 
 class OutcomeShare(BaseModel):
@@ -279,6 +286,23 @@ class OutcomeShare(BaseModel):
             "below never add up to it on their own."
         ),
         examples=[1788],
+    )
+    classified: int = Field(
+        description=(
+            "How many of them the dispositive stated an outcome for. This is "
+            "the denominator of every `share`, and the reason it travels: "
+            "a percentage of a part of the cut reads as a percentage of the "
+            "cut unless the reader is told otherwise."
+        ),
+        examples=[1715],
+    )
+    unclassified: int = Field(
+        description=(
+            "The rest, which the court decided but not as an appeal on its "
+            "merits — a conflict of competence, a prejudiced appeal, an "
+            "extinction. `classified` and this add up to `total`."
+        ),
+        examples=[73],
     )
     outcomes: list[OutcomeCount] = Field(
         description=(
@@ -336,13 +360,28 @@ def read_outcome_share(
     total = sum(counted.values())
 
     if total == 0:
-        return OutcomeShare(total=0, outcomes=[])
+        return OutcomeShare(total=0, classified=0, unclassified=0, outcomes=[])
+
+    unclassified = counted.get(None, 0)
+    classified = total - unclassified
 
     outcomes = [
-        OutcomeCount(outcome=name, decisions=counted.get(name, 0)) for name in OUTCOMES
+        OutcomeCount(
+            outcome=name,
+            decisions=counted.get(name, 0),
+            share=round(counted.get(name, 0) / classified * 100, 1)
+            if classified
+            else 0.0,
+        )
+        for name in OUTCOMES
     ]
     outcomes.sort(key=lambda item: (-item.decisions, item.outcome))
-    return OutcomeShare(total=total, outcomes=outcomes)
+    return OutcomeShare(
+        total=total,
+        classified=classified,
+        unclassified=unclassified,
+        outcomes=outcomes,
+    )
 
 
 # One pass, grouped, so the courts and the base cannot disagree about a period
