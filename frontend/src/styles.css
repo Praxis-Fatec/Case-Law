@@ -1180,37 +1180,33 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
-/* The vote the panel took. The word carries the state and the colour only
-   repeats it, so the label still reads where the colour does not. */
-.decision-detail__deliberation {
-  display: inline-block;
-  margin: 0 0 12px;
-  padding: 4px 12px;
-  border: 1px solid var(--search-border);
-  border-radius: 999px;
+/* The band of fields and the sentence that backs one of them, as one block. */
+.decision-detail__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Evidence for the deliberation above, not a section of its own: the court's
+   own sentence, quiet, where it can be checked against the label. */
+.decision-detail__dispositive {
+  margin: 0;
+  padding: 0 18px;
   color: var(--search-muted);
   font:
-    700 var(--text-xs)/1.4 'Source Sans 3',
+    400 var(--text-xs)/1.5 'Source Sans 3',
     sans-serif;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
-.decision-detail__deliberation[data-state='unanime'] {
-  border-color: #b9d3c3;
-  background: #eef6f1;
-  color: #2f6b4f;
+.decision-detail__dispositive-label {
+  margin-right: 0.6ch;
+  color: #7a6a6d;
+  font-weight: 600;
 }
 
-.decision-detail__deliberation[data-state='maioria'] {
-  border-color: #e0c9a6;
-  background: #fbf3e6;
-  color: #8a5a1b;
-}
-
-.decision-detail__deliberation[data-state='nao-informado'],
-.decision-detail__deliberation[data-state='nao-aplicavel'] {
-  border-style: dashed;
+.decision-detail__dispositive-label::after {
+  content: ' ·';
 }
 
 .decision-detail__missing {

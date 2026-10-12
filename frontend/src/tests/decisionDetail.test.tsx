@@ -122,6 +122,7 @@ describe('the metadata', () => {
       'Número do processo': '0712598-03.2019.8.07.0003',
       Relator: 'JOÃO EGMONT',
       'Órgão julgador': '3ª TURMA CÍVEL',
+      Deliberação: 'Unânime',
       'Classe processual (código CNJ)': '1116',
       'Data do julgamento': '11/06/2026',
       'Data da publicação': '18/06/2026',
@@ -147,7 +148,7 @@ describe('the metadata', () => {
       published_on: '2026-13-45',
     });
 
-    expect(Object.keys(meta())).toEqual(['Data da decisão']);
+    expect(Object.keys(meta())).toEqual(['Deliberação', 'Data da decisão']);
     const panel = screen.getByRole('complementary');
     expect(panel.textContent).not.toMatch(/null|undefined|Invalid Date|NaN|2027/);
   });

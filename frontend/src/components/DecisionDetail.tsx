@@ -31,11 +31,13 @@ type MetadataItem = { label: string; value: string };
 function metadataOf(decision: Decision): MetadataItem[] {
   const judged = formatDate(decision.judged_on);
   const published = formatDate(decision.published_on);
+  const vote = deliberationStateOf(decision.deliberation, decision.outcome);
 
   const items: (MetadataItem | null)[] = [
     textItem('Número do processo', decision.case_number),
     textItem('Relator', decision.reporting_judge),
     textItem('Órgão julgador', decision.judging_body),
+    vote ? { label: 'Deliberação', value: DELIBERATION_LABELS[vote] } : null,
     decision.class_code !== null && Number.isFinite(decision.class_code)
       ? { label: 'Classe processual (código CNJ)', value: String(decision.class_code) }
       : null,
@@ -181,19 +183,21 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
       </header>
 
       {metadata.length > 0 && (
-        <dl className="decision-detail__meta">
-          {metadata.map((item) => (
-            <div className="decision-detail__meta-item" key={item.label}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="decision-detail__facts">
+          <dl className="decision-detail__meta">
+            {metadata.map((item) => (
+              <div className="decision-detail__meta-item" key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <Dispositive decision={decision} />
+        </div>
       )}
 
       <Ementa decision={decision} headingId={`${titleId}-ementa`} />
-
-      <Deliberation decision={decision} headingId={`${titleId}-deliberacao`} />
 
       <OfficialSource decision={decision} />
     </>
@@ -260,36 +264,22 @@ function Ementa({ decision, headingId }: EmentaProps) {
   );
 }
 
-type DeliberationProps = { decision: Decision; headingId: string };
+type DispositiveProps = { decision: Decision };
 
-// The label on top and the sentence it was read from underneath, so the reader
-// checks the reading instead of taking it on trust.
-function Deliberation({ decision, headingId }: DeliberationProps) {
-  const state = deliberationStateOf(decision.deliberation, decision.outcome);
+// The sentence the deliberation above was read from, under the field it
+// explains, so the reading can be checked instead of taken on trust.
+function Dispositive({ decision }: DispositiveProps) {
   const outcome = normalizeText(decision.outcome);
 
-  if (state === null) {
+  if (!outcome) {
     return null;
   }
 
   return (
-    <section className="decision-detail__reading" aria-labelledby={headingId}>
-      <h3 id={headingId} className="decision-detail__section-title">
-        Deliberação
-      </h3>
-
-      <p className="decision-detail__deliberation" data-state={state}>
-        {DELIBERATION_LABELS[state]}
-      </p>
-
-      {outcome ? (
-        <p className="decision-detail__text">{outcome}</p>
-      ) : (
-        <p className="decision-detail__missing">
-          O tribunal não publicou o dispositivo desta decisão, então não há o que interpretar.
-        </p>
-      )}
-    </section>
+    <p className="decision-detail__dispositive">
+      <span className="decision-detail__dispositive-label">Dispositivo</span>
+      {outcome}
+    </p>
   );
 }
 
