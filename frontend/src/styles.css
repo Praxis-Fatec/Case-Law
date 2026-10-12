@@ -2300,3 +2300,68 @@ input:focus-visible {
     padding: 0;
   }
 }
+
+.outcome-denominator {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.outcome-denominator strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.outcome-denominator__rest {
+  white-space: nowrap;
+}
+
+.outcome-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.outcome-list__item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 10px 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.outcome-list__item:last-child {
+  border-bottom: 0;
+}
+
+.outcome-list__label {
+  min-width: 0;
+  color: var(--search-text);
+  font:
+    600 var(--text-sm)/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.outcome-list__share {
+  color: var(--search-text);
+  font:
+    700 var(--text-md)/1.2 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.outcome-list__count {
+  min-width: 5ch;
+  text-align: right;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.3 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
