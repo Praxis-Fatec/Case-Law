@@ -27,6 +27,7 @@ MATCH = {
     "small_claims",
     "source_url",
     "source_url_reachable",
+    "deliberation",
     "snippet",
 }
 
@@ -48,6 +49,7 @@ NULLABLE = {
     "judged_on",
     "published_on",
     "outcome",
+    "deliberation",
     "source_url_reachable",
     "sections",
 }

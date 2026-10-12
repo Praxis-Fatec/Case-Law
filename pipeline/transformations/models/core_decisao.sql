@@ -11,7 +11,9 @@ MODEL (
     url_carrega_o_identificador,
     ementa_nao_vazia,
     token_do_documento_por_fonte,
-    verdito_de_fonte_conhecida
+    verdito_de_fonte_conhecida,
+    deliberacao_de_valor_conhecido,
+    deliberacao_com_cobertura
   )
 );
 
@@ -82,6 +84,100 @@ bruto AS (
   LEFT JOIN orgao_stj AS o
     ON o.chave = UPPER(UNACCENT(e."nomeOrgaoJulgador"))
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
+),
+
+/*
+  Unânime ou por maioria, lido do dispositivo.
+
+  989.291 de 990.628 decisões com dispositivo declaram uma das duas — 99,87%.
+  O trabalho é nos 3.162 que declaram AS DUAS, porque o acórdão decidiu mais
+  de uma coisa e cada uma teve sua votação. A deliberação da decisão é a do
+  mérito, e três degraus a encontram:
+
+  1. O tribunal marca onde o mérito começa.
+     "PRELIMINAR REJEITADA. UNÂNIME. NO MÉRITO, PROVIDO. MAIORIA"
+     Só o que vem depois de "no mérito" conta. Em 68% desses a ordem é
+     invertida, então pegar o primeiro ou o último erraria.
+
+  2. A maioria é sobre um acessório.
+     "Embargos desprovidos. Unânime. Multa aplicada. Maioria"
+     Multa, honorários e custas não decidem a deliberação do recurso. Em
+     91,8% desses o mérito vem primeiro, então vale o primeiro marcador.
+
+  3. Nenhum sinal: vale o último.
+     "por unanimidade, conhecer o recurso e, por maioria, dar provimento"
+     A admissibilidade vem antes, o mérito depois.
+
+  Fica NULO quando o acórdão julgou dois recursos com votações diferentes:
+  "RECURSO DE X ... UNÂNIME. RECURSO DE Y ... MAIORIA". Não existe UMA
+  deliberação ali, e escolher uma seria inventar. São 263 decisões.
+
+  Nunca deduzir a deliberação do resultado: recurso negado não é por isso
+  unânime. São dimensões independentes.
+*/
+dispositivo AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    UNACCENT(LOWER(decisao_texto)) AS texto
+  FROM bruto
+  WHERE decisao_texto IS NOT NULL
+),
+
+deliberacao AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    texto,
+    CASE
+      WHEN texto LIKE '%no merito%' THEN SUBSTRING(texto FROM STRPOS(texto, 'no merito'))
+      ELSE texto
+    END AS escopo
+  FROM dispositivo
+),
+
+votacao AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    texto,
+    escopo,
+    STRPOS(escopo, 'unanime')     AS unanime_primeiro,
+    STRPOS(escopo, 'unanimidade') AS unanimidade_primeiro,
+    STRPOS(escopo, 'maioria')     AS maioria_primeiro,
+    CASE WHEN escopo LIKE '%unanime%'
+         THEN LENGTH(escopo) - STRPOS(REVERSE(escopo), REVERSE('unanime')) + 1 ELSE 0 END AS unanime_ultimo,
+    CASE WHEN escopo LIKE '%unanimidade%'
+         THEN LENGTH(escopo) - STRPOS(REVERSE(escopo), REVERSE('unanimidade')) + 1 ELSE 0 END AS unanimidade_ultimo,
+    CASE WHEN escopo LIKE '%maioria%'
+         THEN LENGTH(escopo) - STRPOS(REVERSE(escopo), REVERSE('maioria')) + 1 ELSE 0 END AS maioria_ultimo
+  FROM deliberacao
+),
+
+lida AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    CASE
+      WHEN GREATEST(unanime_primeiro, unanimidade_primeiro) = 0 AND maioria_primeiro = 0 THEN NULL
+      WHEN maioria_primeiro = 0 THEN 'unanime'
+      WHEN GREATEST(unanime_primeiro, unanimidade_primeiro) = 0 THEN 'maioria'
+      WHEN (
+        SELECT COUNT(*) FROM REGEXP_MATCHES(
+          escopo, 'recurso d[eo] |recurso interposto|opostos? pel|interposto pel|apelacao d[eo] ', 'g'
+        )
+      ) >= 2 THEN NULL
+      WHEN texto ~ 'multa|honorario|custas|prejudicad'
+        THEN CASE
+               WHEN LEAST(NULLIF(unanime_primeiro, 0), NULLIF(unanimidade_primeiro, 0)) < maioria_primeiro
+               THEN 'unanime' ELSE 'maioria'
+             END
+      ELSE CASE
+             WHEN GREATEST(unanime_ultimo, unanimidade_ultimo) > maioria_ultimo
+             THEN 'unanime' ELSE 'maioria'
+           END
+    END AS deliberacao
+  FROM votacao
 )
 
 SELECT
@@ -101,7 +197,7 @@ SELECT
   b.decisao_texto                                       AS decisao_texto,
   CAST(NULL AS TEXT)                                    AS conhecimento,
   CAST(NULL AS TEXT)                                    AS resultado,
-  CAST(NULL AS TEXT)                                    AS deliberacao,
+  l.deliberacao                                         AS deliberacao,
   b.turma_recursal                                      AS turma_recursal,
   b.possui_inteiro_teor                                 AS possui_inteiro_teor,
   REPLACE(f.url_documento_template, '{documento}', b.identificador_documento) AS url_fonte,
@@ -114,6 +210,9 @@ JOIN core.fonte AS f ON f.codigo = b.fonte_codigo
 LEFT JOIN verificacao.link AS v
   ON v.fonte_codigo = b.fonte_codigo
  AND v.identificador = b.identificador
+LEFT JOIN lida AS l
+  ON l.fonte_codigo = b.fonte_codigo
+ AND l.identificador = b.identificador
 
 ;
 

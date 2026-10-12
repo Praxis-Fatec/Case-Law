@@ -82,3 +82,34 @@ LEFT JOIN core.fonte AS f
   ON f.codigo = v.fonte_codigo
 WHERE f.codigo IS NULL
   AND EXISTS (SELECT 1 FROM @this_model);
+
+AUDIT (
+  name deliberacao_de_valor_conhecido,
+  dialect postgres
+);
+/* Uma captura de grupo que vaze texto cru, ou um erro de digitação na
+   expressão, enche a coluna de valor que a tela não sabe traduzir — e a tela
+   não reclama, só mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE deliberacao IS NOT NULL
+  AND deliberacao NOT IN ('unanime', 'maioria');
+
+AUDIT (
+  name deliberacao_com_cobertura,
+  dialect postgres
+);
+/* O dispositivo declara unanimidade ou maioria em 99,81% das decisões que o
+   trazem. No dia em que o TJDFT mudar a redação, ou o STJ mudar o preâmbulo do
+   acórdão, a expressão para de casar e a coluna fica nula em silêncio: a tela
+   mostra "não informado" para a coleção inteira, com aparência de normalidade.
+
+   O piso é 95% das decisões COM dispositivo, não do acervo: 535 decisões não
+   trazem o campo, e cobrá-las seria cobrar o que a fonte não mandou. Só vale a
+   partir de 100 mil linhas, senão todo ambiente de amostra reprova e a equipe
+   aprende a ignorar a auditoria. */
+SELECT 1 AS falha
+FROM @this_model
+WHERE decisao_texto IS NOT NULL
+HAVING COUNT(*) > 100000
+   AND COUNT(deliberacao) < COUNT(*) * 0.95;

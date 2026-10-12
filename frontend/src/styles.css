@@ -1180,6 +1180,35 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
+/* The band of fields and the sentence that backs one of them, as one block. */
+.decision-detail__facts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Evidence for the deliberation above, not a section of its own: the court's
+   own sentence, quiet, where it can be checked against the label. */
+.decision-detail__dispositive {
+  margin: 0;
+  padding: 0 18px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.5 'Source Sans 3',
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.decision-detail__dispositive-label {
+  margin-right: 0.6ch;
+  color: #7a6a6d;
+  font-weight: 600;
+}
+
+.decision-detail__dispositive-label::after {
+  content: ' ·';
+}
+
 .decision-detail__missing {
   margin: 0;
   padding: 0.8rem 0.9rem;

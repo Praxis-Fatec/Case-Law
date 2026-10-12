@@ -29,6 +29,8 @@ export type Decision = {
   // The whole ementa. HTML with `<mark>` when asked with `q`, plain text without.
   summary: string;
   outcome: string | null;
+  // How the panel voted: 'unanime', 'maioria', or null when neither was read.
+  deliberation: string | null;
   full_text_available: boolean;
   sections: EmentaSections | null;
 };

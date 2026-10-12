@@ -3,6 +3,35 @@
 
 export const NOT_INFORMED = 'Não informado';
 
+export const DELIBERATION_LABELS = {
+  unanime: 'Unânime',
+  maioria: 'Por maioria',
+  'nao-informado': NOT_INFORMED,
+  'nao-aplicavel': 'Não aplicável',
+} as const;
+
+export type DeliberationState = keyof typeof DELIBERATION_LABELS;
+
+// The dispositive tells the last two apart: the court published one and no
+// pattern matched it, or it published none at all. A screen that does not
+// carry the dispositive omits it, and gets no answer instead of a guess.
+export function deliberationStateOf(
+  deliberation: string | null | undefined,
+  outcome?: string | null,
+): DeliberationState | null {
+  const vote = normalizeText(deliberation);
+
+  if (vote === 'unanime' || vote === 'maioria') {
+    return vote;
+  }
+
+  if (outcome === undefined) {
+    return null;
+  }
+
+  return normalizeText(outcome) ? 'nao-informado' : 'nao-aplicavel';
+}
+
 export function normalizeText(value: string | null | undefined): string {
   if (typeof value !== 'string') {
     return '';

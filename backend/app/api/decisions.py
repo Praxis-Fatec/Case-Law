@@ -194,6 +194,7 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
+    decisao.deliberacao,
     decisao.ementa,
     {SNIPPET} AS snippet
 FROM pagina
@@ -221,6 +222,7 @@ SELECT
     data_referencia,
     ementa,
     decisao_texto,
+    deliberacao,
     turma_recursal,
     possui_inteiro_teor,
     url_fonte,
@@ -278,6 +280,16 @@ class DecisionBase(BaseModel):
         ),
         examples=[True],
     )
+    deliberation: str | None = Field(
+        description=(
+            "How the panel voted, read from the operative part: `unanime` "
+            "when it was of one mind, `maioria` when someone dissented. "
+            "`null` when the court records no vote, and also when the "
+            "decision holds two appeals voted differently, where there is no "
+            "single answer to give. 99,8% of the collection carries one."
+        ),
+        examples=["unanime"],
+    )
 
 
 class DecisionMatch(DecisionBase):
@@ -303,6 +315,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
     "small_claims": False,
     "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
     "source_url_reachable": True,
+    "deliberation": "unanime",
     "class_code": 1116,
     "judged_on": "2026-06-11",
     "published_on": "2026-06-18",
@@ -457,6 +470,7 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
         "small_claims": row["turma_recursal"],
         "source_url": row["url_fonte"],
         "source_url_reachable": row["link_valido"],
+        "deliberation": row["deliberacao"],
     }
 
 
