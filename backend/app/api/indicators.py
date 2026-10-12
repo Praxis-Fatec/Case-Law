@@ -246,6 +246,105 @@ def read_volume_by_court(
     return VolumeByCourt(total=sum(c.decisions for c in courts), courts=courts)
 
 
+OUTCOME_SQL = f"""
+SELECT
+    d.resultado  AS resultado,
+    COUNT(*)     AS decisoes
+FROM core.decisao AS d
+WHERE {MATCH}{{filters}}
+GROUP BY d.resultado
+"""
+
+# Zeroed rather than dropped: a category missing from the cut would take its
+# slice off the chart, and a reader cannot tell an absent slice from one nobody
+# drew.
+OUTCOMES = ("negado", "provido", "parcialmente_provido")
+
+
+class OutcomeCount(BaseModel):
+    outcome: str = Field(
+        description="The reading, as the model records it.",
+        examples=["negado"],
+    )
+    decisions: int = Field(
+        description="How many of the search's decisions were read this way.",
+        examples=[752293],
+    )
+
+
+class OutcomeShare(BaseModel):
+    total: int = Field(
+        description=(
+            "Every decision the same search matches, read or not. The counts "
+            "below never add up to it on their own."
+        ),
+        examples=[1788],
+    )
+    outcomes: list[OutcomeCount] = Field(
+        description=(
+            "Commonest first, and always the three the model can record, zero "
+            "included. Empty only when the search matches nothing."
+        )
+    )
+
+
+@router.get(
+    "/indicators/outcome-share",
+    summary="How the search's decisions divide between the appeal outcomes",
+    responses=SEARCH_RESPONSES,
+)
+def read_outcome_share(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[
+        str,
+        Query(
+            min_length=2,
+            description="The same expression the search takes.",
+            examples=["prescrição intercorrente"],
+        ),
+    ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(description="The same court filter the search takes."),
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+) -> OutcomeShare:
+    """
+    The same decisions the search would return, counted by what the court
+    decided.
+
+    It narrows from the builder the search itself uses, so the two can never
+    describe different sets. A search that matches nothing answers an empty
+    list and a total of zero, not an error.
+    """
+    filters, parameters = _narrowing(
+        q, tribunal, date_from, date_to, published_from, published_to
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute(OUTCOME_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    counted = {row["resultado"]: row["decisoes"] for row in rows}
+    total = sum(counted.values())
+
+    if total == 0:
+        return OutcomeShare(total=0, outcomes=[])
+
+    outcomes = [
+        OutcomeCount(outcome=name, decisions=counted.get(name, 0)) for name in OUTCOMES
+    ]
+    outcomes.sort(key=lambda item: (-item.decisions, item.outcome))
+    return OutcomeShare(total=total, outcomes=outcomes)
+
+
 # One pass, grouped, so the courts and the base cannot disagree about a period
 # the reader is deciding from. NULL dates sort out of MIN and MAX on their own.
 COVERAGE_SQL = """
