@@ -2302,7 +2302,7 @@ input:focus-visible {
 }
 
 .outcome-denominator {
-  margin: 0 0 14px;
+  margin: 0.35rem 0 0.9rem;
   color: var(--search-muted);
   font:
     400 var(--text-sm)/1.45 'Source Sans 3',

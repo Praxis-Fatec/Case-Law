@@ -78,19 +78,19 @@ function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
             )}
           </header>
 
-          {/* The denominator beside the percentages, never under them: a share
-              of part of the cut reads as a share of the cut without it. */}
-          {rows && share && (
-            <p className="outcome-denominator">
-              <strong>{formatCount(share.classified ?? 0)}</strong> com resultado declarado
-              <span className="outcome-denominator__rest">
-                {' · '}
-                {formatCount(share.unclassified ?? 0)} sem declaração
-              </span>
-            </p>
-          )}
-
           <div className="panorama-card__body">
+            {/* Above the percentages, never under them: a share of part of the
+                cut reads as a share of the cut without it. */}
+            {rows && share && (
+              <p className="outcome-denominator">
+                <strong>{formatCount(share.classified ?? 0)}</strong> com resultado declarado
+                <span className="outcome-denominator__rest">
+                  {' · '}
+                  {formatCount(share.unclassified ?? 0)} sem declaração
+                </span>
+              </p>
+            )}
+
             {loading && <Skeleton />}
             {note && outcome.status === 'failed' ? (
               <div className="search-state search-state--error panorama-card__error" role="alert">
