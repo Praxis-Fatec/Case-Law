@@ -16,7 +16,9 @@ MODEL (
     deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
     resultado_com_cobertura,
-    resultado_sem_contradicao
+    resultado_sem_contradicao,
+    classe_de_codigo_conhecido,
+    classe_com_cobertura
   )
 );
 
@@ -30,9 +32,36 @@ MODEL (
   filtro (US3), ordenação (US6) e desempate da paginação (US7) usam.
 */
 
+WITH RECURSIVE arvore_classe AS (
+  SELECT codigo_cnj, codigo_cnj AS raiz
+  FROM core.classe_processual
+  WHERE codigo_pai IS NULL
+  UNION ALL
+  SELECT s.codigo_cnj, a.raiz
+  FROM core.classe_processual AS s
+  JOIN arvore_classe AS a ON s.codigo_pai = a.codigo_cnj
+),
+
+/* 88 nomes se repetem entre tribunais — "Ação Rescisória" existe em três
+   códigos. Para o STJ vale o da árvore do próprio STJ (raiz 5); fora dela,
+   o menor código, só para a escolha ser estável. */
+classe AS (
+  SELECT DISTINCT ON (chave) chave, codigo_cnj
+  FROM (
+    SELECT
+      s.codigo_cnj,
+      COALESCE(a.raiz, 0) AS raiz,
+      UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
+      TRANSLATE(s.nome, E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))) AS chave
+    FROM core.classe_processual AS s
+    LEFT JOIN arvore_classe AS a USING (codigo_cnj)
+  ) AS x
+  ORDER BY chave, (raiz = 5) DESC, codigo_cnj
+),
+
 -- The STJ writes the same organ both with and without accents. Whichever
 -- spelling carries them is the one the screen should show.
-WITH orgao_stj AS (
+orgao_stj AS (
   SELECT DISTINCT ON (UPPER(UNACCENT("nomeOrgaoJulgador")))
     UPPER(UNACCENT("nomeOrgaoJulgador")) AS chave,
     "nomeOrgaoJulgador"                  AS nome
@@ -76,7 +105,7 @@ bruto AS (
     NULLIF(TRIM(e."numeroProcesso"), '')                     AS processo,
     o.nome                                                   AS orgao_julgador,
     NULLIF(TRIM(e."ministroRelator"), '')                    AS relator,
-    CAST(NULL AS BIGINT)                                     AS classe_cnj,
+    COALESCE(ci.codigo_cnj, ce.codigo_cnj)                   AS classe_cnj,
     e.ementa                                                 AS ementa,
     NULLIF(TRIM(e.decisao), '')                              AS decisao_texto,
     FALSE                                                    AS turma_recursal,
@@ -86,6 +115,15 @@ bruto AS (
   FROM raw.espelho_stj AS e
   LEFT JOIN orgao_stj AS o
     ON o.chave = UPPER(UNACCENT(e."nomeOrgaoJulgador"))
+  /* O STJ nomeia a classe pela escada inteira: "AGRAVO REGIMENTAL NO RECURSO
+     ESPECIAL". A tabela do CNJ só tem as peças soltas, e a classe é a mais
+     externa — o agravo, não o recurso em que ele foi interposto. */
+  LEFT JOIN classe AS ci
+    ON ci.chave = UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
+      TRANSLATE(e."descricaoClasse", E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g'))))
+  LEFT JOIN classe AS ce
+    ON ce.chave = REGEXP_REPLACE(UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
+      TRANSLATE(e."descricaoClasse", E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))), '\s+(NOS|NAS|NO|NA|EM)\s+.*$', '')
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
 ),
 

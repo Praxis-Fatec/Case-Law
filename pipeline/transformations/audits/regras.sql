@@ -148,3 +148,28 @@ WHERE resultado IS NOT NULL
      AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi'
      AND UNACCENT(LOWER(decisao_texto)) ~ '\md[aeo]\w*\s+(-lhe\s+)?provimento|deu-lhe\s+provimento|\mprovi[dm]')
   );
+
+AUDIT (
+  name classe_de_codigo_conhecido,
+  dialect postgres
+);
+/* A ponte do STJ é um join por nome. Código que não existe na tabela significa
+   que a semente andou sem o modelo, e a tela mostra um filtro que não filtra. */
+SELECT d.*
+FROM @this_model AS d
+LEFT JOIN core.classe_processual AS c ON c.codigo_cnj = d.classe_cnj
+WHERE d.classe_cnj IS NOT NULL
+  AND c.codigo_cnj IS NULL;
+
+AUDIT (
+  name classe_com_cobertura,
+  dialect postgres
+);
+/* O STJ escreve a classe por extenso e já manda quebra de linha no meio. Se a
+   grafia mudar, o join para de casar e a coluna fica nula em silêncio: o filtro
+   encolhe sem avisar. Só vale a partir de 100 mil linhas, senão todo ambiente
+   de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(classe_cnj) < COUNT(*) * 0.95;
