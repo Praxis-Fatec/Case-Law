@@ -210,6 +210,28 @@ describe('the denominator', () => {
     expect(screen.getByText('5.722')).toBeInTheDocument();
   });
 
+  it('draws the same outcomes, in the same order, as the list states', () => {
+    const { container } = render(<OutcomeSharePanel outcome={loaded()} onRetry={() => {}} />);
+
+    const drawn = [...container.querySelectorAll('.outcome-chart__part')];
+    const listed = [...container.querySelectorAll('.outcome-list__swatch')];
+
+    expect(drawn.map((part) => part.getAttribute('data-outcome'))).toEqual(
+      listed.map((swatch) => swatch.getAttribute('data-outcome')),
+    );
+
+    // Lengths over the denominator the list states, not over the cut.
+    const widths = drawn.map((part) => Number((part as HTMLElement).style.width.replace('%', '')));
+    expect(widths[0]).toBeCloseTo((4343 / 5722) * 100, 1);
+    expect(widths.reduce((sum, w) => sum + w, 0)).toBeCloseTo(100, 1);
+  });
+
+  it('hides the drawing from screen readers, which read the list instead', () => {
+    const { container } = render(<OutcomeSharePanel outcome={loaded()} onRetry={() => {}} />);
+
+    expect(container.querySelector('.outcome-chart')).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it('carries every outcome as text, with its own count beside its share', () => {
     render(<OutcomeSharePanel outcome={loaded()} onRetry={() => {}} />);
 

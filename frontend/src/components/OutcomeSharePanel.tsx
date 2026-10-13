@@ -1,6 +1,7 @@
 import { Info } from '@phosphor-icons/react';
 
 import { formatCount } from './coverageFormat';
+import OutcomeShareChart from './OutcomeShareChart';
 import { outcomeLabel, percent, rankOutcomes, type OutcomeState } from './outcomeFormat';
 
 const plural = (count: number, one: string, many: string) =>
@@ -103,11 +104,16 @@ function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
               note && <p className="panorama-card__message">{note}</p>
             )}
 
+            {rows && <OutcomeShareChart outcomes={rows} />}
+
             {rows && (
               <ol className="outcome-list">
                 {rows.map((row) => (
                   <li key={row.outcome} className="outcome-list__item">
-                    <span className="outcome-list__label">{outcomeLabel(row.outcome)}</span>
+                    <span className="outcome-list__label">
+                      <span className="outcome-list__swatch" data-outcome={row.outcome} />
+                      {outcomeLabel(row.outcome)}
+                    </span>
                     <span className="outcome-list__share">
                       {row.share === null ? '—' : percent(row.share)}
                     </span>

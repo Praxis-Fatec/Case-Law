@@ -2365,3 +2365,43 @@ input:focus-visible {
     sans-serif;
   font-variant-numeric: tabular-nums;
 }
+
+/* One bar split by outcome. The colour names the category, never its size: a
+   filter that changes which is largest must not repaint the others. */
+.outcome-chart {
+  display: flex;
+  gap: 2px;
+  height: 26px;
+  margin: 0 0 14px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #f1e9e6;
+}
+
+.outcome-chart__part {
+  min-width: 2px;
+}
+
+.outcome-list__swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+.outcome-chart__part[data-outcome='negado'],
+.outcome-list__swatch[data-outcome='negado'] {
+  background: #4a1520;
+}
+
+.outcome-chart__part[data-outcome='parcialmente_provido'],
+.outcome-list__swatch[data-outcome='parcialmente_provido'] {
+  background: #a06b63;
+}
+
+.outcome-chart__part[data-outcome='provido'],
+.outcome-list__swatch[data-outcome='provido'] {
+  background: #d4b2ab;
+}
