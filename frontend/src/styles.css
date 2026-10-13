@@ -1180,15 +1180,12 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
-/* The band of fields and the sentence that backs one of them, as one block. */
 .decision-detail__facts {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
-/* Evidence for the deliberation above, not a section of its own: the court's
-   own sentence, quiet, where it can be checked against the label. */
 .decision-detail__dispositive {
   margin: 0;
   padding: 0 18px;
@@ -2302,4 +2299,109 @@ input:focus-visible {
   .results-tabs {
     padding: 0;
   }
+}
+
+.outcome-denominator {
+  margin: 0.35rem 0 0.9rem;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.outcome-denominator strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.outcome-denominator__rest {
+  white-space: nowrap;
+}
+
+.outcome-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.outcome-list__item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 10px 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.outcome-list__item:last-child {
+  border-bottom: 0;
+}
+
+.outcome-list__label {
+  min-width: 0;
+  color: var(--search-text);
+  font:
+    600 var(--text-sm)/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.outcome-list__share {
+  color: var(--search-text);
+  font:
+    700 var(--text-md)/1.2 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.outcome-list__count {
+  min-width: 5ch;
+  text-align: right;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.3 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* One bar split by outcome. The colour names the category, never its size: a
+   filter that changes which is largest must not repaint the others. */
+.outcome-chart {
+  display: flex;
+  gap: 2px;
+  height: 26px;
+  margin: 0 0 14px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #f1e9e6;
+}
+
+.outcome-chart__part {
+  min-width: 2px;
+}
+
+.outcome-list__swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+.outcome-chart__part[data-outcome='negado'],
+.outcome-list__swatch[data-outcome='negado'] {
+  background: #4a1520;
+}
+
+.outcome-chart__part[data-outcome='parcialmente_provido'],
+.outcome-list__swatch[data-outcome='parcialmente_provido'] {
+  background: #a06b63;
+}
+
+.outcome-chart__part[data-outcome='provido'],
+.outcome-list__swatch[data-outcome='provido'] {
+  background: #d4b2ab;
 }

@@ -87,9 +87,7 @@ AUDIT (
   name deliberacao_de_valor_conhecido,
   dialect postgres
 );
-/* Uma captura de grupo que vaze texto cru, ou um erro de digitação na
-   expressão, enche a coluna de valor que a tela não sabe traduzir — e a tela
-   não reclama, só mostra em branco. */
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
 SELECT *
 FROM @this_model
 WHERE deliberacao IS NOT NULL
@@ -99,17 +97,79 @@ AUDIT (
   name deliberacao_com_cobertura,
   dialect postgres
 );
-/* O dispositivo declara unanimidade ou maioria em 99,81% das decisões que o
-   trazem. No dia em que o TJDFT mudar a redação, ou o STJ mudar o preâmbulo do
-   acórdão, a expressão para de casar e a coluna fica nula em silêncio: a tela
-   mostra "não informado" para a coleção inteira, com aparência de normalidade.
-
-   O piso é 95% das decisões COM dispositivo, não do acervo: 535 decisões não
-   trazem o campo, e cobrá-las seria cobrar o que a fonte não mandou. Só vale a
-   partir de 100 mil linhas, senão todo ambiente de amostra reprova e a equipe
-   aprende a ignorar a auditoria. */
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
 SELECT 1 AS falha
 FROM @this_model
 WHERE decisao_texto IS NOT NULL
 HAVING COUNT(*) > 100000
    AND COUNT(deliberacao) < COUNT(*) * 0.95;
+
+AUDIT (
+  name resultado_de_valor_conhecido,
+  dialect postgres
+);
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND resultado NOT IN ('provido', 'parcialmente_provido', 'negado');
+
+AUDIT (
+  name resultado_com_cobertura,
+  dialect postgres
+);
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+WHERE decisao_texto IS NOT NULL
+HAVING COUNT(*) > 100000
+   AND COUNT(resultado) < COUNT(*) * 0.90;
+
+AUDIT (
+  name resultado_sem_contradicao,
+  dialect postgres
+);
+/* Os padrões se contêm, então a ordem da cascata é a regra — e trocá-la não
+   quebra nada visível, só erra o rótulo. Aqui cada rótulo é confrontado com o
+   padrão que tem prioridade sobre ele. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND (
+    (resultado = 'provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi|\mnao\s+conhec|\mrejeit|\mindeferi|\mnao\s+acolh|\mdenega')
+    OR (resultado <> 'parcialmente_provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ 'parcial\w*\s+(provi|procedent)|provi\w*\s+(em\s+)?parte|provimento\s+parcial|acolh\w+\s+(em\s+)?parte|em\s+parte\s+provi')
+    OR ((SELECT COUNT(*) FROM REGEXP_MATCHES(UNACCENT(LOWER(decisao_texto)), 'recurso d[eo] |recurso interposto|opostos? pel|interposto pel|apelacao d[eo] ', 'g')) >= 2
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\md[aeo]\w*\s+(-lhe\s+)?provimento|deu-lhe\s+provimento|\mprovi[dm]')
+  );
+
+AUDIT (
+  name classe_de_codigo_conhecido,
+  dialect postgres
+);
+/* A ponte do STJ é um join por nome. Código que não existe na tabela significa
+   que a semente andou sem o modelo, e a tela mostra um filtro que não filtra. */
+SELECT d.*
+FROM @this_model AS d
+LEFT JOIN core.classe_processual AS c ON c.codigo_cnj = d.classe_cnj
+WHERE d.classe_cnj IS NOT NULL
+  AND c.codigo_cnj IS NULL;
+
+AUDIT (
+  name classe_com_cobertura,
+  dialect postgres
+);
+/* O STJ escreve a classe por extenso e já manda quebra de linha no meio. Se a
+   grafia mudar, o join para de casar e a coluna fica nula em silêncio: o filtro
+   encolhe sem avisar. Só vale a partir de 100 mil linhas, senão todo ambiente
+   de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(classe_cnj) < COUNT(*) * 0.95;

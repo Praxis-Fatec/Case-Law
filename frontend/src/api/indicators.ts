@@ -57,6 +57,23 @@ export type LastUpdate = {
   updated_at: string | null;
 };
 
+// What `/indicators/outcome-share` answers: the same cut, counted by what the
+// court decided. `classified` is the denominator of every `share`, and
+// `unclassified` the rest — decisions the court did settle, but not as an
+// appeal on its merits.
+export type OutcomeCount = {
+  outcome: string;
+  decisions: number | null;
+  share: number | null;
+};
+
+export type OutcomeShare = {
+  total: number | null;
+  classified: number | null;
+  unclassified: number | null;
+  outcomes: OutcomeCount[];
+};
+
 // An indicator that takes no search parameter failed: the coverage, or the
 // freshness. Only the status is kept; there is no filter to point back to.
 export class IndicatorRequestError extends Error {
@@ -141,6 +158,25 @@ export type VolumeParams = Pick<
   'q' | 'tribunal' | 'date_from' | 'date_to' | 'published_from' | 'published_to'
 >;
 
+// The cut as the indicators take it, the same for every one of them.
+function cutUrl(path: string, params: VolumeParams): URL {
+  const url = new URL(`${apiBaseUrl}${path}`, window.location.origin);
+  url.searchParams.set('q', params.q);
+
+  for (const court of params.tribunal ?? []) {
+    url.searchParams.append('tribunal', court);
+  }
+
+  for (const name of ['date_from', 'date_to', 'published_from', 'published_to'] as const) {
+    const value = params[name];
+    if (value) {
+      url.searchParams.set(name, value);
+    }
+  }
+
+  return url;
+}
+
 function readCourtVolume(value: unknown): CourtVolume | null {
   const court = (value ?? {}) as Record<string, unknown>;
   const abbreviation = text(court.abbreviation);
@@ -171,21 +207,7 @@ export async function getVolumeByCourt(
 ): Promise<VolumeByCourt> {
   assertApiConfiguration();
 
-  const url = new URL(`${apiBaseUrl}/indicators/volume-by-court`, window.location.origin);
-  url.searchParams.set('q', params.q);
-
-  for (const court of params.tribunal ?? []) {
-    url.searchParams.append('tribunal', court);
-  }
-
-  for (const name of ['date_from', 'date_to', 'published_from', 'published_to'] as const) {
-    const value = params[name];
-    if (value) {
-      url.searchParams.set(name, value);
-    }
-  }
-
-  const response = await fetch(url.toString(), {
+  const response = await fetch(cutUrl('/indicators/volume-by-court', params).toString(), {
     method: 'GET',
     headers: {
       Accept: 'application/json',
@@ -198,6 +220,51 @@ export async function getVolumeByCourt(
   }
 
   return readVolume(await response.json());
+}
+
+function readOutcomeCount(value: unknown): OutcomeCount | null {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const outcome = text(row.outcome);
+
+  if (!outcome) {
+    return null;
+  }
+
+  return { outcome, decisions: count(row.decisions), share: count(row.share) };
+}
+
+export function readOutcomeShare(body: unknown): OutcomeShare {
+  const raw = (body ?? {}) as Record<string, unknown>;
+
+  return {
+    total: count(raw.total),
+    classified: count(raw.classified),
+    unclassified: count(raw.unclassified),
+    outcomes: Array.isArray(raw.outcomes)
+      ? raw.outcomes.map(readOutcomeCount).filter((row): row is OutcomeCount => row !== null)
+      : [],
+  };
+}
+
+export async function getOutcomeShare(
+  params: VolumeParams,
+  options: { signal?: AbortSignal } = {},
+): Promise<OutcomeShare> {
+  assertApiConfiguration();
+
+  const response = await fetch(cutUrl('/indicators/outcome-share', params).toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new SearchRequestError(response.status, await readDetail(response));
+  }
+
+  return readOutcomeShare(await response.json());
 }
 
 export function readLastUpdate(body: unknown): LastUpdate {

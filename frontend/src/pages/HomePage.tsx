@@ -13,11 +13,18 @@ import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
+import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
+import type { OutcomeState } from '../components/outcomeFormat';
 import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
-import { getLastUpdate, getVolumeByCourt, type VolumeParams } from '../api/indicators';
+import {
+  getLastUpdate,
+  getOutcomeShare,
+  getVolumeByCourt,
+  type VolumeParams,
+} from '../api/indicators';
 import {
   countFilters,
   errorsFromApi,
@@ -127,7 +134,7 @@ const volumeKey = (params: VolumeParams) =>
   JSON.stringify({ ...params, tribunal: params.tribunal && [...params.tribunal].sort() });
 
 // A counted cut, kept under the key of the cut it counts.
-type PanoramaCache = { key: string; volume: VolumeState } | null;
+type PanoramaCache = { key: string; volume: VolumeState; outcome: OutcomeState } | null;
 
 function volumeFailure(error: unknown): string {
   if (error instanceof SearchRequestError) {
@@ -470,13 +477,22 @@ function HomePage() {
     }
 
     const key = cutKey;
-    const settle = (volume: VolumeState) =>
-      setPanorama((current) => (current?.key === key ? { key, volume } : current));
+    const settleVolume = (volume: VolumeState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, volume } : current));
+    const settleOutcome = (outcome: OutcomeState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, outcome } : current));
 
-    setPanorama({ key, volume: { status: 'loading' } });
+    setPanorama({ key, volume: { status: 'loading' }, outcome: { status: 'loading' } });
     getVolumeByCourt(volumeFor(applied)).then(
-      (volume) => settle({ status: 'loaded', volume }),
-      (error: unknown) => settle({ status: 'failed', message: volumeFailure(error) }),
+      (volume) => settleVolume({ status: 'loaded', volume }),
+      (error: unknown) => settleVolume({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    // The same cut, asked of the same builder, so the two indicators can never
+    // describe different sets.
+    getOutcomeShare(volumeFor(applied)).then(
+      (outcome) => settleOutcome({ status: 'loaded', outcome }),
+      (error: unknown) => settleOutcome({ status: 'failed', message: volumeFailure(error) }),
     );
 
     // Read again with each cut, so the date shown is the one the counts were
@@ -505,6 +521,12 @@ function HomePage() {
       ? { status: 'idle' }
       : panorama?.key === cutKey
         ? panorama.volume
+        : { status: 'loading' };
+  const outcomeState: OutcomeState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.outcome
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
 
@@ -751,6 +773,7 @@ function HomePage() {
             lastUpdate={lastUpdateState}
             onRetry={retryPanorama}
           />
+          <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
         </div>
       </div>
     </main>

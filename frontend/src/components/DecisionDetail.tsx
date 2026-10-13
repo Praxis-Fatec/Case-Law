@@ -266,8 +266,7 @@ function Ementa({ decision, headingId }: EmentaProps) {
 
 type DispositiveProps = { decision: Decision };
 
-// The sentence the deliberation above was read from, under the field it
-// explains, so the reading can be checked instead of taken on trust.
+// The sentence the deliberation was read from, so it can be checked.
 function Dispositive({ decision }: DispositiveProps) {
   const outcome = normalizeText(decision.outcome);
 

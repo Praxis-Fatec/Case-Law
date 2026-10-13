@@ -24,6 +24,7 @@ CREATE TABLE core.decisao (
     ementa               TEXT    NOT NULL,
     tipo_texto           TEXT,
     decisao_texto        TEXT,
+    resultado            TEXT,
     deliberacao          TEXT,
     turma_recursal       BOOLEAN NOT NULL,
     possui_inteiro_teor  BOOLEAN NOT NULL,
@@ -91,3 +92,22 @@ CREATE TABLE verificacao.link (
     verificado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (fonte_codigo, identificador)
 );
+
+-- A amostra da tabela do CNJ que a transformação consulta. Traz de propósito
+-- "Ação Rescisória" em dois códigos, um deles sob a árvore do STJ, para que o
+-- desempate por raiz seja exercitado em vez de assumido.
+CREATE TABLE core.classe_processual (
+    codigo_cnj BIGINT NOT NULL PRIMARY KEY,
+    codigo_pai BIGINT,
+    nome       TEXT   NOT NULL
+);
+
+INSERT INTO core.classe_processual VALUES
+(2,     NULL, 'PROCESSO CÍVEL E DO TRABALHO'),
+(5,     NULL, 'SUPERIOR TRIBUNAL DE JUSTIÇA'),
+(47,    2,    'Ação Rescisória'),
+(1669,  5,    'Ação Rescisória'),
+(198,   2,    'Apelação Cível'),
+(213,   5,    'Recurso Especial'),
+(1321,  5,    'Agravo Regimental'),
+(1331,  5,    'Habeas Corpus');
