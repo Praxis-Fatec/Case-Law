@@ -116,6 +116,7 @@ def test_a_publication_older_than_the_code_answers_503(client_failing_with) -> N
         (UndefinedTable('relation "core.tribunal" does not exist'), NOT_PUBLISHED),
         (psycopg.errors.UndefinedColumn('column "nome" does not exist'), OUT_OF_DATE),
         (psycopg.OperationalError("connection refused"), UNAVAILABLE),
+        (PoolTimeout("no connection available"), UNAVAILABLE),
     ],
 )
 @pytest.mark.parametrize("path", ["/courts", "/filters"])

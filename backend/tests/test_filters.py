@@ -8,7 +8,8 @@ from psycopg.rows import DictRow
 
 from app.db import get_connection
 from app.main import app
-from tests.conftest import needs_database
+from tests.conftest import FIXTURES, needs_database
+from tests.test_seal_filter import transformation
 
 
 @pytest.fixture
@@ -27,8 +28,8 @@ def filter_options(client: TestClient) -> dict[str, Any]:
 def add_decision(
     db: psycopg.Connection[DictRow],
     identifier: str,
-    judging_body: str,
-    reporting_judge: str,
+    judging_body: str | None,
+    reporting_judge: str | None,
 ) -> None:
     ementa = f"CIVIL. Dano moral. Decisão {identifier}."
     db.execute(
@@ -81,6 +82,8 @@ def test_duplicates_are_removed_but_distinct_text_values_are_preserved(
     add_decision(db_rolled_back, "9000002", "ÓRGÃO NOVO", "RELATOR NOVO")
     add_decision(db_rolled_back, "9000003", " ÓRGÃO NOVO ", " RELATOR NOVO ")
     add_decision(db_rolled_back, "9000004", "   ", "   ")
+    add_decision(db_rolled_back, "9000005", "", "")
+    add_decision(db_rolled_back, "9000006", None, None)
 
     body = filter_options(client)
     organs = [option["value"] for option in body["judging_bodies"]]
@@ -92,6 +95,9 @@ def test_duplicates_are_removed_but_distinct_text_values_are_preserved(
     assert judges.count(" RELATOR NOVO ") == 1
     assert "   " not in organs
     assert "   " not in judges
+    assert "" not in organs
+    assert "" not in judges
+    assert all(value.strip() for value in organs + judges)
     assert [option["label"] for option in body["judging_bodies"]] == organs
     assert [option["label"] for option in body["reporting_judges"]] == judges
 
@@ -104,6 +110,37 @@ def test_a_collection_without_decisions_returns_empty_lists(
     db_rolled_back.execute("DELETE FROM core.decisao")
 
     assert filter_options(client) == {"judging_bodies": [], "reporting_judges": []}
+
+
+@needs_database
+def test_sealed_decisions_do_not_add_filter_options(
+    client: TestClient,
+    db_rolled_back: psycopg.Connection[DictRow],
+) -> None:
+    db_rolled_back.execute((FIXTURES / "raw.sql").read_text(encoding="utf-8"))
+    db_rolled_back.execute(
+        "UPDATE raw.acordao_tjdft "
+        'SET "descricaoOrgaoJulgador" = %s, "nomeRelator" = %s '
+        "WHERE identificador = %s",
+        ("ORGÃO SIGILOSO", "RELATOR SIGILOSO", "9000004"),
+    )
+    db_rolled_back.execute("DELETE FROM core.decisao")
+    columns = (
+        "fonte_codigo, identificador_fonte, tribunal_sigla, orgao_julgador, "
+        "relator, data_referencia, ementa, turma_recursal, possui_inteiro_teor, "
+        "url_fonte, link_valido, ementa_busca"
+    )
+    db_rolled_back.execute(
+        f"INSERT INTO core.decisao ({columns}) "
+        f"SELECT {columns} FROM ({transformation()}) AS publicado"
+    )
+
+    body = filter_options(client)
+    organs = [option["value"] for option in body["judging_bodies"]]
+    judges = [option["value"] for option in body["reporting_judges"]]
+
+    assert "ORGÃO SIGILOSO" not in organs
+    assert "RELATOR SIGILOSO" not in judges
 
 
 def test_endpoint_and_response_schema_are_in_openapi() -> None:
