@@ -121,7 +121,7 @@ def test_text_filters_or_within_field_and_and_across_fields(
     add_text_filter_decision(db, "9100004", "OUTRO ÓRGÃO", "RELATOR C")
 
     bodies = [" ÓRGÃO NOVO ", "OUTRO ÓRGÃO"]
-    judges = ["RELATOR A", "RELATOR B"]
+    judges = ["RELATOR A", "RELATOR B", "RELATOR C"]
     first = search(
         client,
         tribunal="STJ",
@@ -139,15 +139,41 @@ def test_text_filters_or_within_field_and_and_across_fields(
         page_size=1,
     )
 
-    assert first["total"] == second["total"] == 2
+    third = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator=judges,
+        page=3,
+        page_size=1,
+    )
+
+    assert first["total"] == second["total"] == third["total"] == 3
     assert len(first["results"]) == len(second["results"]) == 1
-    assert identifiers(first) | identifiers(second) == {"9100001", "9100002"}
+    assert len(third["results"]) == 1
+    assert identifiers(first) | identifiers(second) | identifiers(third) == {
+        "9100001",
+        "9100002",
+        "9100004",
+    }
 
     # The padded and unpadded option values remain different identities.
     padded = search(client, orgao_julgador=" ÓRGÃO NOVO ")
     unpadded = search(client, orgao_julgador="ÓRGÃO NOVO")
+    reporter_only = search(client, relator="RELATOR A")
     assert identifiers(padded) == {"9100001", "9100002"}
     assert identifiers(unpadded) == {"9100003"}
+    assert identifiers(reporter_only) == {"9100001", "9100003"}
+
+    intersection = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator="RELATOR B",
+        date_from="2026-03-10",
+        date_to="2026-03-10",
+    )
+    assert identifiers(intersection) == {"9100002"}
 
     # Blank and duplicate values are removed once in the shared narrowing.
     repeated = search(
@@ -156,7 +182,9 @@ def test_text_filters_or_within_field_and_and_across_fields(
     )
     assert repeated == padded
     assert search(client, orgao_julgador=["", "   "]) == search(client)
-    assert search(client, relator="RELATOR INEXISTENTE")["total"] == 0
+    missing = search(client, relator="RELATOR INEXISTENTE")
+    assert missing["total"] == 0
+    assert missing["results"] == []
 
 
 def test_one_court_returns_only_its_decisions(client: TestClient) -> None:
