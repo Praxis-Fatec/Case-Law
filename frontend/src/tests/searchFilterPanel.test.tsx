@@ -56,7 +56,7 @@ type Handler = (url: URL) => Response | Promise<Response>;
 
 // A stand-in for the API that answers what each test says and remembers every
 // address the screen asked for.
-function installApi(handlers: { courts?: Handler; decisions?: Handler } = {}) {
+function installApi(handlers: { courts?: Handler; decisions?: Handler; filters?: Handler } = {}) {
   const requested: URL[] = [];
   const courts = handlers.courts ?? (() => json({ courts: COURTS }));
   const decisions = handlers.decisions ?? (() => json(page(1)));
@@ -66,6 +66,18 @@ function installApi(handlers: { courts?: Handler; decisions?: Handler } = {}) {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       requested.push(url);
+      if (url.pathname === '/filters')
+        return (
+          handlers.filters?.(url) ??
+          json({
+            judging_bodies: [{ value: 'CORTE ESPECIAL', label: 'CORTE ESPECIAL' }],
+            reporting_judges: [
+              { value: 'RELATOR A', label: 'Relator Á' },
+              { value: 'RELATOR B', label: 'Relator B' },
+            ],
+            procedural_classes: [{ value: 198, label: 'Apelação Cível' }],
+          })
+        );
       if (url.pathname === '/courts') return courts(url);
       if (url.pathname === '/decisions') return decisions(url);
       throw new Error(`unexpected request ${url}`);
@@ -78,6 +90,7 @@ function installApi(handlers: { courts?: Handler; decisions?: Handler } = {}) {
     searches,
     lastSearch: (): URL | undefined => searches()[searches().length - 1],
     courtRequests: () => requested.filter((url) => url.pathname === '/courts'),
+    filterRequests: () => requested.filter((url) => url.pathname === '/filters'),
   };
 }
 
@@ -125,6 +138,71 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('the additional filter options', () => {
+  it('loads once across panel toggles and searches, and filters judges locally', async () => {
+    const api = installApi();
+    const user = await renderPage();
+    await screen.findByRole('checkbox', { name: 'CORTE ESPECIAL' });
+    await user.type(screen.getByRole('searchbox', { name: 'Buscar relator' }), 'relator a');
+    expect(screen.getByRole('checkbox', { name: 'Relator Á' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Relator B' })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: 'Relator Á' }));
+    await search(user);
+    await waitFor(() => expect(api.lastSearch()?.searchParams.get('relator')).toBe('RELATOR A'));
+    await user.click(screen.getByRole('button', { name: /filtros/i }));
+    await user.click(screen.getByRole('button', { name: /filtros/i }));
+    expect(api.filterRequests()).toHaveLength(1);
+  });
+
+  it('applies all three and removes one without discarding the others', async () => {
+    const api = installApi();
+    const user = await renderPage();
+    await user.click(await screen.findByRole('checkbox', { name: 'CORTE ESPECIAL' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Relator Á' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Apelação Cível' }));
+    await user.click(await court('STJ'));
+    await user.click(await court('TJDFT'));
+    await search(user);
+    await waitFor(() => expect(api.lastSearch()?.searchParams.get('classe_cnj')).toBe('198'));
+    expect(api.lastSearch()?.searchParams.get('orgao_julgador')).toBe('CORTE ESPECIAL');
+    expect(api.lastSearch()?.searchParams.get('relator')).toBe('RELATOR A');
+    expect(screen.getByText(/combinações incompatíveis/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remover filtro Relator: RELATOR A' }));
+    await waitFor(() => expect(api.lastSearch()?.searchParams.has('relator')).toBe(false));
+    expect(api.lastSearch()?.searchParams.get('classe_cnj')).toBe('198');
+    expect(api.lastSearch()?.searchParams.get('orgao_julgador')).toBe('CORTE ESPECIAL');
+    expect(api.lastSearch()?.searchParams.getAll('tribunal')).toEqual(['STJ', 'TJDFT']);
+  });
+
+  it('allows unfiltered search after failure and retries the options', async () => {
+    let calls = 0;
+    const api = installApi({
+      filters: () =>
+        ++calls === 1
+          ? json({}, 503)
+          : json({
+              judging_bodies: [],
+              reporting_judges: [],
+              procedural_classes: [],
+            }),
+    });
+    const user = await renderPage();
+    await screen.findByText(/Não foi possível carregar as opções/);
+    await search(user);
+    await waitFor(() => expect(api.searches()).toHaveLength(1));
+    expect(api.lastSearch()?.searchParams.has('relator')).toBe(false);
+    const failure = screen
+      .getByText(/Não foi possível carregar as opções/)
+      .closest('[role="alert"]');
+    expect(failure).not.toBeNull();
+    await user.click(
+      within(failure as HTMLElement).getByRole('button', { name: 'Tentar novamente' }),
+    );
+    await waitFor(() => expect(screen.getAllByText('Nenhuma opção disponível.')).toHaveLength(3));
+    expect(api.filterRequests()).toHaveLength(2);
+  });
+});
+
 describe('the court options', () => {
   it('come from the court list endpoint, by the abbreviation it returns', async () => {
     const api = installApi();
@@ -140,7 +218,9 @@ describe('the court options', () => {
     installApi({ courts: () => pending.promise });
     await renderPage();
 
-    expect(screen.getByRole('status')).toHaveTextContent('Carregando tribunais');
+    expect(
+      within(screen.getByRole('group', { name: 'Tribunais' })).getByRole('status'),
+    ).toHaveTextContent('Carregando tribunais');
 
     await act(async () => pending.resolve(json({ courts: COURTS })));
     expect(await court('TJDFT')).toBeInTheDocument();
@@ -168,7 +248,9 @@ describe('the court options', () => {
     await renderPage();
 
     expect(await screen.findByText(/Nenhum tribunal com decisões/)).toBeInTheDocument();
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole('group', { name: 'Tribunais' })).queryByRole('checkbox'),
+    ).not.toBeInTheDocument();
   });
 });
 

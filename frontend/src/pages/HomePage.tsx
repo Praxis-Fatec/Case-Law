@@ -42,6 +42,7 @@ import type { PageInfo } from '../search/paging';
 import { HeaderSearchSlot } from '../search/headerSearchSlot';
 import { fetchPage, heldPage, prefetchAfter, resetBuffer } from '../search/resultsBuffer';
 import { useCourts } from '../search/useCourts';
+import { useFilterOptions } from '../search/useFilterOptions';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
@@ -556,6 +557,46 @@ function HomePage() {
   // it stays in the screen.
   const searchSlot = useContext(HeaderSearchSlot);
   const courts = useCourts();
+  const filterOptions = useFilterOptions();
+  const activeOptions =
+    filterOptions.state.status === 'loaded' ? filterOptions.state.options : null;
+  const activeTags = applied
+    ? [
+        ...applied.filters.judgingBodies.map((value) => ({
+          field: 'judgingBodies',
+          value,
+          label: `Órgão julgador: ${value}`,
+        })),
+        ...applied.filters.reportingJudges.map((value) => ({
+          field: 'reportingJudges',
+          value,
+          label: `Relator: ${value}`,
+        })),
+        ...applied.filters.proceduralClasses.map((value) => ({
+          field: 'proceduralClasses',
+          value,
+          label: `Classe processual: ${activeOptions?.procedural_classes.find((option) => option.value === value)?.label ?? value}`,
+        })),
+      ]
+    : [];
+  const removeActiveFilter = (field: string, value: string | number) => {
+    if (!applied) return;
+    const remove = (filters: SearchFilterValues): SearchFilterValues => ({
+      ...filters,
+      judgingBodies: filters.judgingBodies.filter(
+        (item) => field !== 'judgingBodies' || item !== value,
+      ),
+      reportingJudges: filters.reportingJudges.filter(
+        (item) => field !== 'reportingJudges' || item !== value,
+      ),
+      proceduralClasses: filters.proceduralClasses.filter(
+        (item) => field !== 'proceduralClasses' || item !== value,
+      ),
+    });
+    updateFilters(remove(filterDraft));
+    resetBuffer();
+    void runSearch({ ...applied, filters: remove(applied.filters), page: 1 });
+  };
   const searchForm = (
     <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
       <div className="legal-search">
@@ -614,6 +655,7 @@ function HomePage() {
           hidden={!filtersOpen}
           disabled={isLoading}
           courts={courts}
+          filterOptions={filterOptions}
         />
 
         {/* The results below were searched with the applied filters, not with
@@ -633,6 +675,22 @@ function HomePage() {
       {searchSlot ? createPortal(searchForm, searchSlot) : searchForm}
 
       <ResultsTabs value={view} onChange={setView} />
+      {activeTags.length > 0 && (
+        <div className="filter-tags applied-filter-tags" aria-label="Filtros aplicados">
+          {activeTags.map((tag) => (
+            <button
+              type="button"
+              className="filter-tag"
+              key={`${tag.field}-${tag.value}`}
+              disabled={isLoading}
+              aria-label={`Remover filtro ${tag.label}`}
+              onClick={() => removeActiveFilter(tag.field, tag.value)}
+            >
+              {tag.label} ×
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The rest of the window. The page itself never scrolls: the list, the
           decision and the panorama each scroll inside their own box. */}
