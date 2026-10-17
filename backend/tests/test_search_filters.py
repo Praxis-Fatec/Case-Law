@@ -88,6 +88,105 @@ def identifiers(body: dict[str, Any]) -> set[str]:
     return {result["identifier"] for result in body["results"]}
 
 
+def add_text_filter_decision(
+    db: psycopg.Connection[DictRow],
+    identifier: str,
+    judging_body: str,
+    reporting_judge: str,
+) -> None:
+    ementa = f"CIVIL. Dano moral. Filtro {identifier}."
+    db.execute(
+        """
+        INSERT INTO core.decisao (
+            fonte_codigo, identificador_fonte, tribunal_sigla,
+            orgao_julgador, relator, classe_cnj, data_referencia, ementa,
+            turma_recursal, possui_inteiro_teor, url_fonte, ementa_busca
+        ) VALUES (
+            'text-filter-test', %s, 'STJ', %s, %s, 198, '2026-03-10', %s,
+            FALSE, FALSE, 'https://example.com/' || %s,
+            TO_TSVECTOR('portugues_sem_acento', %s)
+        )
+        """,
+        (identifier, judging_body, reporting_judge, ementa, identifier, ementa),
+    )
+
+
+def test_text_filters_or_within_field_and_and_across_fields(
+    client: TestClient,
+    db: psycopg.Connection[DictRow],
+) -> None:
+    add_text_filter_decision(db, "9100001", " ÓRGÃO NOVO ", "RELATOR A")
+    add_text_filter_decision(db, "9100002", " ÓRGÃO NOVO ", "RELATOR B")
+    add_text_filter_decision(db, "9100003", "ÓRGÃO NOVO", "RELATOR A")
+    add_text_filter_decision(db, "9100004", "OUTRO ÓRGÃO", "RELATOR C")
+
+    bodies = [" ÓRGÃO NOVO ", "OUTRO ÓRGÃO"]
+    judges = ["RELATOR A", "RELATOR B", "RELATOR C"]
+    first = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator=judges,
+        page=1,
+        page_size=1,
+    )
+    second = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator=judges,
+        page=2,
+        page_size=1,
+    )
+
+    third = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator=judges,
+        page=3,
+        page_size=1,
+    )
+
+    assert first["total"] == second["total"] == third["total"] == 3
+    assert len(first["results"]) == len(second["results"]) == 1
+    assert len(third["results"]) == 1
+    assert identifiers(first) | identifiers(second) | identifiers(third) == {
+        "9100001",
+        "9100002",
+        "9100004",
+    }
+
+    # The padded and unpadded option values remain different identities.
+    padded = search(client, orgao_julgador=" ÓRGÃO NOVO ")
+    unpadded = search(client, orgao_julgador="ÓRGÃO NOVO")
+    reporter_only = search(client, relator="RELATOR A")
+    assert identifiers(padded) == {"9100001", "9100002"}
+    assert identifiers(unpadded) == {"9100003"}
+    assert identifiers(reporter_only) == {"9100001", "9100003"}
+
+    intersection = search(
+        client,
+        tribunal="STJ",
+        orgao_julgador=bodies,
+        relator="RELATOR B",
+        date_from="2026-03-10",
+        date_to="2026-03-10",
+    )
+    assert identifiers(intersection) == {"9100002"}
+
+    # Blank and duplicate values are removed once in the shared narrowing.
+    repeated = search(
+        client,
+        orgao_julgador=[" ÓRGÃO NOVO ", " ÓRGÃO NOVO ", "  "],
+    )
+    assert repeated == padded
+    assert search(client, orgao_julgador=["", "   "]) == search(client)
+    missing = search(client, relator="RELATOR INEXISTENTE")
+    assert missing["total"] == 0
+    assert missing["results"] == []
+
+
 def test_one_court_returns_only_its_decisions(client: TestClient) -> None:
     body = search(client, tribunal="STJ")
 

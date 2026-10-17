@@ -14,7 +14,11 @@ from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
-from app.api.decisions import MATCH, SEARCH_RESPONSES, _narrowing
+from app.api.decisions import (
+    MATCH,
+    SEARCH_RESPONSES,
+    _narrowing,
+)
 from app.db import get_connection
 from app.errors import NOT_PUBLISHED, UNAVAILABLE
 
@@ -212,6 +216,14 @@ def read_volume_by_court(
         list[str] | None,
         Query(description="The same court filter the search takes."),
     ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(description="The same judging-body filter the search takes."),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(description="The same reporting-judge filter the search takes."),
+    ] = None,
     date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
     date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
     published_from: Annotated[
@@ -230,7 +242,14 @@ def read_volume_by_court(
     an error: no court is the honest answer to a question with no decisions.
     """
     filters, parameters = _narrowing(
-        q, tribunal, date_from, date_to, published_from, published_to
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
     )
 
     with connection.cursor() as cursor:
