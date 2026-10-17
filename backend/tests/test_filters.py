@@ -217,13 +217,19 @@ def test_endpoint_and_response_schema_are_in_openapi() -> None:
     assert class_properties["label"]["type"] == "string"
     assert "503" in operation["responses"]
 
-    for path in ("/decisions", "/indicators/volume-by-court"):
+    for path in (
+        "/decisions",
+        "/indicators/volume-by-court",
+        "/indicators/outcome-share",
+    ):
         operation = spec["paths"][path]["get"]
         parameters = {
             parameter["name"]: parameter for parameter in operation["parameters"]
         }
         assert {"orgao_julgador", "relator"} <= set(parameters)
-        assert "classe_cnj" not in parameters
+        alternatives = parameters["classe_cnj"]["schema"]["anyOf"]
+        array = next(item for item in alternatives if item.get("type") == "array")
+        assert array["items"]["type"] == "integer"
 
         for name in ("orgao_julgador", "relator"):
             alternatives = parameters[name]["schema"]["anyOf"]

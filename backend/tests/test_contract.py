@@ -327,6 +327,7 @@ def test_the_search_documents_every_filter(client: TestClient) -> None:
         "tribunal",
         "orgao_julgador",
         "relator",
+        "classe_cnj",
         "date_from",
         "date_to",
         "published_from",

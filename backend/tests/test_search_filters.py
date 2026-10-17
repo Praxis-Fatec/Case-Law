@@ -195,6 +195,66 @@ def test_one_court_returns_only_its_decisions(client: TestClient) -> None:
     assert {result["court"] for result in body["results"]} == {"STJ"}
 
 
+@pytest.mark.parametrize(
+    ("params", "expected"),
+    [
+        ({"orgao_julgador": "1ª TURMA CÍVEL"}, {"1000001"}),
+        ({"relator": "ALFEU MACHADO"}, {"1000003"}),
+        ({"classe_cnj": 198}, {"1000001"}),
+        ({"classe_cnj": [198, 460, 198]}, {"1000001", "1000003"}),
+        ({"classe_cnj": [198, 999999999]}, {"1000001"}),
+        ({"classe_cnj": 999999999}, set()),
+        ({"orgao_julgador": "INEXISTENTE"}, set()),
+        ({"relator": "INEXISTENTE"}, set()),
+        ({"classe_cnj": 198, "relator": "ALFEU MACHADO"}, set()),
+        (
+            {
+                "classe_cnj": [198, 460],
+                "orgao_julgador": "1ª TURMA CÍVEL",
+                "relator": "ANA CANTARINO",
+                "tribunal": "TJDFT",
+                "date_from": "2026-03-10",
+                "date_to": "2026-03-10",
+                "published_from": "2026-03-15",
+                "published_to": "2026-03-15",
+            },
+            {"1000001"},
+        ),
+        ({"q": "usucapiao", "classe_cnj": 198}, set()),
+    ],
+)
+def test_all_three_filters_narrow_search_and_indicators_together(
+    client: TestClient, params: dict[str, Any], expected: set[str]
+) -> None:
+    for order in ("date", "relevance"):
+        body = search(client, order=order, **params)
+        assert identifiers(body) == expected
+        assert body["total"] == len(expected)
+        if expected:
+            page = search(client, order=order, page_size=1, page=2, **params)
+            assert page["total"] == len(expected)
+            assert len(page["results"]) == max(0, len(expected) - 1)
+
+    for path in ("/indicators/volume-by-court", "/indicators/outcome-share"):
+        response = client.get(path, params={"q": "dano moral", **params})
+        assert response.status_code == 200, response.text
+        indicator = response.json()
+        assert indicator["total"] == len(expected)
+        if "courts" in indicator:
+            assert sum(c["decisions"] for c in indicator["courts"]) == len(expected)
+
+
+@pytest.mark.parametrize(
+    "path", ["/decisions", "/indicators/volume-by-court", "/indicators/outcome-share"]
+)
+@pytest.mark.parametrize("value", ["abc", "198.5", ""])
+def test_invalid_class_codes_are_refused(
+    client: TestClient, path: str, value: str
+) -> None:
+    response = client.get(path, params={"q": "dano moral", "classe_cnj": value})
+    assert response.status_code == 422
+
+
 def test_several_courts_return_their_union(client: TestClient) -> None:
     body = search(client, tribunal=["TJDFT", "STJ"])
 

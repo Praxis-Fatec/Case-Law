@@ -176,6 +176,7 @@ def test_the_endpoint_is_documented(client: TestClient) -> None:
         "tribunal",
         "orgao_julgador",
         "relator",
+        "classe_cnj",
         "date_from",
         "date_to",
         "published_from",
