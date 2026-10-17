@@ -44,6 +44,10 @@ export type SearchParams = {
   // Court abbreviations. Sent as one `tribunal` per court, which the API reads
   // as "any of these".
   tribunal?: string[];
+  // Exact option values and numeric CNJ codes. Repeated values combine with OR.
+  orgao_julgador?: string[];
+  relator?: string[];
+  classe_cnj?: number[];
   // `YYYY-MM-DD`, passed through untouched.
   date_from?: string;
   date_to?: string;
@@ -90,8 +94,10 @@ export async function searchDecisions(params: SearchParams): Promise<SearchDecis
     url.searchParams.set('page_size', String(params.page_size));
   }
 
-  for (const court of params.tribunal ?? []) {
-    url.searchParams.append('tribunal', court);
+  for (const name of ['tribunal', 'orgao_julgador', 'relator', 'classe_cnj'] as const) {
+    for (const value of params[name] ?? []) {
+      url.searchParams.append(name, String(value));
+    }
   }
 
   for (const name of ['date_from', 'date_to', 'published_from', 'published_to'] as const) {
