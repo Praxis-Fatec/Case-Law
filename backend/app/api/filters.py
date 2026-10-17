@@ -1,4 +1,4 @@
-"""The available judging bodies and reporting judges for a search."""
+"""The available judging bodies, reporting judges and procedural classes."""
 
 from typing import Annotated, Any
 
@@ -32,6 +32,26 @@ WHERE NULLIF(BTRIM(relator), '') IS NOT NULL
 ORDER BY value
 """
 
+PROCEDURAL_CLASSES_SQL = """
+SELECT c.codigo_cnj AS value, c.nome AS label
+FROM core.classe_processual AS c
+WHERE EXISTS (
+    SELECT 1 FROM core.decisao AS d WHERE d.classe_cnj = c.codigo_cnj
+)
+ORDER BY c.nome COLLATE "C", c.codigo_cnj
+"""
+
+
+class ProceduralClassOption(BaseModel):
+    value: int = Field(
+        description="The CNJ code of a class present on at least one decision.",
+        examples=[198],
+    )
+    label: str = Field(
+        description="The procedural class name from the CNJ catalogue.",
+        examples=["Apelação Cível"],
+    )
+
 
 class FilterOption(BaseModel):
     value: str = Field(
@@ -52,6 +72,7 @@ REPORTING_JUDGE = {
     "value": "FABRÍCIO FONTOURA BEZERRA",
     "label": "FABRÍCIO FONTOURA BEZERRA",
 }
+PROCEDURAL_CLASS = {"value": 198, "label": "Apelação Cível"}
 
 
 class FilterOptions(BaseModel):
@@ -69,11 +90,19 @@ class FilterOptions(BaseModel):
         ),
         examples=[[REPORTING_JUDGE]],
     )
+    procedural_classes: list[ProceduralClassOption] = Field(
+        description=(
+            "Classes with at least one decision in the whole published collection, "
+            "ordered by name and then CNJ code. Empty when no class has decisions."
+        ),
+        examples=[[PROCEDURAL_CLASS]],
+    )
 
 
 EXAMPLE_OPTIONS = {
     "judging_bodies": [JUDGING_BODY],
     "reporting_judges": [REPORTING_JUDGE],
+    "procedural_classes": [PROCEDURAL_CLASS],
 }
 
 RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -82,7 +111,7 @@ RESPONSES: dict[int | str, dict[str, Any]] = {
         (
             "no decisions",
             "The collection is published but has no nonblank values yet.",
-            {"judging_bodies": [], "reporting_judges": []},
+            {"judging_bodies": [], "reporting_judges": [], "procedural_classes": []},
         ),
     ),
     503: {
@@ -120,6 +149,9 @@ def list_filter_options(
         cursor.execute(REPORTING_JUDGES_SQL)
         reporting_judges = cursor.fetchall()
 
+        cursor.execute(PROCEDURAL_CLASSES_SQL)
+        procedural_classes = cursor.fetchall()
+
     return FilterOptions(
         judging_bodies=[
             FilterOption(value=row["value"], label=row["value"])
@@ -129,4 +161,5 @@ def list_filter_options(
             FilterOption(value=row["value"], label=row["value"])
             for row in reporting_judges
         ],
+        procedural_classes=[ProceduralClassOption(**row) for row in procedural_classes],
     )

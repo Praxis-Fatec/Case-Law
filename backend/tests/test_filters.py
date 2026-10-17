@@ -52,7 +52,8 @@ def add_decision(
 def test_lists_distinct_values_from_the_whole_collection(client: TestClient) -> None:
     body = filter_options(client)
 
-    assert set(body) == {"judging_bodies", "reporting_judges"}
+    assert set(body) == {"judging_bodies", "reporting_judges", "procedural_classes"}
+    assert body["procedural_classes"] == [{"value": 198, "label": "Apelação Cível"}]
     assert body["judging_bodies"] == [
         {"value": "1ª TURMA CÍVEL", "label": "1ª TURMA CÍVEL"},
         {"value": "2ª TURMA RECURSAL", "label": "2ª TURMA RECURSAL"},
@@ -109,7 +110,59 @@ def test_a_collection_without_decisions_returns_empty_lists(
 ) -> None:
     db_rolled_back.execute("DELETE FROM core.decisao")
 
-    assert filter_options(client) == {"judging_bodies": [], "reporting_judges": []}
+    assert filter_options(client) == {
+        "judging_bodies": [],
+        "reporting_judges": [],
+        "procedural_classes": [],
+    }
+
+
+@needs_database
+def test_classes_require_decisions_and_keep_codes_with_the_same_name(
+    client: TestClient,
+    db_rolled_back: psycopg.Connection[DictRow],
+) -> None:
+    db_rolled_back.execute("UPDATE core.decisao SET classe_cnj = NULL")
+    # Both catalogue entries share a name; their CNJ codes are different options.
+    for identifier, code in (
+        ("9000010", 1669),
+        ("9000011", 47),
+        ("9000012", 47),
+        ("9000013", 213),
+        ("9000014", 1321),
+    ):
+        add_decision(db_rolled_back, identifier, "CORTE ESPECIAL", "RELATOR STJ")
+        db_rolled_back.execute(
+            "UPDATE core.decisao SET classe_cnj = %s WHERE identificador_fonte = %s",
+            (code, identifier),
+        )
+
+    body = filter_options(client)
+    assert body["procedural_classes"] == [
+        {"value": 1321, "label": "Agravo Regimental"},
+        {"value": 47, "label": "Ação Rescisória"},
+        {"value": 1669, "label": "Ação Rescisória"},
+        {"value": 213, "label": "Recurso Especial"},
+    ]
+    assert filter_options(client) == body
+
+    for option in body["procedural_classes"]:
+        assert db_rolled_back.execute(
+            "SELECT 1 FROM core.decisao WHERE classe_cnj = %s LIMIT 1",
+            (option["value"],),
+        ).fetchone()
+
+
+@needs_database
+def test_classes_are_empty_when_no_decision_has_a_class(
+    client: TestClient,
+    db_rolled_back: psycopg.Connection[DictRow],
+) -> None:
+    db_rolled_back.execute("UPDATE core.decisao SET classe_cnj = NULL")
+    body = filter_options(client)
+    assert body["procedural_classes"] == []
+    assert body["judging_bodies"]
+    assert body["reporting_judges"]
 
 
 @needs_database
@@ -156,8 +209,12 @@ def test_endpoint_and_response_schema_are_in_openapi() -> None:
     assert set(schemas["FilterOptions"]["properties"]) == {
         "judging_bodies",
         "reporting_judges",
+        "procedural_classes",
     }
     assert set(schemas["FilterOption"]["properties"]) == {"value", "label"}
+    class_properties = schemas["ProceduralClassOption"]["properties"]
+    assert class_properties["value"]["type"] == "integer"
+    assert class_properties["label"]["type"] == "string"
     assert "503" in operation["responses"]
 
     for path in ("/decisions", "/indicators/volume-by-court"):
