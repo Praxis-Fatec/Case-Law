@@ -139,6 +139,70 @@ afterEach(() => {
 });
 
 describe('the additional filter options', () => {
+  it.each([
+    ['CORTE ESPECIAL', 'orgao_julgador', 'CORTE ESPECIAL'],
+    ['Relator Á', 'relator', 'RELATOR A'],
+    ['Apelação Cível', 'classe_cnj', '198'],
+  ])('applies only %s and counts it in the badge', async (label, parameter, value) => {
+    const api = installApi();
+    const user = await renderPage();
+    await user.click(await screen.findByRole('checkbox', { name: label }));
+    await search(user);
+    await waitFor(() => expect(api.lastSearch()?.searchParams.getAll(parameter)).toEqual([value]));
+    expect(screen.getByRole('button', { name: /Filtros 1 aplicados/ })).toBeInTheDocument();
+    for (const other of ['orgao_julgador', 'relator', 'classe_cnj']) {
+      if (other !== parameter) expect(api.lastSearch()?.searchParams.has(other)).toBe(false);
+    }
+  });
+
+  it('changes the displayed results when only the reporting judge changes', async () => {
+    const api = installApi({
+      decisions: (url) => {
+        const judge = url.searchParams.get('relator');
+        return json({
+          ...page(1),
+          results: [
+            {
+              ...DECISION,
+              identifier: judge === 'RELATOR A' ? 'reporter-a' : 'reporter-b',
+              reporting_judge: judge,
+              snippet: judge === 'RELATOR A' ? 'Resultado exclusivo A.' : 'Resultado exclusivo B.',
+            },
+          ],
+        });
+      },
+    });
+    const user = await renderPage();
+    await user.click(await screen.findByRole('checkbox', { name: 'Relator Á' }));
+    await search(user);
+    await screen.findByText('Resultado exclusivo A.');
+    await user.click(screen.getByRole('checkbox', { name: 'Relator Á' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Relator B' }));
+    expect(screen.getByText(/Há alterações nos filtros/)).toBeInTheDocument();
+    await search(user);
+    await screen.findByText('Resultado exclusivo B.');
+    expect(screen.queryByText('Resultado exclusivo A.')).toBeNull();
+    expect(api.searches()).toHaveLength(2);
+    expect(api.lastSearch()?.searchParams.getAll('relator')).toEqual(['RELATOR B']);
+  });
+
+  it('keeps an incompatible selection after changing courts and explains zero results', async () => {
+    const api = installApi({ decisions: () => json(page(0, 0)) });
+    const user = await renderPage();
+    await user.click(await court('STJ'));
+    await user.click(await screen.findByRole('checkbox', { name: 'CORTE ESPECIAL' }));
+    await user.click(await court('STJ'));
+    await user.click(await court('TJDFT'));
+    expect(screen.getByRole('checkbox', { name: 'CORTE ESPECIAL' })).toBeChecked();
+    expect(
+      screen.getByText(/combinações incompatíveis podem retornar zero decisões/),
+    ).toBeInTheDocument();
+    await search(user);
+    await screen.findByText(/Nenhuma decisão foi encontrada/);
+    expect(api.lastSearch()?.searchParams.getAll('tribunal')).toEqual(['TJDFT']);
+    expect(api.lastSearch()?.searchParams.get('orgao_julgador')).toBe('CORTE ESPECIAL');
+  });
+
   it('loads once across panel toggles and searches, and filters judges locally', async () => {
     const api = installApi();
     const user = await renderPage();
@@ -154,7 +218,11 @@ describe('the additional filter options', () => {
     expect(api.filterRequests()).toHaveLength(1);
   });
 
-  it('applies all three and removes one without discarding the others', async () => {
+  it.each([
+    ['Órgão julgador: CORTE ESPECIAL', 'orgao_julgador'],
+    ['Relator: RELATOR A', 'relator'],
+    ['Classe processual: Apelação Cível', 'classe_cnj'],
+  ])('removes %s without discarding the other filters', async (label, parameter) => {
     const api = installApi();
     const user = await renderPage();
     await user.click(await screen.findByRole('checkbox', { name: 'CORTE ESPECIAL' }));
@@ -167,10 +235,15 @@ describe('the additional filter options', () => {
     expect(api.lastSearch()?.searchParams.get('orgao_julgador')).toBe('CORTE ESPECIAL');
     expect(api.lastSearch()?.searchParams.get('relator')).toBe('RELATOR A');
     expect(screen.getByText(/combinações incompatíveis/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Remover filtro Relator: RELATOR A' }));
-    await waitFor(() => expect(api.lastSearch()?.searchParams.has('relator')).toBe(false));
-    expect(api.lastSearch()?.searchParams.get('classe_cnj')).toBe('198');
-    expect(api.lastSearch()?.searchParams.get('orgao_julgador')).toBe('CORTE ESPECIAL');
+    await user.click(screen.getByRole('button', { name: `Remover filtro ${label}` }));
+    await waitFor(() => expect(api.lastSearch()?.searchParams.has(parameter)).toBe(false));
+    for (const [name, value] of [
+      ['classe_cnj', '198'],
+      ['orgao_julgador', 'CORTE ESPECIAL'],
+      ['relator', 'RELATOR A'],
+    ]) {
+      if (name !== parameter) expect(api.lastSearch()?.searchParams.get(name)).toBe(value);
+    }
     expect(api.lastSearch()?.searchParams.getAll('tribunal')).toEqual(['STJ', 'TJDFT']);
   });
 

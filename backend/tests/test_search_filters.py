@@ -196,6 +196,31 @@ def test_one_court_returns_only_its_decisions(client: TestClient) -> None:
 
 
 @pytest.mark.parametrize(
+    ("parameter", "value"),
+    [
+        ("orgao_julgador", "1ª TURMA CÍVEL"),
+        ("relator", "ALFEU MACHADO"),
+        ("classe_cnj", 198),
+    ],
+)
+def test_duplicate_values_do_not_change_results_or_indicator_totals(
+    client: TestClient, parameter: str, value: str | int
+) -> None:
+    for path in (
+        "/decisions",
+        "/indicators/volume-by-court",
+        "/indicators/outcome-share",
+    ):
+        once = client.get(path, params={"q": "dano moral", parameter: value})
+        repeated = client.get(
+            path, params={"q": "dano moral", parameter: [value, value]}
+        )
+        assert once.status_code == repeated.status_code == 200
+        assert once.json()["total"] > 0
+        assert repeated.json() == once.json()
+
+
+@pytest.mark.parametrize(
     ("params", "expected"),
     [
         ({"orgao_julgador": "1ª TURMA CÍVEL"}, {"1000001"}),
