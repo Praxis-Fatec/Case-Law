@@ -4,7 +4,7 @@ The search's decisions counted by court, run against PostgreSQL.
 The promise is agreement: the counts have to add up to the same total the
 search reports for the same parameters. Only the real statement over the real
 tables can show that, since it is the WHERE clause the two share that makes it
-true.
+true
 """
 
 from typing import Any
