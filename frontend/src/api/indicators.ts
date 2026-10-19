@@ -50,9 +50,12 @@ export type VolumeByCourt = {
   courts: CourtVolume[];
 };
 
+export type Granularity = 'month' | 'quarter' | 'year';
+
 // What `/indicators/volume-by-period` answers: the search's own cut, counted by
-// period (month). Months with zero decisions inside the interval appear with
-// count 0 so continuity is preserved.
+// period (month, quarter, or year). The granularity adapts to the cut's amplitude
+// unless explicitly specified. Months/periods with zero decisions inside the
+// interval appear with count 0 so continuity is preserved.
 export type PeriodVolume = {
   period: string;
   decisions: number | null;
@@ -60,7 +63,12 @@ export type PeriodVolume = {
 
 export type VolumeByPeriod = {
   total: number | null;
+  granularity: Granularity | null;
   periods: PeriodVolume[];
+};
+
+export type VolumePeriodParams = VolumeParams & {
+  granularity?: Granularity | string;
 };
 
 // What `/indicators/last-update` answers: when the collection was last
@@ -246,11 +254,16 @@ function readPeriod(value: unknown): PeriodVolume | null {
   return { period, decisions: count(row.decisions) };
 }
 
+const GRANULARITIES: readonly string[] = ['month', 'quarter', 'year'];
+
 export function readVolumeByPeriod(body: unknown): VolumeByPeriod {
   const raw = (body ?? {}) as Record<string, unknown>;
+  const granularity = text(raw.granularity);
 
   return {
     total: count(raw.total),
+    granularity:
+      granularity && GRANULARITIES.includes(granularity) ? (granularity as Granularity) : null,
     periods: Array.isArray(raw.periods)
       ? raw.periods.map(readPeriod).filter((row): row is PeriodVolume => row !== null)
       : [],
@@ -258,12 +271,17 @@ export function readVolumeByPeriod(body: unknown): VolumeByPeriod {
 }
 
 export async function getVolumeByPeriod(
-  params: VolumeParams,
+  params: VolumePeriodParams,
   options: { signal?: AbortSignal } = {},
 ): Promise<VolumeByPeriod> {
   assertApiConfiguration();
 
-  const response = await fetch(cutUrl('/indicators/volume-by-period', params).toString(), {
+  const url = cutUrl('/indicators/volume-by-period', params);
+  if (params.granularity) {
+    url.searchParams.set('granularity', params.granularity);
+  }
+
+  const response = await fetch(url.toString(), {
     method: 'GET',
     headers: {
       Accept: 'application/json',

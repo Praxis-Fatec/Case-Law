@@ -9,7 +9,7 @@ writes, never the courts themselves.
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
@@ -246,40 +246,83 @@ def read_volume_by_court(
     return VolumeByCourt(total=sum(c.decisions for c in courts), courts=courts)
 
 
-# LEFT JOIN against generate_series so months without decisions inside the
+# LEFT JOIN against generate_series so periods without decisions inside the
 # interval are not omitted, which would draw false continuity on the chart.
+# The bucket unit (month, quarter, or year) adapts to the cut's amplitude unless
+# explicitly chosen.
 PERIOD_VOLUME_SQL = f"""
-WITH contagens AS (
+WITH bounds AS (
     SELECT
-        date_trunc('month', d.data_referencia)::date AS periodo,
-        COUNT(*)                                     AS decisoes
+        MIN(d.data_referencia) AS inicio_raw,
+        MAX(d.data_referencia) AS fim_raw
     FROM core.decisao AS d
     WHERE {MATCH}{{filters}}
-    GROUP BY date_trunc('month', d.data_referencia)
 ),
-intervalo AS (
+config AS (
     SELECT
-        MIN(periodo) AS inicio,
-        MAX(periodo) AS fim
-    FROM contagens
+        CASE
+            WHEN %(granularity)s IS NOT NULL THEN %(granularity)s
+            WHEN inicio_raw IS NULL THEN 'month'
+            WHEN fim_raw - inicio_raw <= 1096 THEN 'month'
+            WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter'
+            ELSE 'year'
+        END AS step_unit,
+        CASE
+            WHEN COALESCE(%(granularity)s, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'year' THEN '1 year'::interval
+            WHEN COALESCE(%(granularity)s, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'quarter' THEN '3 months'::interval
+            ELSE '1 month'::interval
+        END AS step_interval,
+        inicio_raw,
+        fim_raw
+    FROM bounds
+),
+contagens AS (
+    SELECT
+        date_trunc(c.step_unit, d.data_referencia)::date AS periodo,
+        COUNT(*) AS decisoes
+    FROM core.decisao AS d
+    CROSS JOIN config AS c
+    WHERE {MATCH}{{filters}}
+    GROUP BY c.step_unit, date_trunc(c.step_unit, d.data_referencia)
 ),
 serie AS (
-    SELECT generate_series(inicio, fim, '1 month'::interval)::date AS periodo
-    FROM intervalo
-    WHERE inicio IS NOT NULL
+    SELECT
+        c.step_unit,
+        generate_series(
+            date_trunc(c.step_unit, c.inicio_raw)::date,
+            date_trunc(c.step_unit, c.fim_raw)::date,
+            c.step_interval
+        )::date AS periodo
+    FROM config AS c
+    WHERE c.inicio_raw IS NOT NULL
 )
 SELECT
+    s.step_unit AS granularity,
     s.periodo,
-    COALESCE(c.decisoes, 0) AS decisoes
+    COALESCE(cnt.decisoes, 0) AS decisoes
 FROM serie AS s
-LEFT JOIN contagens AS c USING (periodo)
+LEFT JOIN contagens AS cnt USING (periodo)
 ORDER BY s.periodo ASC
 """
+
+Granularity = Literal["month", "quarter", "year"]
+
+INVALID_GRANULARITY = "Granularity must be 'month', 'quarter', or 'year'."
+
+GRANULARITY_ALIASES: dict[str, Granularity] = {
+    "month": "month",
+    "quarter": "quarter",
+    "year": "year",
+    "mes": "month",
+    "mês": "month",
+    "trimestre": "quarter",
+    "ano": "year",
+}
 
 
 class PeriodVolume(BaseModel):
     period: date = Field(
-        description="The start of the month, as `YYYY-MM-DD`.",
+        description="The start of the period, as `YYYY-MM-DD`.",
         examples=["2026-03-01"],
     )
     decisions: int = Field(
@@ -297,9 +340,16 @@ class VolumeByPeriod(BaseModel):
         ),
         examples=[984824],
     )
+    granularity: Granularity = Field(
+        description=(
+            "The period bucket used: `month`, `quarter`, or `year`. Chosen "
+            "automatically from the span of the cut when omitted."
+        ),
+        examples=["month"],
+    )
     periods: list[PeriodVolume] = Field(
         description=(
-            "Chronological order, earliest first. Months with zero decisions inside "
+            "Chronological order, earliest first. Periods with zero decisions inside "
             "the interval appear with count 0 so continuity is preserved. Empty "
             "when the search matches nothing."
         )
@@ -329,6 +379,17 @@ def read_volume_by_period(
         list[str] | None,
         Query(description="The same court filter the search takes."),
     ] = None,
+    granularity: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Bucket size: `month`, `quarter`, or `year`. When omitted, "
+                "chosen automatically from the span of the cut: month up to "
+                "3 years, quarter up to 10 years, and year beyond."
+            ),
+            examples=["month", "quarter", "year"],
+        ),
+    ] = None,
     date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
     date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
     published_from: Annotated[
@@ -339,27 +400,49 @@ def read_volume_by_period(
     ] = None,
 ) -> VolumeByPeriod:
     """
-    The same decisions the search would return, counted by month.
+    The same decisions the search would return, counted by period.
 
     It takes the search's parameters and narrows the same way, from the same
     builder, so the chart and the results can never describe different sets. A
     search that matches nothing answers an empty list and a total of zero, not
-    an error. Months with zero decisions inside the interval are kept with count
-    0 so the timeline preserves visual continuity.
+    an error. The bucket size adapts to the cut's amplitude (month for up to 3
+    years, quarter for up to 10, year beyond) unless a specific granularity is
+    requested. Periods with zero decisions inside the interval are kept with
+    count 0 so the timeline preserves visual continuity.
     """
+    normalized_granularity: Granularity | None = None
+    if granularity is not None:
+        cleaned = granularity.strip().lower()
+        if cleaned not in GRANULARITY_ALIASES:
+            raise HTTPException(status_code=400, detail=INVALID_GRANULARITY)
+        normalized_granularity = GRANULARITY_ALIASES[cleaned]
+
     filters, parameters = _narrowing(
         q, tribunal, date_from, date_to, published_from, published_to
     )
+    parameters["granularity"] = normalized_granularity
 
     with connection.cursor() as cursor:
         cursor.execute(PERIOD_VOLUME_SQL.format(filters=filters), parameters)
         rows = cursor.fetchall()
 
+    if not rows:
+        return VolumeByPeriod(
+            total=0,
+            granularity=normalized_granularity or "month",
+            periods=[],
+        )
+
+    resolved_granularity: Granularity = rows[0]["granularity"]
     periods = [
         PeriodVolume(period=row["periodo"], decisions=row["decisoes"])
         for row in rows
     ]
-    return VolumeByPeriod(total=sum(p.decisions for p in periods), periods=periods)
+    return VolumeByPeriod(
+        total=sum(p.decisions for p in periods),
+        granularity=resolved_granularity,
+        periods=periods,
+    )
 
 
 OUTCOME_SQL = f"""
