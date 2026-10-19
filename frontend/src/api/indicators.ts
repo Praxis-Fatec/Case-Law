@@ -50,6 +50,19 @@ export type VolumeByCourt = {
   courts: CourtVolume[];
 };
 
+// What `/indicators/volume-by-period` answers: the search's own cut, counted by
+// period (month). Months with zero decisions inside the interval appear with
+// count 0 so continuity is preserved.
+export type PeriodVolume = {
+  period: string;
+  decisions: number | null;
+};
+
+export type VolumeByPeriod = {
+  total: number | null;
+  periods: PeriodVolume[];
+};
+
 // What `/indicators/last-update` answers: when the collection was last
 // refreshed. It is the base's date, one for every court, not the cut's.
 export type LastUpdate = {
@@ -220,6 +233,49 @@ export async function getVolumeByCourt(
   }
 
   return readVolume(await response.json());
+}
+
+function readPeriod(value: unknown): PeriodVolume | null {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const period = text(row.period);
+
+  if (!period) {
+    return null;
+  }
+
+  return { period, decisions: count(row.decisions) };
+}
+
+export function readVolumeByPeriod(body: unknown): VolumeByPeriod {
+  const raw = (body ?? {}) as Record<string, unknown>;
+
+  return {
+    total: count(raw.total),
+    periods: Array.isArray(raw.periods)
+      ? raw.periods.map(readPeriod).filter((row): row is PeriodVolume => row !== null)
+      : [],
+  };
+}
+
+export async function getVolumeByPeriod(
+  params: VolumeParams,
+  options: { signal?: AbortSignal } = {},
+): Promise<VolumeByPeriod> {
+  assertApiConfiguration();
+
+  const response = await fetch(cutUrl('/indicators/volume-by-period', params).toString(), {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new SearchRequestError(response.status, await readDetail(response));
+  }
+
+  return readVolumeByPeriod(await response.json());
 }
 
 function readOutcomeCount(value: unknown): OutcomeCount | null {
