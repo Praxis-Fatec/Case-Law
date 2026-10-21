@@ -22,6 +22,13 @@ needs_database = pytest.mark.skipif(
 
 @pytest.fixture(scope="session")
 def prepared_database() -> Iterator[str]:
+    if (
+        psycopg.conninfo.conninfo_to_dict(TEST_DATABASE_URL).get("dbname")
+        != "caselaw_test"
+    ):
+        raise RuntimeError(
+            "TEST_DATABASE_URL must point to caselaw_test; fixtures destroy core."
+        )
     with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
         for name in ("schema.sql", "decisions.sql"):
             conn.execute((FIXTURES / name).read_text(encoding="utf-8"))
