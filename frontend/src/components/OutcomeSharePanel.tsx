@@ -56,7 +56,7 @@ function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
     <section className="panorama" aria-labelledby="outcome-title">
       <header className="panorama__header">
         <div>
-          <p className="panorama__eyebrow">Indicador explicável · Sprint 2</p>
+          <p className="panorama__eyebrow">Indicador explicável </p>
           <h2 id="outcome-title" className="panorama__title">
             Como esses recursos terminaram?
           </h2>

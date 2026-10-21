@@ -261,15 +261,15 @@ WITH bounds AS (
 config AS (
     SELECT
         CASE
-            WHEN %(granularity)s IS NOT NULL THEN %(granularity)s
+            WHEN %(granularity)s::text IS NOT NULL THEN %(granularity)s::text
             WHEN inicio_raw IS NULL THEN 'month'
             WHEN fim_raw - inicio_raw <= 1096 THEN 'month'
             WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter'
             ELSE 'year'
         END AS step_unit,
         CASE
-            WHEN COALESCE(%(granularity)s, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'year' THEN '1 year'::interval
-            WHEN COALESCE(%(granularity)s, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'quarter' THEN '3 months'::interval
+            WHEN COALESCE(%(granularity)s::text, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'year' THEN '1 year'::interval
+            WHEN COALESCE(%(granularity)s::text, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'quarter' THEN '3 months'::interval
             ELSE '1 month'::interval
         END AS step_interval,
         inicio_raw,
@@ -435,8 +435,7 @@ def read_volume_by_period(
 
     resolved_granularity: Granularity = rows[0]["granularity"]
     periods = [
-        PeriodVolume(period=row["periodo"], decisions=row["decisoes"])
-        for row in rows
+        PeriodVolume(period=row["periodo"], decisions=row["decisoes"]) for row in rows
     ]
     return VolumeByPeriod(
         total=sum(p.decisions for p in periods),

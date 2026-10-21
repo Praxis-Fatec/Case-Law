@@ -12,10 +12,10 @@ from typing import Any, Self
 
 import psycopg
 import pytest
-from app.main import app
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow
 
+from app.main import app
 from tests.conftest import needs_database
 from tests.test_courts import decide, register
 
@@ -42,7 +42,7 @@ def spread(db_rolled_back: psycopg.Connection[DictRow]) -> psycopg.Connection[Di
     """
     db_rolled_back.execute("DELETE FROM core.decisao")
     register(db_rolled_back, "STJ")
-    register(db_rolled_back, "TJDFT")
+    # TJDFT is already registered by schema.sql.
 
     # STJ has decisions in February (month 2) and April (month 4) - March is empty
     decide(db_rolled_back, "STJ", "STJ0001")
@@ -68,7 +68,9 @@ def spread(db_rolled_back: psycopg.Connection[DictRow]) -> psycopg.Connection[Di
 
 
 @pytest.fixture
-def wide_spread(db_rolled_back: psycopg.Connection[DictRow]) -> psycopg.Connection[DictRow]:
+def wide_spread(
+    db_rolled_back: psycopg.Connection[DictRow],
+) -> psycopg.Connection[DictRow]:
     """
     Decisions spanning multiple years to test automatic granularity resolution:
     - Decisions in 2018 and 2026 (~8 years) -> quarter
@@ -156,7 +158,9 @@ def test_endpoint_returns_empty_series_when_cut_matches_nothing() -> None:
     app.dependency_overrides[get_connection] = lambda: mock_conn
     try:
         client = TestClient(app)
-        response = client.get("/indicators/volume-by-period", params={"q": "zzzznaoexiste"})
+        response = client.get(
+            "/indicators/volume-by-period", params={"q": "zzzznaoexiste"}
+        )
         assert response.status_code == 200
         assert response.json() == {"total": 0, "granularity": "month", "periods": []}
     finally:
@@ -177,7 +181,9 @@ def test_endpoint_returns_periods_with_zeros_and_correct_total() -> None:
     app.dependency_overrides[get_connection] = lambda: mock_conn
     try:
         client = TestClient(app)
-        response = client.get("/indicators/volume-by-period", params={"q": "dano moral"})
+        response = client.get(
+            "/indicators/volume-by-period", params={"q": "dano moral"}
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["total"] == 40
@@ -198,7 +204,9 @@ def test_endpoint_validates_and_normalizes_granularity_parameter() -> None:
 
     from app.db import get_connection
 
-    mock_rows = [{"granularity": "quarter", "periodo": date(2026, 1, 1), "decisoes": 10}]
+    mock_rows = [
+        {"granularity": "quarter", "periodo": date(2026, 1, 1), "decisoes": 10}
+    ]
     mock_conn = _MockConnection(mock_rows)
     app.dependency_overrides[get_connection] = lambda: mock_conn
     try:
@@ -231,7 +239,11 @@ def test_endpoint_refuses_inverted_date_range() -> None:
         client = TestClient(app)
         response = client.get(
             "/indicators/volume-by-period",
-            params={"q": "dano moral", "date_from": "2026-05-01", "date_to": "2026-01-01"},
+            params={
+                "q": "dano moral",
+                "date_from": "2026-05-01",
+                "date_to": "2026-01-01",
+            },
         )
         assert response.status_code == 400
     finally:
@@ -248,8 +260,12 @@ def test_volume_over_time_alias_endpoint() -> None:
     app.dependency_overrides[get_connection] = lambda: mock_conn
     try:
         client = TestClient(app)
-        res_main = client.get("/indicators/volume-by-period", params={"q": "dano moral"})
-        res_alias = client.get("/indicators/volume-over-time", params={"q": "dano moral"})
+        res_main = client.get(
+            "/indicators/volume-by-period", params={"q": "dano moral"}
+        )
+        res_alias = client.get(
+            "/indicators/volume-over-time", params={"q": "dano moral"}
+        )
         assert res_main.status_code == 200
         assert res_alias.status_code == 200
         assert res_main.json() == res_alias.json()

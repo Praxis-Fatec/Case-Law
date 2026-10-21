@@ -14,6 +14,7 @@ import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
+import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
@@ -23,6 +24,7 @@ import {
   getLastUpdate,
   getOutcomeShare,
   getVolumeByCourt,
+  getVolumeByPeriod,
   type VolumeParams,
 } from '../api/indicators';
 import {
@@ -134,7 +136,12 @@ const volumeKey = (params: VolumeParams) =>
   JSON.stringify({ ...params, tribunal: params.tribunal && [...params.tribunal].sort() });
 
 // A counted cut, kept under the key of the cut it counts.
-type PanoramaCache = { key: string; volume: VolumeState; outcome: OutcomeState } | null;
+type PanoramaCache = {
+  key: string;
+  volume: VolumeState;
+  outcome: OutcomeState;
+  timeline: TimelineState;
+} | null;
 
 function volumeFailure(error: unknown): string {
   if (error instanceof SearchRequestError) {
@@ -465,7 +472,7 @@ function HomePage() {
   const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
   const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
   const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
-  const panoramaKey = panorama?.key ?? null;
+  const panoramaKey = panorama?.timeline ? panorama.key : null;
 
   // Asked when the panorama is up and what it holds is not this cut: a new
   // expression or new filters, applied while it was up or before it opened.
@@ -481,8 +488,19 @@ function HomePage() {
       setPanorama((current) => (current?.key === key ? { ...current, volume } : current));
     const settleOutcome = (outcome: OutcomeState) =>
       setPanorama((current) => (current?.key === key ? { ...current, outcome } : current));
+    const settleTimeline = (timeline: TimelineState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
 
-    setPanorama({ key, volume: { status: 'loading' }, outcome: { status: 'loading' } });
+    setPanorama({
+      key,
+      volume: { status: 'loading' },
+      outcome: { status: 'loading' },
+      timeline: { status: 'loading' },
+    });
+    getVolumeByPeriod(volumeFor(applied)).then(
+      (volume) => settleTimeline({ status: 'loaded', volume }),
+      () => settleTimeline({ status: 'failed' }),
+    );
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
       (error: unknown) => settleVolume({ status: 'failed', message: volumeFailure(error) }),
@@ -529,6 +547,12 @@ function HomePage() {
         ? panorama.outcome
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+  const timelineState: TimelineState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.timeline
+        ? panorama.timeline
+        : { status: 'loading' };
 
   const retryPanorama = () => {
     setPanorama(null);
@@ -773,6 +797,7 @@ function HomePage() {
             lastUpdate={lastUpdateState}
             onRetry={retryPanorama}
           />
+          <TimelineVolumePanel timeline={timelineState} onRetry={retryPanorama} />
           <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
         </div>
       </div>

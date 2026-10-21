@@ -94,7 +94,7 @@ function CourtVolumePanel({ volume, lastUpdate, onRetry }: CourtVolumePanelProps
     <section className="panorama" aria-labelledby="panorama-title">
       <header className="panorama__header">
         <div>
-          <p className="panorama__eyebrow">Indicador explicável · Sprint 1</p>
+          <p className="panorama__eyebrow">Indicador explicável</p>
           <h2 id="panorama-title" className="panorama__title">
             Onde o tema aparece com mais frequência?
           </h2>
