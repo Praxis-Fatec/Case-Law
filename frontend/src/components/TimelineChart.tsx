@@ -204,6 +204,7 @@ export function TimelineChart({
               strokeWidth={2.5}
               fill={showValues ? `url(#${gradientId})` : '#f8ebe6'}
               isAnimationActive={isAnimationActive}
+              dot={periods.length === 1 ? { r: 5, fill: 'var(--search-primary)' } : false}
               activeDot={{
                 r: 5,
                 fill: '#4A151E',

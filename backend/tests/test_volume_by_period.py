@@ -412,3 +412,82 @@ def test_volume_over_time_alias_answers_identically(
 
     assert res_alias.status_code == 200
     assert res_alias.json() == res_period.json()
+
+
+@needs_database
+@pytest.mark.parametrize("order", ["relevance", "date_desc", "date_asc"])
+def test_search_order_does_not_reorder_the_series(
+    client: TestClient, spread: psycopg.Connection[DictRow], order: str
+) -> None:
+    assert volume_by_period(client, order=order) == volume_by_period(client)
+
+
+@needs_database
+@pytest.mark.parametrize("granularity", ["month", "quarter", "year"])
+def test_a_single_period_is_a_point_not_an_error(
+    client: TestClient, spread: psycopg.Connection[DictRow], granularity: str
+) -> None:
+    params = {
+        "date_from": "2026-02-01",
+        "date_to": "2026-02-28",
+        "granularity": granularity,
+    }
+    body = volume_by_period(client, **params)
+    assert body["granularity"] == granularity
+    assert len(body["periods"]) == 1
+    assert (
+        body["periods"][0]["decisions"]
+        == body["total"]
+        == searched(client, **params)
+        == 2
+    )
+
+
+@needs_database
+@pytest.mark.parametrize(
+    "start,expected",
+    [
+        ("2026-05-01", "month"),
+        ("2024-05-01", "month"),
+        ("2018-05-01", "quarter"),
+        ("1989-01-01", "year"),
+    ],
+)
+def test_automatic_series_remains_legible_and_preserves_the_cut(
+    client: TestClient, spread: psycopg.Connection[DictRow], start: str, expected: str
+) -> None:
+    # Add real boundary rows: the endpoint selects granularity from matched dates.
+    for identifier, judged in [
+        ("STJ1989", "1989-01-15"),
+        ("STJ2018", "2018-05-01"),
+        ("STJ2024", "2024-05-01"),
+    ]:
+        decide(spread, "STJ", identifier)
+        spread.execute(
+            "UPDATE core.decisao SET data_referencia = %s WHERE identificador_fonte = %s",
+            (judged, identifier),
+        )
+    body = volume_by_period(client, date_from=start)
+    assert body["granularity"] == expected
+    assert 1 <= len(body["periods"]) <= 40
+    assert (
+        sum(p["decisions"] for p in body["periods"])
+        == body["total"]
+        == searched(client, date_from=start)
+    )
+
+
+@needs_database
+def test_historical_cut_does_not_fabricate_tjdft_coverage(
+    client: TestClient, spread: psycopg.Connection[DictRow]
+) -> None:
+    decide(spread, "STJ", "STJ1989")
+    spread.execute(
+        "UPDATE core.decisao SET data_referencia = '1989-06-01' WHERE identificador_fonte = 'STJ1989'"
+    )
+    params = {"date_from": "1989-01-01", "date_to": "1989-12-31"}
+    stj = volume_by_period(client, tribunal=["STJ"], **params)
+    tjdft = volume_by_period(client, tribunal=["TJDFT"], **params)
+    assert stj["total"] == searched(client, tribunal=["STJ"], **params) == 1
+    assert stj["periods"] == [{"period": "1989-06-01", "decisions": 1}]
+    assert tjdft == {"total": 0, "granularity": "month", "periods": []}

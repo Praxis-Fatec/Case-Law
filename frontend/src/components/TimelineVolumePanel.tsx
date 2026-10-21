@@ -68,14 +68,21 @@ export default function TimelineVolumePanel({
             </p>
           )}
           {volume && !empty && (
-            <Suspense fallback={<p role="status">Carregando gráfico temporal...</p>}>
-              <TimelineChart
-                periods={volume.periods}
-                granularity={volume.granularity}
-                showValues={false}
-                height={330}
-              />
-            </Suspense>
+            <>
+              {volume.periods.length === 1 && (
+                <p className="sr-only" role="status">
+                  O recorte contém um único período.
+                </p>
+              )}
+              <Suspense fallback={<p role="status">Carregando gráfico temporal...</p>}>
+                <TimelineChart
+                  periods={volume.periods}
+                  granularity={volume.granularity}
+                  showValues={false}
+                  height={330}
+                />
+              </Suspense>
+            </>
           )}
         </div>
       </article>
