@@ -173,3 +173,35 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) > 100000
    AND COUNT(classe_cnj) < COUNT(*) * 0.95;
+
+AUDIT (
+  name precedente_de_corte_conhecida,
+  dialect postgres
+);
+/* Súmula 7 do STJ e Súmula 7 do STF são precedentes diferentes. Uma linha sem
+   corte declarada colidiria com a outra na chave. */
+SELECT *
+FROM @this_model
+WHERE corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name precedente_com_enunciado,
+  dialect postgres
+);
+/* O enunciado é o produto: sem ele, sobra a contagem de citações, que é outra
+   história. Um recorte que pegou pontuação em vez de texto cai aqui. */
+SELECT *
+FROM @this_model
+WHERE LENGTH(BTRIM(COALESCE(enunciado, ''))) < 40;
+
+AUDIT (
+  name precedente_com_volume,
+  dialect postgres
+);
+/* Se o tribunal mudar a forma de transcrever, o recorte para de casar e a
+   tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
+   São 340 hoje, cobrindo 97,5% das citações; o piso deixa margem sem esconder
+   regressão. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) < 300;
