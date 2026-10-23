@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
 import type { VolumeByPeriod } from '../api/indicators';
+import type { Granularity } from '../search/indicatorSelection';
 
 const TimelineChart = lazy(() => import('./TimelineChart'));
 
@@ -12,9 +13,13 @@ export type TimelineState =
 export default function TimelineVolumePanel({
   timeline,
   onRetry,
+  onSelectPeriod,
+  selectionDisabled,
 }: {
   timeline: TimelineState;
   onRetry: () => void;
+  onSelectPeriod?: (period: string, granularity: Granularity, count: number) => void;
+  selectionDisabled?: boolean;
 }) {
   const volume = timeline.status === 'loaded' ? timeline.volume : null;
   const loading = timeline.status === 'loading';
@@ -82,6 +87,20 @@ export default function TimelineVolumePanel({
                   granularity={volume.granularity}
                   showValues={false}
                   height={330}
+                  selectionDisabled={selectionDisabled}
+                  onSelectPeriod={
+                    onSelectPeriod && volume.granularity
+                      ? (period) => {
+                          const point = volume.periods.find((item) => item.period === period);
+                          if (
+                            point?.decisions !== null &&
+                            point?.decisions !== undefined &&
+                            volume.granularity
+                          )
+                            onSelectPeriod(period, volume.granularity, point.decisions);
+                        }
+                      : undefined
+                  }
                 />
               </Suspense>
             </>

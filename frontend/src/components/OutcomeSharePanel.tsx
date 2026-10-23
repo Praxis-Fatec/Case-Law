@@ -44,9 +44,16 @@ function Skeleton() {
 type OutcomeSharePanelProps = {
   outcome: OutcomeState;
   onRetry: () => void;
+  onSelectOutcome?: (outcome: string, count: number) => void;
+  selectionDisabled?: boolean;
 };
 
-function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
+function OutcomeSharePanel({
+  outcome,
+  onRetry,
+  onSelectOutcome,
+  selectionDisabled,
+}: OutcomeSharePanelProps) {
   const loading = outcome.status === 'loading';
   const note = message(outcome);
   const share = outcome.status === 'loaded' ? outcome.outcome : null;
@@ -110,19 +117,31 @@ function OutcomeSharePanel({ outcome, onRetry }: OutcomeSharePanelProps) {
               <ol className="outcome-list">
                 {rows.map((row) => (
                   <li key={row.outcome} className="outcome-list__item">
-                    <span className="outcome-list__label">
-                      <span className="outcome-list__swatch" data-outcome={row.outcome} />
-                      {outcomeLabel(row.outcome)}
-                    </span>
-                    <span className="outcome-list__share">
-                      {row.share === null ? '—' : percent(row.share)}
-                    </span>
-                    <span className="outcome-list__count">
-                      {formatCount(row.decisions ?? 0)}
-                      <span className="sr-only">
-                        {row.decisions === 1 ? ' decisão' : ' decisões'}
+                    <button
+                      type="button"
+                      className="indicator-target indicator-target--outcome"
+                      disabled={
+                        loading || selectionDisabled || row.decisions === null || !onSelectOutcome
+                      }
+                      onClick={() =>
+                        row.decisions !== null && onSelectOutcome?.(row.outcome, row.decisions)
+                      }
+                      aria-label={`Consultar documentos com resultado ${outcomeLabel(row.outcome)}: ${formatCount(row.decisions)} decisões`}
+                    >
+                      <span className="outcome-list__label">
+                        <span className="outcome-list__swatch" data-outcome={row.outcome} />
+                        {outcomeLabel(row.outcome)}
                       </span>
-                    </span>
+                      <span className="outcome-list__share">
+                        {row.share === null ? '—' : percent(row.share)}
+                      </span>
+                      <span className="outcome-list__count">
+                        {formatCount(row.decisions ?? 0)}
+                        <span className="sr-only">
+                          {row.decisions === 1 ? ' decisão' : ' decisões'}
+                        </span>
+                      </span>
+                    </button>
                   </li>
                 ))}
               </ol>

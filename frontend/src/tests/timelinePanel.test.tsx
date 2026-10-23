@@ -106,7 +106,8 @@ it('loads the applied search in Panorama, including court and dates, only once p
   await user.click(screen.getByRole('tab', { name: 'Panorama' }));
   await card().findByRole('table');
   expect(within(card().getByRole('table')).getByText('12')).toBeInTheDocument();
-  expect(card().getByRole('table').parentElement).toHaveClass('sr-only');
+  expect(card().getByRole('table').parentElement).toHaveClass('timeline-values');
+  expect(card().getByText('Consultar documentos por período')).toBeInTheDocument();
   expect(card().queryByText('Consultar valores por período')).toBeNull();
   expect(card().queryByText(/Agrupamento pela data/)).toBeNull();
   expect(requests()[0].searchParams.getAll('tribunal')).toEqual(['STJ']);

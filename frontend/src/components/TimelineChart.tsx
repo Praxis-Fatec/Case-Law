@@ -12,41 +12,7 @@ import {
 import type { PeriodVolume } from '../api/indicators';
 import { formatCount } from './coverageFormat';
 import { axisTicks } from './volumeFormat';
-// Format date label according to granularity
-function formatPeriodLabel(
-  periodStr: string,
-  granularity: 'month' | 'quarter' | 'year' = 'month',
-): string {
-  if (!periodStr) return '';
-  const [yearStr, monthStr] = periodStr.split('-');
-  const year = parseInt(yearStr, 10);
-  const month = parseInt(monthStr, 10);
-
-  if (granularity === 'year') {
-    return `${year}`;
-  }
-  if (granularity === 'quarter') {
-    const q = Math.ceil(month / 3);
-    return `${q}T/${year}`;
-  }
-  // Month: short name in Portuguese
-  const months = [
-    'Jan',
-    'Fev',
-    'Mar',
-    'Abr',
-    'Mai',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Set',
-    'Out',
-    'Nov',
-    'Dez',
-  ];
-  const monthName = months[month - 1] ?? monthStr;
-  return `${monthName}/${String(year).slice(-2)}`;
-}
+import { formatPeriodLabel } from '../search/indicatorSelection';
 
 export type TimelineChartProps = {
   periods: PeriodVolume[];
@@ -56,6 +22,7 @@ export type TimelineChartProps = {
   isAnimationActive?: boolean;
   showValues?: boolean;
   height?: number;
+  selectionDisabled?: boolean;
 };
 
 interface CustomTooltipProps {
@@ -91,10 +58,11 @@ export function TimelineChart({
   isAnimationActive = false,
   showValues = true,
   height = 260,
+  selectionDisabled = false,
 }: TimelineChartProps) {
   const effectiveGranularity = granularity ?? 'month';
   const gradientId = useId().replace(/:/g, '');
-  const ValuesContainer = showValues ? 'details' : 'div';
+  const ValuesContainer = showValues || onSelectPeriod ? 'details' : 'div';
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -140,12 +108,6 @@ export function TimelineChart({
             accessibilityLayer={false}
             data={chartData}
             margin={{ top: 20, right: 24, left: 0, bottom: 20 }}
-            onClick={(state) => {
-              if (state.activeTooltipIndex !== undefined && state.activeTooltipIndex !== null) {
-                const item = chartData[Number(state.activeTooltipIndex)];
-                if (item) onSelectPeriod?.(item.period);
-              }
-            }}
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -217,10 +179,14 @@ export function TimelineChart({
       </div>
 
       <ValuesContainer
-        className={showValues ? 'timeline-values' : 'sr-only'}
+        className={showValues || onSelectPeriod ? 'timeline-values' : 'sr-only'}
         {...(showValues ? { open: true } : {})}
       >
-        {showValues && <summary>Consultar valores por período</summary>}
+        {(showValues || onSelectPeriod) && (
+          <summary>
+            {onSelectPeriod ? 'Consultar documentos por período' : 'Consultar valores por período'}
+          </summary>
+        )}
         <table>
           <caption>Evolução do volume de decisões no tempo</caption>
           <thead>
@@ -236,6 +202,9 @@ export function TimelineChart({
                   {onSelectPeriod ? (
                     <button
                       type="button"
+                      className="indicator-target indicator-target--period"
+                      disabled={selectionDisabled || d.count === null}
+                      aria-label={`Consultar documentos de ${d.label}: ${formatCount(d.count) ?? 'quantidade não informada'} decisões`}
                       aria-pressed={selectedPeriod === d.period}
                       onClick={() => onSelectPeriod(d.period)}
                     >

@@ -79,9 +79,17 @@ type CourtVolumePanelProps = {
   volume: VolumeState;
   lastUpdate: LastUpdateState;
   onRetry: () => void;
+  onSelectCourt?: (court: string, count: number) => void;
+  selectionDisabled?: boolean;
 };
 
-function CourtVolumePanel({ volume, lastUpdate, onRetry }: CourtVolumePanelProps) {
+function CourtVolumePanel({
+  volume,
+  lastUpdate,
+  onRetry,
+  onSelectCourt,
+  selectionDisabled,
+}: CourtVolumePanelProps) {
   const loading = volume.status === 'loading';
   const message = messages(volume);
   // Ranked once, so the bars and the list can never disagree on the order.
@@ -181,23 +189,36 @@ function CourtVolumePanel({ volume, lastUpdate, onRetry }: CourtVolumePanelProps
             <ol className="composition__list">
               {courts.map((court, index) => (
                 <li key={court.abbreviation} className="composition__item">
-                  <span className="composition__rank" aria-hidden="true">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-                  <span className="composition__court">
-                    <strong className="composition__abbreviation">{court.abbreviation}</strong>
-                    {court.name && <span className="composition__name">{court.name}</span>}
-                  </span>
-                  {court.decisions === null ? (
-                    <span className="composition__count is-missing">{NOT_INFORMED}</span>
-                  ) : (
-                    <span className="composition__count">
-                      {formatCount(court.decisions)}
-                      <span className="sr-only">
-                        {court.decisions === 1 ? ' decisão' : ' decisões'}
-                      </span>
+                  <button
+                    type="button"
+                    className="indicator-target indicator-target--court"
+                    disabled={
+                      loading || selectionDisabled || court.decisions === null || !onSelectCourt
+                    }
+                    onClick={() =>
+                      court.decisions !== null &&
+                      onSelectCourt?.(court.abbreviation, court.decisions)
+                    }
+                    aria-label={`Consultar documentos de ${court.abbreviation}: ${formatCount(court.decisions) ?? 'quantidade não informada'} decisões`}
+                  >
+                    <span className="composition__rank" aria-hidden="true">
+                      {String(index + 1).padStart(2, '0')}
                     </span>
-                  )}
+                    <span className="composition__court">
+                      <strong className="composition__abbreviation">{court.abbreviation}</strong>
+                      {court.name && <span className="composition__name">{court.name}</span>}
+                    </span>
+                    {court.decisions === null ? (
+                      <span className="composition__count is-missing">{NOT_INFORMED}</span>
+                    ) : (
+                      <span className="composition__count">
+                        {formatCount(court.decisions)}
+                        <span className="sr-only">
+                          {court.decisions === 1 ? ' decisão' : ' decisões'}
+                        </span>
+                      </span>
+                    )}
+                  </button>
                 </li>
               ))}
             </ol>

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
@@ -15,6 +15,12 @@ import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
+import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
+import {
+  selectIndicator,
+  type IndicatorPoint,
+  type IndicatorSelection,
+} from '../search/indicatorSelection';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
@@ -124,6 +130,9 @@ const volumeFor = (search: AppliedSearch): VolumeParams => {
   return {
     q: params.q,
     tribunal: params.tribunal,
+    orgao_julgador: params.orgao_julgador,
+    relator: params.relator,
+    classe_cnj: params.classe_cnj,
     date_from: params.date_from,
     date_to: params.date_to,
     published_from: params.published_from,
@@ -184,6 +193,15 @@ function HomePage() {
   // while a page loads or after one failed: no range is shown that was not read.
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
+  const [indicatorSelection, setIndicatorSelection] = useState<IndicatorSelection | null>(null);
+  const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | null>(null);
+  const openIndicator = (point: IndicatorPoint) => {
+    if (!applied || indicatorSelection || isLoading) return;
+    setIndicatorTrigger(
+      document.activeElement instanceof HTMLElement ? document.activeElement : null,
+    );
+    setIndicatorSelection(selectIndicator(requestFor(applied), point));
+  };
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
   const { startSearch, isLatestSearch } = useSearchSession();
@@ -854,11 +872,32 @@ function HomePage() {
             volume={volumeState}
             lastUpdate={lastUpdateState}
             onRetry={retryPanorama}
+            selectionDisabled={isLoading || indicatorSelection !== null}
+            onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
           />
-          <TimelineVolumePanel timeline={timelineState} onRetry={retryPanorama} />
-          <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
+          <TimelineVolumePanel
+            timeline={timelineState}
+            onRetry={retryPanorama}
+            selectionDisabled={isLoading || indicatorSelection !== null}
+            onSelectPeriod={(period, granularity, count) =>
+              openIndicator({ kind: 'period', period, granularity, count })
+            }
+          />
+          <OutcomeSharePanel
+            outcome={outcomeState}
+            onRetry={retryPanorama}
+            selectionDisabled={isLoading || indicatorSelection !== null}
+            onSelectOutcome={(outcome, count) => openIndicator({ kind: 'outcome', outcome, count })}
+          />
         </div>
       </div>
+      {indicatorSelection && (
+        <IndicatorDocumentsDrawer
+          selection={indicatorSelection}
+          returnFocus={indicatorTrigger}
+          onClose={() => setIndicatorSelection(null)}
+        />
+      )}
     </main>
   );
 }
