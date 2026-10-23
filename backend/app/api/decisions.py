@@ -94,6 +94,7 @@ def _filters_sql(
     judging_bodies: list[str] | None = None,
     reporting_judges: list[str] | None = None,
     procedural_classes: list[int] | None = None,
+    outcomes: list[str] | None = None,
 ) -> str:
     """
     The optional narrowing, appended to the text match. The count and the page
@@ -113,6 +114,8 @@ def _filters_sql(
         clauses.append("relator = ANY(%(relator)s)")
     if procedural_classes:
         clauses.append("classe_cnj = ANY(%(classe_cnj)s)")
+    if outcomes:
+        clauses.append("resultado = ANY(%(resultado)s)")
     if date_from is not None:
         clauses.append("data_referencia >= %(date_from)s")
     if date_to is not None:
@@ -146,6 +149,7 @@ def _narrowing(
     orgao_julgador: list[str] | None = None,
     relator: list[str] | None = None,
     classe_cnj: list[int] | None = None,
+    resultado: list[str] | None = None,
 ) -> Narrowing:
     """
     Read the narrowing once, so nothing can describe a different set.
@@ -170,6 +174,9 @@ def _narrowing(
     orgaos = _nonblank_unique_text(orgao_julgador)
     relatores = _nonblank_unique_text(relator)
     classes = list(dict.fromkeys(classe_cnj or []))
+    outcomes = list(
+        dict.fromkeys(value.strip() for value in resultado or [] if value.strip())
+    )
 
     parameters: dict[str, Any] = {"term": q}
     if tribunais:
@@ -180,6 +187,8 @@ def _narrowing(
         parameters["relator"] = relatores
     if classes:
         parameters["classe_cnj"] = classes
+    if outcomes:
+        parameters["resultado"] = outcomes
     if date_from is not None:
         parameters["date_from"] = date_from
     if date_to is not None:
@@ -199,6 +208,7 @@ def _narrowing(
             orgaos,
             relatores,
             classes,
+            outcomes,
         ),
         parameters,
     )
@@ -709,6 +719,19 @@ def search_decisions(
             examples=[[198], [198, 213]],
         ),
     ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
+        ),
+    ] = None,
     date_from: Annotated[
         date | None,
         Query(
@@ -861,6 +884,7 @@ def search_decisions(
         orgao_julgador,
         relator,
         classe_cnj,
+        resultado,
     )
     parameters: dict[str, Any] = {
         **narrowed,
