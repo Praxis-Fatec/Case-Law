@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
@@ -15,6 +15,13 @@ import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
+import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
+import PanoramaLayout from '../components/PanoramaLayout';
+import {
+  selectIndicator,
+  type IndicatorPoint,
+  type IndicatorSelection,
+} from '../search/indicatorSelection';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
@@ -124,6 +131,9 @@ const volumeFor = (search: AppliedSearch): VolumeParams => {
   return {
     q: params.q,
     tribunal: params.tribunal,
+    orgao_julgador: params.orgao_julgador,
+    relator: params.relator,
+    classe_cnj: params.classe_cnj,
     date_from: params.date_from,
     date_to: params.date_to,
     published_from: params.published_from,
@@ -184,11 +194,38 @@ function HomePage() {
   // while a page loads or after one failed: no range is shown that was not read.
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
+  const [indicatorSelection, setIndicatorSelection] = useSessionState<IndicatorSelection | null>(
+    'indicatorSelection',
+    null,
+  );
+  const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
+  const openIndicator = (point: IndicatorPoint) => {
+    if (!applied || indicatorOpen || isLoading) return;
+    resetBuffer();
+    setIndicatorTrigger(
+      document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
+        ? document.activeElement
+        : null,
+    );
+    setIndicatorSelection(
+      selectIndicator(requestFor(applied), point, {
+        total: totalResults ?? 0,
+        filterCount: countFilters(applied.filters),
+      }),
+    );
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { state: { ...location.state, indicatorDocuments: true } },
+    );
+  };
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
   const { startSearch, isLatestSearch } = useSearchSession();
   const navigate = useNavigate();
   const location = useLocation();
+  const indicatorOpen =
+    (location.state as { indicatorDocuments?: boolean } | null)?.indicatorDocuments === true;
+  const closeIndicator = () => navigate(-1);
 
   // A decision the reader chose has its own address, so it can be copied,
   // opened in another tab or reloaded. Without one, the list's address shows
@@ -256,7 +293,9 @@ function HomePage() {
     judged: submitErrors.judged ?? liveErrors.judged,
     published: submitErrors.published ?? liveErrors.published,
   };
-  const appliedCount = appliedFilters ? countFilters(appliedFilters) : 0;
+  const appliedCount =
+    (appliedFilters ? countFilters(appliedFilters) : 0) +
+    (indicatorOpen && indicatorSelection?.contextActive ? 1 : 0);
   const hasPendingFilters = appliedFilters !== null && !sameFilters(filterDraft, appliedFilters);
 
   const updateFilters = (next: SearchFilterValues) => {
@@ -850,15 +889,54 @@ function HomePage() {
           hidden={view !== 'panorama'}
           tabIndex={0}
         >
-          <CourtVolumePanel
-            volume={volumeState}
-            lastUpdate={lastUpdateState}
-            onRetry={retryPanorama}
+          <PanoramaLayout
+            courts={
+              <CourtVolumePanel
+                compact
+                volume={volumeState}
+                lastUpdate={lastUpdateState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
+              />
+            }
+            temporal={
+              <TimelineVolumePanel
+                timeline={timelineState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectPeriod={(period, granularity, count) =>
+                  openIndicator({ kind: 'period', period, granularity, count })
+                }
+              />
+            }
+            outcomes={
+              <OutcomeSharePanel
+                compact
+                outcome={outcomeState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectOutcome={(outcome, count) =>
+                  openIndicator({ kind: 'outcome', outcome, count })
+                }
+              />
+            }
           />
-          <TimelineVolumePanel timeline={timelineState} onRetry={retryPanorama} />
-          <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
         </div>
       </div>
+      {indicatorOpen && indicatorSelection && (
+        <IndicatorDocumentsDrawer
+          selection={indicatorSelection}
+          returnFocus={indicatorTrigger}
+          onClose={closeIndicator}
+          onRemoveSelection={() => {
+            resetBuffer();
+            setIndicatorSelection((current) =>
+              current ? { ...current, contextActive: false } : null,
+            );
+          }}
+        />
+      )}
     </main>
   );
 }
