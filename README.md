@@ -5,7 +5,6 @@
 <p align="center">
   <a href="#challenge">Challenge</a> •
   <a href="#solution">Solution</a> •
-  <a href="#architecture">Architecture</a> •
   <a href="#backlog">Product Backlog</a> •
   <a href="#sprints">Sprint Schedule</a> •
   <a href="#sprintdor">DoR and DoD</a> •
@@ -62,18 +61,6 @@ The reach today:
 | **STJ** — Superior Tribunal de Justiça | 876,996 | 19/02/1989 – 26/08/2026 |
 | **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 107,828 | 17/09/2025 – 17/09/2026 |
 | **Total** | **984,824** | **19/02/1989 – 17/09/2026** |
-
----
-
-## Architecture <a id="architecture"></a>
-
-How the data gets from a court portal to the screen, and what it looks like once
-it arrives.
-
-| Document | What it answers |
-|---|---|
-| [ETL](documentation/architecture/etl.md) | The layers, the three sources, which columns are derived rather than collected, the audits that guard them, and how publication swaps a dataset without a half-loaded state |
-| [Data warehouse model](documentation/architecture/case_law.dbml) | The star schema as a `dbdiagram.io` file: the fact table, its dimensions and the keys between them |
 
 ---
 
