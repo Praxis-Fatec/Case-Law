@@ -50,22 +50,50 @@ transcricao AS (
   FROM citado
   WHERE LENGTH(BTRIM(achado[3])) BETWEEN 40 AND 400
   GROUP BY 1, 2, 3
+),
+
+sumula AS (
+  SELECT DISTINCT ON (corte, numero)
+    corte              AS corte,
+    'sumula'           AS tipo,
+    numero             AS numero,
+    enunciado          AS enunciado,
+    CAST(NULL AS TEXT) AS situacao,
+    CAST(NULL AS DATE) AS data,
+    'reconstruido'     AS origem,
+    vezes              AS transcricoes
+  FROM transcricao
+  WHERE vezes >= 3
+  ORDER BY corte, numero, vezes DESC
+),
+
+/* O catálogo repete a mesma linha quando o tema tem vários processos ligados:
+   mesmo sequencial, mesma tese. Tema sem tese firmada ainda está em
+   julgamento e não é precedente — é pergunta. */
+tema AS (
+  SELECT DISTINCT ON (numero)
+    'STJ'                                       AS corte,
+    'tema'                                      AS tipo,
+    "numeroPrecedente"::BIGINT                  AS numero,
+    BTRIM("teseFirmada")                        AS enunciado,
+    NULLIF(BTRIM(situacao), '')                 AS situacao,
+    TO_DATE(NULLIF("dataJulgamento", ''), 'YYYY-MM-DD') AS data,
+    'catalogo'                                  AS origem,
+    CAST(NULL AS BIGINT)                        AS transcricoes
+  FROM raw.precedente_stj
+  WHERE "tipoPrecedente" = 'Tema'
+    AND COALESCE(BTRIM("teseFirmada"), '') <> ''
+    AND "numeroPrecedente" ~ '^[0-9]+$'
+  ORDER BY numero, "dataJulgamento" DESC NULLS LAST
 )
 
-SELECT DISTINCT ON (corte, numero)
-  corte                      AS corte,
-  'sumula'                   AS tipo,
-  numero                     AS numero,
-  enunciado                  AS enunciado,
-  CAST(NULL AS TEXT)         AS situacao,
-  CAST(NULL AS DATE)         AS data,
-  CAST(NULL AS TEXT)         AS url_fonte,
-  'reconstruido'             AS origem,
-  vezes                      AS transcricoes,
-  NOW()                      AS carregado_em
-FROM transcricao
-WHERE vezes >= 3
-ORDER BY corte, numero, vezes DESC
+SELECT corte, tipo, numero, enunciado, situacao, data,
+       CAST(NULL AS TEXT) AS url_fonte, origem, transcricoes, NOW() AS carregado_em
+FROM sumula
+UNION ALL
+SELECT corte, tipo, numero, enunciado, situacao, data,
+       CAST(NULL AS TEXT) AS url_fonte, origem, transcricoes, NOW() AS carregado_em
+FROM tema
 
 ;
 

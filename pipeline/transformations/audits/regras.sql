@@ -200,8 +200,11 @@ AUDIT (
 );
 /* Se o tribunal mudar a forma de transcrever, o recorte para de casar e a
    tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
-   São 340 hoje, cobrindo 97,5% das citações; o piso deixa margem sem esconder
-   regressão. */
+   As duas origens degradam por motivos diferentes — o tribunal muda a forma de
+   transcrever, ou o portal muda o CSV —, então cada uma tem o próprio piso.
+   Hoje: 340 súmulas reconstruídas e 1.142 temas do catálogo. */
 SELECT 1 AS falha
 FROM @this_model
-HAVING COUNT(*) < 300;
+GROUP BY origem
+HAVING (origem = 'reconstruido' AND COUNT(*) < 300)
+    OR (origem = 'catalogo' AND COUNT(*) < 1000);
