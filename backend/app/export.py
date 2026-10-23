@@ -18,6 +18,7 @@ from app.api.decisions import (
     _narrowing,
 )
 from app.config import settings
+from app.export_indicators import ExportIndicators, collect_export_indicators
 
 
 class ExportRefused(ValueError):
@@ -42,6 +43,7 @@ class ExportDataset(NamedTuple):
     decisions: list[DictRow]
     query: str
     filters: dict[str, Any]
+    indicators: ExportIndicators
 
 
 def collect_export(
@@ -115,10 +117,14 @@ def collect_export(
             {ordering}""",
             {**parameters, "snippet_options": SNIPPET_OPTIONS},
         ).fetchall()
+        indicators = collect_export_indicators(
+            connection, q, parameters, rows, filters_sql=filters
+        )
     return ExportDataset(
         total=total,
         order=order,
         decisions=rows,
         query=q,
         filters={key: value for key, value in parameters.items() if key != "term"},
+        indicators=indicators,
     )

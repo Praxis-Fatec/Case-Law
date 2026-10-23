@@ -1,5 +1,6 @@
 """The PDF must identify the exact cut and preserve its references and order."""
 
+import re
 from datetime import UTC, date, datetime
 from html.parser import HTMLParser
 from io import BytesIO
@@ -9,6 +10,14 @@ from typing import Any
 import pytest
 from pypdf import PdfReader
 
+from app.api.indicators import (
+    CourtVolume,
+    OutcomeCount,
+    OutcomeShare,
+    PeriodVolume,
+    VolumeByCourt,
+    VolumeByPeriod,
+)
 from app.export import ExportDataset
 from app.export_document import (
     DELIBERATION_LABELS,
@@ -19,6 +28,7 @@ from app.export_document import (
     render_export_html,
     render_export_pdf,
 )
+from app.export_indicators import ExportCourtCoverage, ExportIndicators
 
 GENERATED = datetime(2026, 10, 23, 15, 30, 45, tzinfo=UTC)
 
@@ -60,6 +70,55 @@ def dataset(count: int = 1) -> ExportDataset:
             "published_from": date(2024, 2, 1),
             "published_to": date(2024, 3, 31),
         },
+        indicators=ExportIndicators(
+            courts=VolumeByCourt(
+                total=count,
+                courts=[
+                    CourtVolume(
+                        abbreviation="STJ",
+                        name="Superior Tribunal de Justiça",
+                        decisions=count,
+                    )
+                ]
+                if count
+                else [],
+            ),
+            timeline=VolumeByPeriod(
+                total=count,
+                granularity="month",
+                periods=[
+                    PeriodVolume(period=date(2024, 2, 1), decisions=count),
+                ]
+                if count
+                else [],
+            ),
+            outcomes=OutcomeShare(
+                total=count,
+                classified=count,
+                unclassified=0,
+                outcomes=[
+                    OutcomeCount(
+                        outcome="parcialmente_provido",
+                        decisions=count,
+                        share=100 if count else 0,
+                    ),
+                    OutcomeCount(outcome="negado", decisions=0, share=0),
+                    OutcomeCount(outcome="provido", decisions=0, share=0),
+                ]
+                if count
+                else [],
+            ),
+            coverage=[
+                ExportCourtCoverage(
+                    court="STJ",
+                    documents=1000,
+                    first=date(1989, 2, 19),
+                    last=date(2026, 8, 26),
+                    with_class=900,
+                )
+            ],
+            with_class=count,
+        ),
     )
 
 
@@ -227,6 +286,18 @@ def test_one_hundred_decisions_have_pagination_order_and_exact_clickable_referen
     assert "Total de decisões do recorte: 100" in text
     assert "Decisões neste documento: 100" in text
     assert "Unânime" not in text
+    for title in (
+        "Volume por tribunal",
+        "Evolução temporal",
+        "Resultado dos recursos",
+        "Metodologia e limites da análise",
+    ):
+        assert title in text
+    for match in re.finditer(r"\d+,\d+%", text):
+        following = " ".join(text[match.end() : match.end() + 70].split())
+        assert following.startswith(
+            f"de {data.indicators.outcomes.classified} decisões classificadas"
+        )
     positions = [text.index(row["processo"]) for row in data.decisions]
     assert positions == sorted(positions)
     for index, page_text in enumerate(texts, 1):
@@ -253,3 +324,117 @@ def test_very_long_excerpt_can_continue_on_multiple_pages_without_losing_its_end
     text = "\n".join(page.extract_text() for page in reader.pages)
     assert "FIM-DA-EMENTA" in text
     assert "Link indisponível" not in text
+
+
+def test_three_graphs_show_their_bases_and_methodology_covers_every_limit() -> None:
+    data = dataset(4)
+    html = render_export_html(data, generated_at=GENERATED)
+    text = DocumentText(html).text
+    for title in ("Volume por tribunal", "Evolução temporal", "Resultado dos recursos"):
+        assert f'aria-label="{title}"' in html
+        assert title in text
+    assert "Base de cálculo: 4 decisões do recorte." in text
+    assert (
+        "Base dos percentuais: 4 decisões classificadas de 4 decisões do recorte."
+        in text
+    )
+    assert "100,0% de 4 decisões classificadas" in text
+    for point in (
+        "1. Janelas de cobertura diferentes",
+        "2. Classificações incompletas",
+        "3. Classe processual parcial",
+        "4. Busca por radical, não por lema",
+        "5. A fonte oficial prevalece",
+    ):
+        assert point in text
+    assert "19/02/1989 a 26/08/2026" in text
+    assert "900 de 1000" in text
+    assert "4 de 4 decisões têm classe CNJ" in text
+    assert "Snowball" in text
+    assert "probabilidade de êxito" in text
+
+
+def test_no_percentage_is_invented_when_nothing_is_classified() -> None:
+    data = dataset(4)
+    indicators = data.indicators._replace(
+        outcomes=OutcomeShare(
+            total=4,
+            classified=0,
+            unclassified=4,
+            outcomes=[
+                OutcomeCount(outcome=o, decisions=0, share=0)
+                for o in ("negado", "provido", "parcialmente_provido")
+            ],
+        )
+    )
+    text = DocumentText(render_export_html(data._replace(indicators=indicators))).text
+    assert "Base dos percentuais: 0 decisões classificadas de 4 decisões" in text
+    assert "Sem classificação: 4 de 4 decisões" in text
+    assert "Sem base classificada para percentual" in text
+    assert "0,0%" not in text
+
+
+def test_classification_percentages_use_classified_decisions_not_all_references() -> (
+    None
+):
+    data = dataset(4)
+    indicators = data.indicators._replace(
+        outcomes=OutcomeShare(
+            total=4,
+            classified=3,
+            unclassified=1,
+            outcomes=[
+                OutcomeCount(outcome="negado", decisions=2, share=66.7),
+                OutcomeCount(outcome="provido", decisions=1, share=33.3),
+                OutcomeCount(outcome="parcialmente_provido", decisions=0, share=0),
+            ],
+        )
+    )
+    text = DocumentText(render_export_html(data._replace(indicators=indicators))).text
+    assert "66,7% de 3 decisões classificadas" in text
+    assert "33,3% de 3 decisões classificadas" in text
+    assert "Sem classificação: 1 de 4 decisões" in text
+    assert "50,0%" not in text
+
+
+def test_document_refuses_indicators_from_another_cut() -> None:
+    data = dataset(4)
+    indicators = data.indicators._replace(
+        courts=VolumeByCourt(
+            total=100,
+            courts=[
+                CourtVolume(abbreviation="STJ", name="STJ", decisions=100),
+            ],
+        ),
+    )
+    with pytest.raises(ValueError, match="complete document cut"):
+        render_export_pdf(data._replace(indicators=indicators))
+
+
+def test_zero_period_remains_visible_in_the_document() -> None:
+    data = dataset(4)
+    indicators = data.indicators._replace(
+        timeline=VolumeByPeriod(
+            total=4,
+            granularity="month",
+            periods=[
+                PeriodVolume(period=date(2024, 1, 1), decisions=3),
+                PeriodVolume(period=date(2024, 2, 1), decisions=0),
+                PeriodVolume(period=date(2024, 3, 1), decisions=1),
+            ],
+        )
+    )
+    text = DocumentText(render_export_html(data._replace(indicators=indicators))).text
+    assert "02/2024 0" in text
+
+
+def test_knowledge_methodology_distinguishes_unavailable_information_from_measured_zero() -> (
+    None
+):
+    data = dataset(4)
+    text = DocumentText(render_export_html(data)).text
+    assert "conhecimento do recurso não está disponível nesta" in text
+    measured = data._replace(indicators=data.indicators._replace(with_knowledge=0))
+    text = DocumentText(render_export_html(measured)).text
+    assert "conhecimento do recurso, 0 de 4 decisões têm classificação e 4 de 4" in text
+    assert "concluir que o recurso deixou de ser conhecido" in text

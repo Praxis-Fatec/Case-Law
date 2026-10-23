@@ -134,6 +134,96 @@ def test_composes_all_search_filters_before_collecting(
         "published_from": date(2024, 2, 1),
         "published_to": date(2024, 2, 1),
     }
+    for path, indicator in (
+        ("volume-by-court", result.indicators.courts),
+        ("volume-by-period", result.indicators.timeline),
+        ("outcome-share", result.indicators.outcomes),
+    ):
+        response = client.get(f"/indicators/{path}", params=params)
+        assert response.status_code == 200
+        assert indicator.model_dump(mode="json") == response.json()
+    # Coverage is labelled as context from the whole represented court, not
+    # passed off as the denominator of the filtered indicator.
+    assert result.indicators.coverage[0].documents == (
+        17 if column == "tribunal_sigla" else 19
+    )
+
+
+def test_export_preserves_empty_periods_and_actual_classification_coverage(
+    collection: psycopg.Connection[DictRow],
+) -> None:
+    collection.execute(
+        "UPDATE core.decisao SET data_referencia = '2024-03-01', classe_cnj = NULL "
+        "WHERE identificador_fonte = '2'"
+    )
+    collection.execute(
+        "UPDATE core.decisao SET resultado = NULL WHERE identificador_fonte = '1'"
+    )
+    result = collect_export(collection, "dano moral")
+    indicators = result.indicators
+    assert (
+        indicators.courts.total
+        == indicators.timeline.total
+        == indicators.outcomes.total
+        == 19
+    )
+    assert [(p.period, p.decisions) for p in indicators.timeline.periods] == [
+        (date(2024, 1, 1), 18),
+        (date(2024, 2, 1), 0),
+        (date(2024, 3, 1), 1),
+    ]
+    assert indicators.outcomes.classified == 17
+    assert indicators.outcomes.unclassified == 2
+    assert indicators.with_class == indicators.coverage[0].with_class == 18
+    assert indicators.with_knowledge is None
+
+
+def test_knowledge_coverage_is_measured_when_the_publication_has_the_column(
+    collection: psycopg.Connection[DictRow],
+) -> None:
+    collection.execute("ALTER TABLE core.decisao ADD COLUMN conhecimento TEXT")
+    collection.execute(
+        "UPDATE core.decisao SET conhecimento = 'conhecido' WHERE identificador_fonte = '1'"
+    )
+    collection.execute(
+        "UPDATE core.decisao SET conhecimento = '   ' WHERE identificador_fonte = '2'"
+    )
+    result = collect_export(collection, "dano moral")
+    assert result.indicators.with_knowledge == 2
+    filtered = collect_export(collection, "dano moral", date_from=date(2024, 1, 3))
+    assert filtered.total == 6
+    assert filtered.indicators.with_knowledge == 0
+
+
+def test_methodology_stemming_example_matches_the_actual_search_configuration(
+    db: psycopg.Connection[DictRow],
+) -> None:
+    result = db.execute(
+        """SELECT to_tsquery('portugues_sem_acento', 'moral')::text AS singular,
+            to_tsquery('portugues_sem_acento', 'morais')::text AS plural"""
+    ).fetchone()
+    assert result is not None
+    assert result["singular"] != result["plural"]
+
+
+def test_methodology_does_not_hide_a_court_with_no_results_in_the_cut(
+    collection: psycopg.Connection[DictRow],
+) -> None:
+    collection.execute(
+        """INSERT INTO core.decisao (
+            fonte_codigo, identificador_fonte, tribunal_sigla, data_referencia,
+            ementa, turma_recursal, possui_inteiro_teor, url_fonte, ementa_busca
+        ) VALUES ('coverage-only', 'outside-cut', 'TJDFT', '2025-09-17',
+            'Assunto criminal', FALSE, FALSE, 'https://example.test/outside-cut',
+            to_tsvector('portugues_sem_acento', 'Assunto criminal'))"""
+    )
+    data = collect_export(collection, "dano moral")
+    assert data.total == 19
+    assert [c.abbreviation for c in data.indicators.courts.courts] == ["STJ"]
+    assert [c.court for c in data.indicators.coverage] == ["STJ", "TJDFT"]
+    assert data.indicators.coverage[1].first == date(2025, 9, 17)
+    restricted = collect_export(collection, "dano moral", tribunal=["STJ"])
+    assert [c.court for c in restricted.indicators.coverage] == ["STJ"]
 
 
 def recorded_queries(
