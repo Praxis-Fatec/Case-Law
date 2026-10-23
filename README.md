@@ -74,6 +74,7 @@ it arrives.
 |---|---|
 | [ETL](documentation/architecture/etl.md) | The layers, the three sources, which columns are derived rather than collected, the audits that guard them, and how publication swaps a dataset without a half-loaded state |
 | [Data warehouse model](documentation/architecture/case_law.dbml) | The star schema as a `dbdiagram.io` file: the fact table, its dimensions and the keys between them |
+| [Data dictionary](documentation/architecture/data-dictionary.md) | Every table and column in `core`, with types, value domains and how full each column actually is |
 
 ---
 
