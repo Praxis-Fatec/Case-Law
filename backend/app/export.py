@@ -1,0 +1,115 @@
+"""Collect the complete, bounded cut before a document renderer is invoked."""
+
+from datetime import date
+from typing import Literal, NamedTuple
+
+from psycopg import Connection
+from psycopg.pq import TransactionStatus
+from psycopg.rows import DictRow
+
+from app.api.decisions import (
+    DEFAULT_ORDER,
+    MATCH,
+    ORDERINGS,
+    Order,
+    _count_sql,
+    _narrowing,
+)
+from app.config import settings
+
+
+class ExportRefused(ValueError):
+    def __init__(
+        self, code: Literal["empty", "limit_exceeded"], total: int, limit: int
+    ) -> None:
+        self.code = code
+        self.total = total
+        self.limit = limit
+        message = (
+            "There are no decisions to export."
+            if code == "empty"
+            else f"This cut contains {total} decisions; the export limit is {limit}. "
+            "Narrow the search using filters and try again."
+        )
+        super().__init__(message)
+
+
+class ExportDataset(NamedTuple):
+    total: int
+    order: Order
+    decisions: list[DictRow]
+
+
+def collect_export(
+    connection: Connection[DictRow],
+    q: str,
+    *,
+    tribunal: list[str] | None = None,
+    orgao_julgador: list[str] | None = None,
+    relator: list[str] | None = None,
+    classe_cnj: list[int] | None = None,
+    resultado: list[str] | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    published_from: date | None = None,
+    published_to: date | None = None,
+    order: Order = DEFAULT_ORDER,
+) -> ExportDataset:
+    """Count, refuse if necessary, then fetch every reference in screen order.
+
+    Own a read-only repeatable snapshot when passed an idle pooled connection.
+    A caller-owned transaction must already use repeatable read or serializable:
+    a savepoint alone cannot prevent count/list disagreement under read committed.
+    No renderer or HTTP endpoint is introduced by this collection step.
+    """
+    filters, parameters = _narrowing(
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
+    )
+    ordering = ORDERINGS[order]
+    limit = settings.export_max_decisions
+    idle = connection.info.transaction_status == TransactionStatus.IDLE
+    with connection.transaction():
+        if idle:
+            connection.execute(
+                "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
+            )
+        else:
+            isolation = connection.execute("SHOW transaction_isolation").fetchone()
+            if isolation is None or isolation["transaction_isolation"] not in {
+                "repeatable read",
+                "serializable",
+            }:
+                raise ValueError(
+                    "Export collection needs an idle connection or a repeatable snapshot."
+                )
+
+        counted = connection.execute(_count_sql(filters), parameters).fetchone()
+        assert counted is not None
+        total = int(counted["total"])
+        if total == 0:
+            raise ExportRefused("empty", total, limit)
+        if total > limit:
+            raise ExportRefused("limit_exceeded", total, limit)
+
+        # Deliberately no pagination, snippet generation or ts_headline. Rank is
+        # evaluated only after the count is accepted, using the search's exact
+        # ordering and its source/identifier tie-break.
+        rows = connection.execute(
+            f"""SELECT fonte_codigo, identificador_fonte, tribunal_sigla, processo,
+                orgao_julgador, relator, classe_cnj, data_referencia,
+                data_julgamento, data_publicacao, resultado, deliberacao,
+                url_fonte, link_valido
+            FROM core.decisao WHERE {MATCH}{filters}
+            {ordering}""",
+            parameters,
+        ).fetchall()
+    return ExportDataset(total=total, order=order, decisions=rows)
