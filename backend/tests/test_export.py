@@ -67,6 +67,8 @@ def test_collects_every_page_in_the_same_stable_order_as_the_search(
     exported = collect_export(collection, "dano moral", order=order)
     assert exported.total == len(exported.decisions) == len(expected) == 19
     assert exported.order == order
+    assert exported.query == "dano moral"
+    assert all("Dano" in row["snippet"] for row in exported.decisions)
     assert [
         (r["fonte_codigo"], r["identificador_fonte"]) for r in exported.decisions
     ] == [(r["source"], r["identifier"]) for r in expected]
@@ -120,6 +122,18 @@ def test_composes_all_search_filters_before_collecting(
     result = collect_export(collection, **params)
     assert result.total == len(result.decisions) == response.json()["total"] == 17
     assert all(row["identificador_fonte"] != "1" for row in result.decisions)
+    assert result.query == params["q"]
+    assert result.filters == {
+        "tribunais": ["STJ"],
+        "orgao_julgador": ["TURMA A"],
+        "relator": ["RELATOR A"],
+        "classe_cnj": [198],
+        "resultado": ["provido"],
+        "date_from": date(2024, 1, 1),
+        "date_to": date(2024, 1, 3),
+        "published_from": date(2024, 2, 1),
+        "published_to": date(2024, 2, 1),
+    }
 
 
 def recorded_queries(

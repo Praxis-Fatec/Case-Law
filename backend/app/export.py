@@ -1,7 +1,7 @@
 """Collect the complete, bounded cut before a document renderer is invoked."""
 
 from datetime import date
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from psycopg import Connection
 from psycopg.pq import TransactionStatus
@@ -11,6 +11,8 @@ from app.api.decisions import (
     DEFAULT_ORDER,
     MATCH,
     ORDERINGS,
+    SNIPPET,
+    SNIPPET_OPTIONS,
     Order,
     _count_sql,
     _narrowing,
@@ -38,6 +40,8 @@ class ExportDataset(NamedTuple):
     total: int
     order: Order
     decisions: list[DictRow]
+    query: str
+    filters: dict[str, Any]
 
 
 def collect_export(
@@ -100,16 +104,21 @@ def collect_export(
         if total > limit:
             raise ExportRefused("limit_exceeded", total, limit)
 
-        # Deliberately no pagination, snippet generation or ts_headline. Rank is
-        # evaluated only after the count is accepted, using the search's exact
-        # ordering and its source/identifier tie-break.
+        # Expensive rank and excerpt generation run only after accepting the
+        # count. The excerpt is the same ts_headline used by the search cards.
         rows = connection.execute(
             f"""SELECT fonte_codigo, identificador_fonte, tribunal_sigla, processo,
                 orgao_julgador, relator, classe_cnj, data_referencia,
                 data_julgamento, data_publicacao, resultado, deliberacao,
-                url_fonte, link_valido
+                url_fonte, link_valido, {SNIPPET} AS snippet
             FROM core.decisao WHERE {MATCH}{filters}
             {ordering}""",
-            parameters,
+            {**parameters, "snippet_options": SNIPPET_OPTIONS},
         ).fetchall()
-    return ExportDataset(total=total, order=order, decisions=rows)
+    return ExportDataset(
+        total=total,
+        order=order,
+        decisions=rows,
+        query=q,
+        filters={key: value for key, value in parameters.items() if key != "term"},
+    )
