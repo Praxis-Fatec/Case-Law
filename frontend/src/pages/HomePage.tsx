@@ -194,22 +194,37 @@ function HomePage() {
   // while a page loads or after one failed: no range is shown that was not read.
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
-  const [indicatorSelection, setIndicatorSelection] = useState<IndicatorSelection | null>(null);
+  const [indicatorSelection, setIndicatorSelection] = useSessionState<IndicatorSelection | null>(
+    'indicatorSelection',
+    null,
+  );
   const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
   const openIndicator = (point: IndicatorPoint) => {
-    if (!applied || indicatorSelection || isLoading) return;
+    if (!applied || indicatorOpen || isLoading) return;
     setIndicatorTrigger(
       document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
         ? document.activeElement
         : null,
     );
-    setIndicatorSelection(selectIndicator(requestFor(applied), point));
+    setIndicatorSelection(
+      selectIndicator(requestFor(applied), point, {
+        total: totalResults ?? 0,
+        filterCount: countFilters(applied.filters),
+      }),
+    );
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { state: { ...location.state, indicatorDocuments: true } },
+    );
   };
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
   const { startSearch, isLatestSearch } = useSearchSession();
   const navigate = useNavigate();
   const location = useLocation();
+  const indicatorOpen =
+    (location.state as { indicatorDocuments?: boolean } | null)?.indicatorDocuments === true;
+  const closeIndicator = () => navigate(-1);
 
   // A decision the reader chose has its own address, so it can be copied,
   // opened in another tab or reloaded. Without one, the list's address shows
@@ -277,7 +292,9 @@ function HomePage() {
     judged: submitErrors.judged ?? liveErrors.judged,
     published: submitErrors.published ?? liveErrors.published,
   };
-  const appliedCount = appliedFilters ? countFilters(appliedFilters) : 0;
+  const appliedCount =
+    (appliedFilters ? countFilters(appliedFilters) : 0) +
+    (indicatorOpen && indicatorSelection?.contextActive ? 1 : 0);
   const hasPendingFilters = appliedFilters !== null && !sameFilters(filterDraft, appliedFilters);
 
   const updateFilters = (next: SearchFilterValues) => {
@@ -878,7 +895,7 @@ function HomePage() {
                 volume={volumeState}
                 lastUpdate={lastUpdateState}
                 onRetry={retryPanorama}
-                selectionDisabled={isLoading || indicatorSelection !== null}
+                selectionDisabled={isLoading || indicatorOpen}
                 onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
               />
             }
@@ -886,7 +903,7 @@ function HomePage() {
               <TimelineVolumePanel
                 timeline={timelineState}
                 onRetry={retryPanorama}
-                selectionDisabled={isLoading || indicatorSelection !== null}
+                selectionDisabled={isLoading || indicatorOpen}
                 onSelectPeriod={(period, granularity, count) =>
                   openIndicator({ kind: 'period', period, granularity, count })
                 }
@@ -897,7 +914,7 @@ function HomePage() {
                 compact
                 outcome={outcomeState}
                 onRetry={retryPanorama}
-                selectionDisabled={isLoading || indicatorSelection !== null}
+                selectionDisabled={isLoading || indicatorOpen}
                 onSelectOutcome={(outcome, count) =>
                   openIndicator({ kind: 'outcome', outcome, count })
                 }
@@ -906,11 +923,16 @@ function HomePage() {
           />
         </div>
       </div>
-      {indicatorSelection && (
+      {indicatorOpen && indicatorSelection && (
         <IndicatorDocumentsDrawer
           selection={indicatorSelection}
           returnFocus={indicatorTrigger}
-          onClose={() => setIndicatorSelection(null)}
+          onClose={closeIndicator}
+          onRemoveSelection={() =>
+            setIndicatorSelection((current) =>
+              current ? { ...current, contextActive: false } : null,
+            )
+          }
         />
       )}
     </main>

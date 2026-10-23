@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from '@phosphor-icons/react';
+import { ArrowLeft, X } from '@phosphor-icons/react';
 import {
   searchDecisions,
   type SearchDecisionMatch,
@@ -21,16 +21,21 @@ export default function IndicatorDocumentsDrawer({
   selection,
   onClose,
   returnFocus,
+  onRemoveSelection,
 }: {
   selection: IndicatorSelection;
   onClose: () => void;
   returnFocus: HTMLElement | SVGElement | null;
+  onRemoveSelection: () => void;
 }) {
+  const params = selection.contextActive ? selection.params : selection.original;
+  const expectedTotal = selection.contextActive ? selection.count : selection.originalTotal;
+  const label = selection.contextActive ? selection.label : 'Pesquisa original';
   const dialog = useRef<HTMLDialogElement>(null);
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<DocumentsState>(() =>
-    selection.params
+    params
       ? { status: 'loading' }
       : { status: 'loaded', response: { total: 0, page: 1, page_size: 6, results: [] } },
   );
@@ -62,10 +67,10 @@ export default function IndicatorDocumentsDrawer({
   }, [returnFocus]);
 
   useEffect(() => {
-    if (!selection.params) return;
+    if (!params) return;
     const controller = new AbortController();
     let active = true;
-    searchDecisions({ ...selection.params, page }, { signal: controller.signal }).then(
+    searchDecisions({ ...params, page }, { signal: controller.signal }).then(
       (response) => {
         if (active) setState({ status: 'loaded', response });
       },
@@ -77,7 +82,7 @@ export default function IndicatorDocumentsDrawer({
       active = false;
       controller.abort();
     };
-  }, [selection, page, attempt]);
+  }, [params, page, attempt]);
 
   const retry = () => {
     setState({ status: 'loading' });
@@ -99,7 +104,31 @@ export default function IndicatorDocumentsDrawer({
         rangeTo: response.range_to,
       }
     : null;
-  const total = formatCount(selection.count);
+  const total = formatCount(expectedTotal);
+  const originalTags = [
+    ...(selection.original.tribunal ?? []).map((value) => `Tribunal: ${value}`),
+    ...(selection.original.orgao_julgador ?? []).map((value) => `Órgão julgador: ${value}`),
+    ...(selection.original.relator ?? []).map((value) => `Relator: ${value}`),
+    ...(selection.original.classe_cnj ?? []).map((value) => `Classe processual: ${value}`),
+    ...(selection.original.resultado ?? []).map((value) => `Resultado: ${value}`),
+    ...(selection.original.date_from || selection.original.date_to
+      ? [
+          `Período original: ${selection.original.date_from ?? 'início aberto'} a ${selection.original.date_to ?? 'fim aberto'}`,
+        ]
+      : []),
+    ...(selection.original.published_from || selection.original.published_to
+      ? [
+          `Publicação: ${selection.original.published_from ?? 'início aberto'} a ${selection.original.published_to ?? 'fim aberto'}`,
+        ]
+      : []),
+  ];
+  const removeSelection = () => {
+    setPage(1);
+    setChosen(null);
+    setState({ status: 'loading' });
+    onRemoveSelection();
+    title.current?.focus();
+  };
   return createPortal(
     <dialog
       ref={dialog}
@@ -118,6 +147,9 @@ export default function IndicatorDocumentsDrawer({
       <div className="indicator-drawer__surface">
         <header className="indicator-drawer__header">
           <p className="panorama__eyebrow">Documentos do indicador</p>
+          <button type="button" className="indicator-drawer__back" onClick={onClose}>
+            <ArrowLeft size={16} aria-hidden="true" /> Voltar ao Panorama
+          </button>
           <button
             type="button"
             className="indicator-drawer__close"
@@ -128,12 +160,40 @@ export default function IndicatorDocumentsDrawer({
             <X size={20} aria-hidden="true" />
           </button>
           <h2 id="indicator-documents-title" ref={title} tabIndex={-1}>
-            {selection.label}: {total} {selection.count === 1 ? 'decisão' : 'decisões'}
+            {label}: {total} {expectedTotal === 1 ? 'decisão' : 'decisões'}
           </h2>
           <p id="indicator-documents-context">
-            Seleção “{selection.label}” na pesquisa “{selection.expression}”, mantendo os filtros
-            aplicados.
+            {selection.contextActive
+              ? `Seleção “${selection.label}” na pesquisa “${selection.expression}”, mantendo os filtros aplicados.`
+              : `Pesquisa “${selection.expression}” com os filtros originais, sem o recorte do indicador.`}
           </p>
+          <div
+            className="indicator-drawer__filters"
+            role="group"
+            aria-label="Filtros aplicados aos documentos"
+          >
+            <p>
+              Filtros aplicados:{' '}
+              <strong>{selection.filterCount + (selection.contextActive ? 1 : 0)}</strong>
+            </p>
+            <div className="filter-tags">
+              {originalTags.map((tag, index) => (
+                <span key={`${index}-${tag}`} className="filter-tag">
+                  {tag}
+                </span>
+              ))}
+              {selection.contextActive && (
+                <button
+                  type="button"
+                  className="filter-tag"
+                  aria-label={`Remover seleção do indicador ${selection.contextLabel}`}
+                  onClick={removeSelection}
+                >
+                  {selection.contextLabel} <X size={12} aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          </div>
         </header>
         <div className="indicator-drawer__content" ref={content}>
           {chosen ? (
@@ -155,7 +215,13 @@ export default function IndicatorDocumentsDrawer({
               <div className="indicator-drawer__total">
                 <strong>{total}</strong>
                 <span>
-                  {selection.count === 1 ? 'decisão neste indicador' : 'decisões neste indicador'}
+                  {selection.contextActive
+                    ? expectedTotal === 1
+                      ? 'decisão neste indicador'
+                      : 'decisões neste indicador'
+                    : expectedTotal === 1
+                      ? 'decisão na pesquisa original'
+                      : 'decisões na pesquisa original'}
                 </span>
               </div>
               <div aria-busy={state.status === 'loading'}>
@@ -176,7 +242,7 @@ export default function IndicatorDocumentsDrawer({
                     filtros da pesquisa.
                   </p>
                 )}
-                {response && response.total !== selection.count && (
+                {response && selection.contextActive && response.total !== expectedTotal && (
                   <p role="status">
                     A consulta retornou {formatCount(response.total)} decisões; o indicador mostrava{' '}
                     {total}. A base pode ter sido atualizada. Feche o painel e atualize o Panorama

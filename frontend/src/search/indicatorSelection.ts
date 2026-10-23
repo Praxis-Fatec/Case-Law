@@ -13,6 +13,11 @@ export type IndicatorSelection = {
   // Null is an empty intersection, never an unrestricted search.
   params: SearchParams | null;
   expression: string;
+  original: SearchParams;
+  originalTotal: number;
+  filterCount: number;
+  contextLabel: string;
+  contextActive: boolean;
 };
 
 export function formatPeriodLabel(period: string, granularity: Granularity = 'month'): string {
@@ -38,7 +43,11 @@ export function formatPeriodLabel(period: string, granularity: Granularity = 'mo
 
 // Add one condition to the applied cut. In particular, choosing a year must
 // never widen a date range that already restricts the search to part of it.
-export function selectIndicator(original: SearchParams, point: IndicatorPoint): IndicatorSelection {
+export function selectIndicator(
+  original: SearchParams,
+  point: IndicatorPoint,
+  context = { total: 0, filterCount: 0 },
+): IndicatorSelection {
   const params = { ...original, page: 1 };
   let label: string;
   let compatible: boolean;
@@ -67,5 +76,17 @@ export function selectIndicator(original: SearchParams, point: IndicatorPoint): 
     params.date_to = params.date_to && params.date_to < end ? params.date_to : end;
     compatible = params.date_from <= params.date_to;
   }
-  return { label, count: point.count, params: compatible ? params : null, expression: original.q };
+  const category =
+    point.kind === 'court' ? 'Tribunal' : point.kind === 'outcome' ? 'Resultado' : 'Período';
+  return {
+    label,
+    count: point.count,
+    params: compatible ? params : null,
+    expression: original.q,
+    original: { ...original, page: 1 },
+    originalTotal: context.total,
+    filterCount: context.filterCount,
+    contextLabel: `${category}: ${label}`,
+    contextActive: true,
+  };
 }

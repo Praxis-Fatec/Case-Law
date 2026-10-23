@@ -328,3 +328,81 @@ it('opens one dimension at a time by keyboard without reloading indicators', asy
   expect(target).toHaveFocus();
   expect(indicatorRequests()).toBe(before);
 });
+
+it('shows removable context beside the original filters and restores the original cut inside the drawer', async () => {
+  const requests = api();
+  const user = userEvent.setup();
+  renderApp();
+  await user.click(screen.getByRole('button', { name: /Filtros/ }));
+  fireEvent.change(
+    within(screen.getByRole('group', { name: 'Data de julgamento' })).getByLabelText('De'),
+    { target: { value: '2024-02-01' } },
+  );
+  fireEvent.change(
+    within(screen.getByRole('group', { name: 'Data de publicação (opcional)' })).getByLabelText(
+      'De',
+    ),
+    { target: { value: '2024-02-10' } },
+  );
+  await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+  await user.click(screen.getByRole('tab', { name: 'Panorama' }));
+  await user.click(await screen.findByRole('button', { name: /Consultar documentos de STJ/ }));
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findAllByRole('button', { name: 'Abrir decisão' });
+  const context = within(drawer).getByRole('group', { name: 'Filtros aplicados aos documentos' });
+  expect(context).toHaveTextContent('Filtros aplicados: 3');
+  const remove = within(context).getByRole('button', {
+    name: 'Remover seleção do indicador Tribunal: STJ',
+  });
+  expect(remove).toBeVisible();
+  expect(lastSearch(requests).searchParams.get('date_from')).toBe('2024-02-01');
+  expect(lastSearch(requests).searchParams.get('published_from')).toBe('2024-02-10');
+  await user.click(remove);
+  await within(drawer).findByRole('heading', { name: 'Pesquisa original: 1 decisão' });
+  await waitFor(() =>
+    expect(within(drawer).getAllByRole('button', { name: 'Abrir decisão' })).toHaveLength(1),
+  );
+  expect(context).toHaveTextContent('Filtros aplicados: 2');
+  const restored = lastSearch(requests).searchParams;
+  expect(restored.getAll('tribunal')).toEqual([]);
+  expect(restored.get('date_from')).toBe('2024-02-01');
+  expect(restored.get('published_from')).toBe('2024-02-10');
+  expect(restored.get('q')).toBe('prescrição intercorrente em execução fiscal');
+  expect(restored.get('page')).toBe('1');
+  const before = requests.length;
+  await user.click(within(drawer).getByRole('button', { name: 'Voltar ao Panorama' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(requests).toHaveLength(before);
+  expect(screen.getByRole('button', { name: 'Onde o tema se concentra' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+});
+
+it('browser Back closes the indicator and another selection works without reloading the Panorama', async () => {
+  const requests = api();
+  const user = await panorama();
+  await user.click(screen.getByRole('button', { name: 'Como os recursos foram julgados' }));
+  await user.click(
+    screen.getByRole('button', { name: /Consultar documentos com resultado Provido:/ }),
+  );
+  await within(screen.getByRole('dialog')).findAllByRole('button', { name: 'Abrir decisão' });
+  const countsBefore = requests.filter((url) => url.pathname.startsWith('/indicators/')).length;
+  fireEvent.click(screen.getByTestId('browser-back'));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.getByRole('button', { name: 'Como os recursos foram julgados' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+  await user.click(
+    screen.getByRole('button', { name: /Consultar documentos com resultado Negado:/ }),
+  );
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findAllByRole('button', { name: 'Abrir decisão' });
+  expect(lastSearch(requests).searchParams.getAll('resultado')).toEqual(['negado']);
+  expect(requests.filter((url) => url.pathname.startsWith('/indicators/'))).toHaveLength(
+    countsBefore,
+  );
+  await user.click(within(drawer).getByRole('button', { name: 'Voltar ao Panorama' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});

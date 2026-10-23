@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { useSessionState } from '../search/session';
 import { CaretDown, Info } from '@phosphor-icons/react';
 type Dimension = 'courts' | 'timeline' | 'outcomes';
 export default function PanoramaLayout({
@@ -10,7 +11,7 @@ export default function PanoramaLayout({
   temporal: ReactNode;
   outcomes: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState<Dimension | null>('courts');
+  const [expanded, setExpanded] = useSessionState<Dimension | null>('panoramaDimension', 'courts');
   const dimensions: {
     key: Dimension;
     title: string;

@@ -2630,7 +2630,7 @@ input:focus-visible {
     sans-serif;
   overflow-wrap: anywhere;
 }
-.indicator-drawer__header > p:last-child {
+.indicator-drawer__header > #indicator-documents-context {
   margin: 24px 0 0;
   border-top: 1px solid var(--search-border);
   padding-top: 10px;
@@ -3179,4 +3179,46 @@ input:focus-visible {
 }
 .timeline-chart__visual:has(.timeline-chart__point) .recharts-surface {
   cursor: pointer;
+}
+
+.indicator-drawer__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0 0 8px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--search-primary);
+  font:
+    600 var(--text-sm)/1.3 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+.indicator-drawer__back:hover {
+  text-decoration: underline;
+}
+.indicator-drawer__back:focus-visible {
+  outline: 2px solid var(--search-primary);
+  outline-offset: 3px;
+}
+.indicator-drawer__filters {
+  padding-top: 12px;
+}
+.indicator-drawer__filters > p {
+  margin: 0 0 8px;
+  font-size: var(--text-xs);
+  color: var(--search-muted);
+}
+.indicator-drawer__filters .filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+}
+.indicator-drawer__filters button.filter-tag {
+  min-height: 44px;
 }
