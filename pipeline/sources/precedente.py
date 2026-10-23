@@ -34,7 +34,8 @@ def _resource_url(nome: str) -> str:
     response.raise_for_status()
 
     for recurso in response.json()["result"]["resources"]:
-        if str(recurso.get("url", "")).lower().endswith(nome):
+        # A barra importa: `dicionario-temas.csv` também termina em `temas.csv`.
+        if str(recurso.get("url", "")).lower().endswith(f"/{nome}"):
             return str(recurso["url"])
 
     raise RuntimeError(f"{DATASET} no longer carries {nome}")
