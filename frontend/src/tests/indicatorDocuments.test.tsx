@@ -107,6 +107,21 @@ function api(answer?: (url: URL) => Response | Promise<Response>) {
   return requests;
 }
 beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    return {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 330,
+      width: this.tagName === 'SPAN' ? 40 : 800,
+      height: this.tagName === 'SPAN' ? 12 : 330,
+      toJSON: () => ({}),
+    };
+  });
   // jsdom does not implement the native dialog API. Focus trapping and Escape
   // are also checked in the real browser, where showModal makes the page inert.
   Object.defineProperties(HTMLDialogElement.prototype, {
@@ -176,6 +191,7 @@ it('opens court documents by keyboard, paginates, reads a decision and restores 
 it('selects a result without dropping the expression and handles an empty category', async () => {
   const requests = api();
   const user = await panorama();
+  await user.click(screen.getByRole('button', { name: 'Como os recursos foram julgados' }));
   await user.click(
     await screen.findByRole('button', { name: /Consultar documentos com resultado Provido:/ }),
   );
@@ -194,14 +210,22 @@ it('selects a result without dropping the expression and handles an empty catego
 it('uses the declared quarter for period bounds and has no interactive target inside aria-hidden', async () => {
   const requests = api();
   const user = await panorama();
-  await user.click(await screen.findByText('Consultar documentos por período'));
+  await user.click(screen.getByRole('button', { name: 'Como o volume mudou' }));
+  expect(screen.queryByText('Consultar documentos por período')).toBeNull();
   const target = await screen.findByRole('button', { name: /Consultar documentos de 2T\/2024/ });
   expect(target.closest('[aria-hidden="true"]')).toBeNull();
-  await user.click(target);
+  target.focus();
+  await user.keyboard('{Enter}');
   const drawer = screen.getByRole('dialog');
   await within(drawer).findAllByRole('button', { name: 'Abrir decisão' });
   expect(lastSearch(requests).searchParams.get('date_from')).toBe('2024-04-01');
   expect(lastSearch(requests).searchParams.get('date_to')).toBe('2024-06-30');
+  await user.click(
+    within(drawer).getByRole('button', { name: 'Fechar documentos e voltar ao Panorama' }),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /Consultar documentos de 2T\/2024/ })).toHaveFocus(),
+  );
   for (const button of document.querySelectorAll('.indicator-target'))
     expect(button.closest('[aria-hidden="true"]')).toBeNull();
 });
@@ -266,4 +290,41 @@ it('intersects original bounds and never turns incompatible selections into an u
       { kind: 'outcome', outcome: 'provido', count: 0 },
     ).params,
   ).toBeNull();
+});
+
+it('opens one dimension at a time by keyboard without reloading indicators', async () => {
+  const requests = api();
+  const user = await panorama();
+  expect(screen.getByRole('heading', { name: 'Panorama', level: 1 })).toBeInTheDocument();
+  const courts = screen.getByRole('button', { name: 'Onde o tema se concentra' });
+  const temporal = screen.getByRole('button', { name: 'Como o volume mudou' });
+  const outcomes = screen.getByRole('button', { name: 'Como os recursos foram julgados' });
+  expect(courts).toHaveAttribute('aria-expanded', 'true');
+  expect(temporal).toHaveAttribute('aria-expanded', 'false');
+  const indicatorRequests = () =>
+    requests.filter((url) => url.pathname.startsWith('/indicators/')).length;
+  const before = indicatorRequests();
+  expect(before).toBeGreaterThanOrEqual(3);
+  temporal.focus();
+  await user.keyboard('{Enter}');
+  expect(temporal).toHaveAttribute('aria-expanded', 'true');
+  expect(courts).toHaveAttribute('aria-expanded', 'false');
+  expect(document.getElementById('dimension-courts')).toHaveAttribute('hidden');
+  await user.click(outcomes);
+  expect(outcomes).toHaveAttribute('aria-expanded', 'true');
+  expect(temporal).toHaveAttribute('aria-expanded', 'false');
+  const target = screen.getByRole('button', {
+    name: /Consultar documentos com resultado Provido:/,
+  });
+  expect(target.closest('[aria-hidden="true"]')).toBeNull();
+  target.focus();
+  await user.keyboard('{Enter}');
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findAllByRole('button', { name: 'Abrir decisão' });
+  await user.click(
+    within(drawer).getByRole('button', { name: 'Fechar documentos e voltar ao Panorama' }),
+  );
+  expect(outcomes).toHaveAttribute('aria-expanded', 'true');
+  expect(target).toHaveFocus();
+  expect(indicatorRequests()).toBe(before);
 });

@@ -34,7 +34,7 @@ export default function TimelineVolumePanel({
           </h2>
         </div>
         <p className="panorama__lead">
-          Passe o cursor sobre um período para consultar a quantidade de decisões. Os tribunais têm
+          Selecione um ponto do gráfico para consultar os documentos do período. Os tribunais têm
           janelas de cobertura diferentes; ausência de decisões no período não significa ausência de
           atividade do tribunal.
         </p>

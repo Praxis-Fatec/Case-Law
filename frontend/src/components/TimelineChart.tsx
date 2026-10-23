@@ -62,7 +62,7 @@ export function TimelineChart({
 }: TimelineChartProps) {
   const effectiveGranularity = granularity ?? 'month';
   const gradientId = useId().replace(/:/g, '');
-  const ValuesContainer = showValues || onSelectPeriod ? 'details' : 'div';
+  const ValuesContainer = showValues ? 'details' : 'div';
 
   // Prepare chart data
   const chartData = useMemo(() => {
@@ -84,6 +84,51 @@ export function TimelineChart({
   }, [maxCount]);
 
   const yDomainMax = Math.max(1, yTicks[yTicks.length - 1] ?? 1);
+  const renderPoint = (raw: unknown) => {
+    const { cx, cy, index } = raw as { cx?: number; cy?: number; index?: number };
+    const point = index === undefined ? undefined : chartData[index];
+    if (!point || cx === undefined || cy === undefined || point.count === null) return <g />;
+    return (
+      <g
+        key={point.period}
+        className="timeline-chart__point indicator-target--period"
+        data-indicator-focus={`period:${point.period}`}
+        role="button"
+        tabIndex={selectionDisabled ? -1 : 0}
+        aria-disabled={selectionDisabled}
+        aria-label={`Consultar documentos de ${point.label}: ${formatCount(point.count)} ${point.count === 1 ? 'decisão' : 'decisões'}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (!selectionDisabled) onSelectPeriod?.(point.period);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!selectionDisabled) onSelectPeriod?.(point.period);
+          }
+        }}
+      >
+        <circle
+          className="timeline-chart__point-focus"
+          cx={cx}
+          cy={cy}
+          r={10}
+          fill="transparent"
+          pointerEvents="none"
+        />
+        <circle
+          className="recharts-area-dot"
+          cx={cx}
+          cy={cy}
+          r={4}
+          fill="var(--search-primary)"
+          stroke="#fff"
+          strokeWidth={1.5}
+        />
+      </g>
+    );
+  };
 
   if (periods.length === 0) {
     return (
@@ -95,8 +140,11 @@ export function TimelineChart({
 
   return (
     <div className="timeline-chart-wrapper">
-      {/* Graphical Chart (hidden from screen readers, accessible table below) */}
-      <div className="timeline-chart__visual" aria-hidden="true" style={{ width: '100%', height }}>
+      <div
+        className="timeline-chart__visual"
+        aria-hidden={onSelectPeriod ? undefined : true}
+        style={{ width: '100%', height }}
+      >
         <ResponsiveContainer
           width="100%"
           height={height}
@@ -108,6 +156,20 @@ export function TimelineChart({
             accessibilityLayer={false}
             data={chartData}
             margin={{ top: 20, right: 24, left: 0, bottom: 20 }}
+            onClick={
+              onSelectPeriod
+                ? (state) => {
+                    if (
+                      selectionDisabled ||
+                      state.activeTooltipIndex === null ||
+                      state.activeTooltipIndex === undefined
+                    )
+                      return;
+                    const point = chartData[Number(state.activeTooltipIndex)];
+                    if (point && point.count !== null) onSelectPeriod(point.period);
+                  }
+                : undefined
+            }
           >
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -166,7 +228,13 @@ export function TimelineChart({
               strokeWidth={2.5}
               fill={showValues ? `url(#${gradientId})` : '#f8ebe6'}
               isAnimationActive={isAnimationActive}
-              dot={periods.length === 1 ? { r: 5, fill: 'var(--search-primary)' } : false}
+              dot={
+                onSelectPeriod
+                  ? renderPoint
+                  : periods.length === 1
+                    ? { r: 5, fill: 'var(--search-primary)' }
+                    : false
+              }
               activeDot={{
                 r: 5,
                 fill: '#4A151E',
@@ -179,14 +247,10 @@ export function TimelineChart({
       </div>
 
       <ValuesContainer
-        className={showValues || onSelectPeriod ? 'timeline-values' : 'sr-only'}
+        className={showValues ? 'timeline-values' : 'sr-only'}
         {...(showValues ? { open: true } : {})}
       >
-        {(showValues || onSelectPeriod) && (
-          <summary>
-            {onSelectPeriod ? 'Consultar documentos por período' : 'Consultar valores por período'}
-          </summary>
-        )}
+        {showValues && <summary>Consultar valores por período</summary>}
         <table>
           <caption>Evolução do volume de decisões no tempo</caption>
           <thead>
@@ -198,22 +262,7 @@ export function TimelineChart({
           <tbody>
             {chartData.map((d) => (
               <tr key={d.period} aria-current={selectedPeriod === d.period ? 'true' : undefined}>
-                <th scope="row">
-                  {onSelectPeriod ? (
-                    <button
-                      type="button"
-                      className="indicator-target indicator-target--period"
-                      disabled={selectionDisabled || d.count === null}
-                      aria-label={`Consultar documentos de ${d.label}: ${formatCount(d.count) ?? 'quantidade não informada'} decisões`}
-                      aria-pressed={selectedPeriod === d.period}
-                      onClick={() => onSelectPeriod(d.period)}
-                    >
-                      {d.label}
-                    </button>
-                  ) : (
-                    d.label
-                  )}
-                </th>
+                <th scope="row">{d.label}</th>
                 <td>{formatCount(d.count) ?? 'Não informado'}</td>
               </tr>
             ))}

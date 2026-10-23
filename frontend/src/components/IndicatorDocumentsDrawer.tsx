@@ -24,7 +24,7 @@ export default function IndicatorDocumentsDrawer({
 }: {
   selection: IndicatorSelection;
   onClose: () => void;
-  returnFocus: HTMLElement | null;
+  returnFocus: HTMLElement | SVGElement | null;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [page, setPage] = useState(1);
@@ -43,10 +43,21 @@ export default function IndicatorDocumentsDrawer({
     element.showModal();
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const focusKey = returnFocus?.getAttribute('data-indicator-focus');
     return () => {
       element.close();
       document.body.style.overflow = overflow;
-      returnFocus?.focus();
+      const restore = () => {
+        // Recharts may replace a dot when its disabled state changes.
+        const target = focusKey
+          ? [...document.querySelectorAll<HTMLElement | SVGElement>('[data-indicator-focus]')].find(
+              (item) => item.getAttribute('data-indicator-focus') === focusKey,
+            )
+          : returnFocus;
+        target?.focus();
+      };
+      restore();
+      if (focusKey) requestAnimationFrame(restore);
     };
   }, [returnFocus]);
 

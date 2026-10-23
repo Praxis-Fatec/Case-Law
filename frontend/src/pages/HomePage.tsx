@@ -16,6 +16,7 @@ import CourtVolumePanel from '../components/CourtVolumePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
 import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
+import PanoramaLayout from '../components/PanoramaLayout';
 import {
   selectIndicator,
   type IndicatorPoint,
@@ -194,11 +195,13 @@ function HomePage() {
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
   const [indicatorSelection, setIndicatorSelection] = useState<IndicatorSelection | null>(null);
-  const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | null>(null);
+  const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
   const openIndicator = (point: IndicatorPoint) => {
     if (!applied || indicatorSelection || isLoading) return;
     setIndicatorTrigger(
-      document.activeElement instanceof HTMLElement ? document.activeElement : null,
+      document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
+        ? document.activeElement
+        : null,
     );
     setIndicatorSelection(selectIndicator(requestFor(applied), point));
   };
@@ -868,26 +871,38 @@ function HomePage() {
           hidden={view !== 'panorama'}
           tabIndex={0}
         >
-          <CourtVolumePanel
-            volume={volumeState}
-            lastUpdate={lastUpdateState}
-            onRetry={retryPanorama}
-            selectionDisabled={isLoading || indicatorSelection !== null}
-            onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
-          />
-          <TimelineVolumePanel
-            timeline={timelineState}
-            onRetry={retryPanorama}
-            selectionDisabled={isLoading || indicatorSelection !== null}
-            onSelectPeriod={(period, granularity, count) =>
-              openIndicator({ kind: 'period', period, granularity, count })
+          <PanoramaLayout
+            courts={
+              <CourtVolumePanel
+                compact
+                volume={volumeState}
+                lastUpdate={lastUpdateState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorSelection !== null}
+                onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
+              />
             }
-          />
-          <OutcomeSharePanel
-            outcome={outcomeState}
-            onRetry={retryPanorama}
-            selectionDisabled={isLoading || indicatorSelection !== null}
-            onSelectOutcome={(outcome, count) => openIndicator({ kind: 'outcome', outcome, count })}
+            temporal={
+              <TimelineVolumePanel
+                timeline={timelineState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorSelection !== null}
+                onSelectPeriod={(period, granularity, count) =>
+                  openIndicator({ kind: 'period', period, granularity, count })
+                }
+              />
+            }
+            outcomes={
+              <OutcomeSharePanel
+                compact
+                outcome={outcomeState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorSelection !== null}
+                onSelectOutcome={(outcome, count) =>
+                  openIndicator({ kind: 'outcome', outcome, count })
+                }
+              />
+            }
           />
         </div>
       </div>
