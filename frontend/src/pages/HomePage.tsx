@@ -201,6 +201,7 @@ function HomePage() {
   const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
   const openIndicator = (point: IndicatorPoint) => {
     if (!applied || indicatorOpen || isLoading) return;
+    resetBuffer();
     setIndicatorTrigger(
       document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
         ? document.activeElement
@@ -928,11 +929,12 @@ function HomePage() {
           selection={indicatorSelection}
           returnFocus={indicatorTrigger}
           onClose={closeIndicator}
-          onRemoveSelection={() =>
+          onRemoveSelection={() => {
+            resetBuffer();
             setIndicatorSelection((current) =>
               current ? { ...current, contextActive: false } : null,
-            )
-          }
+            );
+          }}
         />
       )}
     </main>

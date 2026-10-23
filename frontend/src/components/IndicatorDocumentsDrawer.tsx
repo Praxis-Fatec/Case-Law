@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, X } from '@phosphor-icons/react';
-import {
-  searchDecisions,
-  type SearchDecisionMatch,
-  type SearchDecisionResponse,
-} from '../api/search';
+import { type SearchDecisionMatch, type SearchDecisionResponse } from '../api/search';
+import { fetchPage, heldPage, prefetchAfter } from '../search/resultsBuffer';
 import type { IndicatorSelection } from '../search/indicatorSelection';
 import { formatCount } from './coverageFormat';
 import DecisionResultCard from './DecisionResultCard';
@@ -68,11 +65,14 @@ export default function IndicatorDocumentsDrawer({
 
   useEffect(() => {
     if (!params) return;
-    const controller = new AbortController();
     let active = true;
-    searchDecisions({ ...params, page }, { signal: controller.signal }).then(
+    const request = { ...params, page };
+    fetchPage(request).then(
       (response) => {
-        if (active) setState({ status: 'loaded', response });
+        if (active) {
+          setState({ status: 'loaded', response });
+          prefetchAfter(request, response.total);
+        }
       },
       () => {
         if (active) setState({ status: 'failed' });
@@ -80,7 +80,6 @@ export default function IndicatorDocumentsDrawer({
     );
     return () => {
       active = false;
-      controller.abort();
     };
   }, [params, page, attempt]);
 
@@ -89,7 +88,9 @@ export default function IndicatorDocumentsDrawer({
     setAttempt((value) => value + 1);
   };
   const go = (next: number) => {
-    setState({ status: 'loading' });
+    if (!params) return;
+    const inHand = heldPage({ ...params, page: next });
+    setState(inHand ? { status: 'loaded', response: inHand } : { status: 'loading' });
     setPage(next);
     content.current?.scrollTo?.({ top: 0 });
   };

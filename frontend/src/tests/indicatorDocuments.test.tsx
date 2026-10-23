@@ -4,6 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { renderApp } from './renderApp';
 import { selectIndicator } from '../search/indicatorSelection';
 import TimelineChart from '../components/TimelineChart';
+import { fetchPage, heldPage, resetBuffer } from '../search/resultsBuffer';
+import { NO_FILTERS, toSearchParams } from '../search/filters';
 
 vi.mock('../api/client', () => ({
   apiBaseUrl: 'http://api.test',
@@ -27,7 +29,7 @@ const decision = (n: number) => ({
   deliberation: null,
   snippet: 'Dano <mark>moral</mark> comprovado.',
 });
-function api(answer?: (url: URL) => Response | Promise<Response>) {
+function api(answer?: (url: URL) => Response | Promise<Response>, courtTotal = 7) {
   const requests: URL[] = [];
   vi.stubGlobal(
     'fetch',
@@ -42,8 +44,10 @@ function api(answer?: (url: URL) => Response | Promise<Response>) {
         return json({ state: 'loaded', updated_at: '2026-10-22T12:00:00Z' });
       if (url.pathname === '/indicators/volume-by-court')
         return json({
-          total: 10,
-          courts: [{ abbreviation: 'STJ', name: 'Superior Tribunal de Justiça', decisions: 7 }],
+          total: Math.max(10, courtTotal),
+          courts: [
+            { abbreviation: 'STJ', name: 'Superior Tribunal de Justiça', decisions: courtTotal },
+          ],
         });
       if (url.pathname === '/indicators/outcome-share')
         return json({
@@ -77,7 +81,7 @@ function api(answer?: (url: URL) => Response | Promise<Response>) {
               ? 0
               : url.searchParams.has('resultado')
                 ? 4
-                : 7;
+                : courtTotal;
           const page = Number(url.searchParams.get('page') ?? 1);
           const size = Number(url.searchParams.get('page_size') ?? 6);
           return json({
@@ -107,6 +111,7 @@ function api(answer?: (url: URL) => Response | Promise<Response>) {
   return requests;
 }
 beforeEach(() => {
+  resetBuffer();
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement,
   ) {
@@ -168,11 +173,15 @@ it('opens court documents by keyboard, paginates, reads a decision and restores 
     'prescrição intercorrente em execução fiscal',
   );
   expect(lastSearch(requests).searchParams.getAll('tribunal')).toEqual(['STJ']);
+  const beforePage = requests.length;
   await user.click(within(drawer).getByRole('button', { name: 'Próxima' }));
   await waitFor(() =>
     expect(within(drawer).getAllByRole('button', { name: 'Abrir decisão' })).toHaveLength(1),
   );
-  expect(lastSearch(requests).searchParams.get('page')).toBe('2');
+  expect(lastSearch(requests).searchParams.get('page')).toBe('1');
+  expect(lastSearch(requests).searchParams.get('page_size')).toBe('12');
+  expect(requests).toHaveLength(beforePage);
+  expect(within(drawer).queryByText('Carregando documentos do indicador...')).toBeNull();
   await user.click(within(drawer).getByRole('button', { name: 'Abrir decisão' }));
   await within(drawer).findByText('Texto da decisão selecionada.');
   await user.click(
@@ -405,4 +414,89 @@ it('browser Back closes the indicator and another selection works without reload
   );
   await user.click(within(drawer).getByRole('button', { name: 'Voltar ao Panorama' }));
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('reopening the same indicator starts a fresh block instead of showing its previous documents', async () => {
+  let generation = 2019;
+  const requests = api(() =>
+    json({
+      total: 7,
+      page: 1,
+      page_size: 12,
+      results: Array.from({ length: 7 }, (_, n) => decision(generation + n)),
+    }),
+  );
+  const user = await panorama();
+  const target = screen.getByRole('button', { name: /Consultar documentos de STJ/ });
+  await user.click(target);
+  await within(screen.getByRole('dialog')).findByText('processo-2019');
+  await user.click(
+    within(screen.getByRole('dialog')).getByRole('button', { name: 'Voltar ao Panorama' }),
+  );
+  const before = requests.filter(
+    (url) => url.pathname === '/decisions' && url.searchParams.has('tribunal'),
+  ).length;
+  generation = 2024;
+  await user.click(target);
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findByText('processo-2024');
+  expect(within(drawer).queryByText('processo-2019')).toBeNull();
+  expect(
+    requests.filter((url) => url.pathname === '/decisions' && url.searchParams.has('tribunal')),
+  ).toHaveLength(before + 1);
+});
+
+it('keeps visited pages and prefetched blocks without showing loading again inside the same cut', async () => {
+  const requests = api(undefined, 31);
+  const user = await panorama();
+  await user.click(screen.getByRole('button', { name: /Consultar documentos de STJ/ }));
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findByText('processo-1');
+  const selectedRequests = () =>
+    requests.filter((url) => url.pathname === '/decisions' && url.searchParams.has('tribunal'));
+  expect(selectedRequests()).toHaveLength(1);
+  await user.click(within(drawer).getByRole('button', { name: 'Próxima' }));
+  expect(within(drawer).getByText('processo-7')).toBeInTheDocument();
+  expect(within(drawer).queryByText('Carregando documentos do indicador...')).toBeNull();
+  await waitFor(() => expect(selectedRequests()).toHaveLength(2));
+  // Page two prefetched the block carrying pages three and four.
+  const cut = selectIndicator(
+    {
+      ...toSearchParams('prescrição intercorrente em execução fiscal', NO_FILTERS),
+      order: 'relevance',
+    },
+    { kind: 'court', court: 'STJ', count: 31 },
+  ).params!;
+  await waitFor(() => expect(heldPage({ ...cut, page: 3 })).not.toBeNull());
+  await user.click(within(drawer).getByRole('button', { name: 'Próxima' }));
+  expect(within(drawer).getByText('processo-13')).toBeInTheDocument();
+  expect(within(drawer).queryByText('Carregando documentos do indicador...')).toBeNull();
+  await user.click(within(drawer).getByRole('button', { name: 'Anterior' }));
+  expect(within(drawer).getByText('processo-7')).toBeInTheDocument();
+  await user.click(within(drawer).getByRole('button', { name: 'Anterior' }));
+  expect(within(drawer).getByText('processo-1')).toBeInTheDocument();
+  expect(within(drawer).queryByText('Carregando documentos do indicador...')).toBeNull();
+  expect(selectedRequests()).toHaveLength(2);
+  expect(selectedRequests().map((url) => url.searchParams.get('page_size'))).toEqual(['12', '12']);
+});
+
+it('an older response cannot refill a reset buffer even when the next cut has exactly the same parameters', async () => {
+  let resolveOld!: (response: Response) => void;
+  let resolveNew!: (response: Response) => void;
+  const old = new Promise<Response>((done) => {
+    resolveOld = done;
+  });
+  const fresh = new Promise<Response>((done) => {
+    resolveNew = done;
+  });
+  vi.stubGlobal('fetch', vi.fn().mockReturnValueOnce(old).mockReturnValueOnce(fresh));
+  const params = { q: 'dano moral', tribunal: ['STJ'], resultado: ['provido'] };
+  const first = fetchPage(params);
+  resetBuffer();
+  const second = fetchPage(params);
+  resolveNew(json({ total: 1, page: 1, page_size: 12, results: [decision(2024)] }));
+  await second;
+  resolveOld(json({ total: 1, page: 1, page_size: 12, results: [decision(2019)] }));
+  await first;
+  expect(heldPage(params)?.results[0].identifier).toBe('2024');
 });
