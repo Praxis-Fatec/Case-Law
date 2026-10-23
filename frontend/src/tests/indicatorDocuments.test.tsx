@@ -500,3 +500,135 @@ it('an older response cannot refill a reset buffer even when the next cut has ex
   await first;
   expect(heldPage(params)?.results[0].identifier).toBe('2024');
 });
+
+it.each([
+  ['Onde o tema se concentra', /Consultar documentos de STJ/, [1, 2, 3]],
+  ['Como o volume mudou', /Consultar documentos de 2024:/, [1, 2, 3, 4]],
+  ['Como os recursos foram julgados', /Consultar documentos com resultado Provido:/, [1, 3]],
+] as const)(
+  'the actual list agrees with %s and keeps the original date cut',
+  async (dimension, targetName, expectedIds) => {
+    api();
+    const fallback = globalThis.fetch;
+    const requests: URL[] = [];
+    const collection = [
+      { ...decision(0), decided_on: '2023-12-31', court: 'STJ', outcome: 'provido' },
+      { ...decision(1), decided_on: '2024-01-01', court: 'STJ', outcome: 'provido' },
+      { ...decision(2), decided_on: '2024-02-29', court: 'STJ', outcome: 'negado' },
+      { ...decision(3), decided_on: '2024-12-31', court: 'STJ', outcome: 'provido' },
+      { ...decision(4), decided_on: '2024-12-31', court: 'TJDFT', outcome: 'negado' },
+      { ...decision(5), decided_on: '2025-01-01', court: 'STJ', outcome: 'provido' },
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        requests.push(url);
+        const params = url.searchParams;
+        const rows = collection.filter(
+          (row) =>
+            (!params.has('date_from') || row.decided_on >= params.get('date_from')!) &&
+            (!params.has('date_to') || row.decided_on <= params.get('date_to')!) &&
+            (!params.has('tribunal') || params.getAll('tribunal').includes(row.court)) &&
+            (!params.has('resultado') || params.getAll('resultado').includes(row.outcome)),
+        );
+        if (url.pathname === '/decisions') {
+          const page = Number(params.get('page') ?? 1);
+          const size = Number(params.get('page_size') ?? 6);
+          return json({
+            total: rows.length,
+            page,
+            page_size: size,
+            results: rows.slice((page - 1) * size, page * size),
+          });
+        }
+        if (url.pathname === '/indicators/volume-by-court')
+          return json({
+            total: rows.length,
+            courts: ['STJ', 'TJDFT'].map((court) => ({
+              abbreviation: court,
+              name: court,
+              decisions: rows.filter((row) => row.court === court).length,
+            })),
+          });
+        if (url.pathname === '/indicators/volume-by-period')
+          return json({
+            total: rows.length,
+            granularity: 'year',
+            periods: [{ period: '2024-01-01', decisions: rows.length }],
+          });
+        if (url.pathname === '/indicators/outcome-share')
+          return json({
+            total: rows.length,
+            classified: rows.length,
+            unclassified: 0,
+            outcomes: ['provido', 'negado', 'parcialmente_provido'].map((outcome) => ({
+              outcome,
+              decisions: rows.filter((row) => row.outcome === outcome).length,
+              share: (rows.filter((row) => row.outcome === outcome).length / rows.length) * 100,
+            })),
+          });
+        return fallback(input);
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole('button', { name: /Filtros/ }));
+    const dates = within(screen.getByRole('group', { name: 'Data de julgamento' }));
+    fireEvent.change(dates.getByLabelText('De'), { target: { value: '2024-01-01' } });
+    fireEvent.change(dates.getByLabelText('Até'), { target: { value: '2024-12-31' } });
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await user.click(screen.getByRole('tab', { name: 'Panorama' }));
+    await screen.findByRole('button', { name: /Consultar documentos de STJ/ });
+    if (dimension !== 'Onde o tema se concentra')
+      await user.click(screen.getByRole('button', { name: dimension }));
+    const target = await screen.findByRole('button', { name: targetName });
+    expect(target).toHaveAccessibleName(new RegExp(`${expectedIds.length} decisões`));
+    expect(target.closest('[aria-hidden="true"]')).toBeNull();
+    screen.getByRole('button', { name: dimension }).focus();
+    for (let step = 0; step < 20 && document.activeElement !== target; step++) await user.tab();
+    expect(target).toHaveFocus();
+    await user.keyboard('{Enter}');
+    const drawer = screen.getByRole('dialog');
+    await waitFor(() =>
+      expect(within(drawer).getAllByRole('button', { name: 'Abrir decisão' })).toHaveLength(
+        expectedIds.length,
+      ),
+    );
+    for (const id of expectedIds) expect(within(drawer).getByText(`processo-${id}`)).toBeVisible();
+    expect(within(drawer).queryByText('processo-0')).toBeNull();
+    expect(within(drawer).queryByText('processo-5')).toBeNull();
+    expect(within(drawer).queryByText(/A consulta retornou/)).toBeNull();
+    expect(
+      within(drawer).getByRole('button', { name: /Remover seleção do indicador/ }),
+    ).toBeVisible();
+    const selected = lastSearch(requests).searchParams;
+    expect(selected.get('date_from')).toBe('2024-01-01');
+    expect(selected.get('date_to')).toBe('2024-12-31');
+    expect(selected.get('q')).toBe('prescrição intercorrente em execução fiscal');
+    await user.click(within(drawer).getByRole('button', { name: /Remover seleção do indicador/ }));
+    await waitFor(() =>
+      expect(within(drawer).getAllByRole('button', { name: 'Abrir decisão' })).toHaveLength(4),
+    );
+    await user.click(within(drawer).getByRole('button', { name: 'Voltar ao Panorama' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: dimension })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+  },
+);
+
+it('a rapid double click opens one selection, makes one request and needs only one return', async () => {
+  const requests = api();
+  const user = await panorama();
+  const target = screen.getByRole('button', { name: /Consultar documentos de STJ/ });
+  await user.dblClick(target);
+  const drawer = screen.getByRole('dialog');
+  await within(drawer).findAllByRole('button', { name: 'Abrir decisão' });
+  expect(
+    requests.filter((url) => url.pathname === '/decisions' && url.searchParams.has('tribunal')),
+  ).toHaveLength(1);
+  await user.click(within(drawer).getByRole('button', { name: 'Voltar ao Panorama' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
