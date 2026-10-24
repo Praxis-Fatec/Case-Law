@@ -54,6 +54,10 @@ DETAIL_ROW = {
     "data_publicacao": date(2026, 2, 26),
     "ementa": "Ementa: Direito do consumidor. Dano moral configurado.",
     "decisao_texto": "RECURSOS PARCIALMENTE PROVIDOS. UNÂNIME.",
+    "tese": (
+        "1. A falha na prestação do serviço gera dano moral in re ipsa. "
+        "2. O valor da indenização observa a razoabilidade."
+    ),
     "possui_inteiro_teor": True,
 }
 

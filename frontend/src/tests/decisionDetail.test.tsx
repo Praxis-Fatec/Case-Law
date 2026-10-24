@@ -30,6 +30,7 @@ const STRUCTURED: Decision = {
     'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE. I. CASO EM EXAME 1. Apelação. II. QUESTÃO EM DISCUSSÃO 2. Termo inicial. III. RAZÕES DE DECIDIR 3. O prazo corre. IV. DISPOSITIVO 4. Desprovida.',
   outcome: 'APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.',
   deliberation: 'unanime',
+  thesis: ['O prazo corre da ciência da primeira diligência infrutífera.'],
   full_text_available: true,
   sections: {
     headnote: 'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE.',

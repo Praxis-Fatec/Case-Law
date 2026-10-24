@@ -975,6 +975,52 @@ input:focus-visible {
   z-index: 2;
 }
 
+/* The thesis is the court's own words, so it carries a label saying so: on a
+   screen that also shows what we inferred, the reader has to tell them apart
+   at a glance. Above the stretched link for the same reason the official link
+   is, or opening it would open the decision instead. */
+.decision-result-card__thesis {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.decision-result-card__thesis > summary {
+  cursor: pointer;
+  color: #6b5b5e;
+  list-style-position: inside;
+}
+
+.decision-result-card__thesis > summary:hover,
+.decision-result-card__thesis > summary:focus-visible {
+  color: #45151f;
+}
+
+.decision-result-card__thesis-origin {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #8a7579;
+}
+
+.decision-result-card__thesis-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #45151f;
+}
+
+.decision-result-card__thesis-list li {
+  margin-bottom: 0.35rem;
+  line-height: 1.5;
+}
+
+.decision-result-card__thesis-list li:last-child {
+  margin-bottom: 0;
+}
+
 .decision-result-card__arrow {
   grid-column: 3;
   grid-row: 1;
@@ -2370,6 +2416,27 @@ input:focus-visible {
   .results-tabs {
     padding: 0;
   }
+}
+
+/* The thesis the court wrote, on the reading screen. Open, unlike the card:
+   someone who opened the decision wants it. */
+.decision-detail__thesis {
+  margin-top: 1.2rem;
+}
+
+.decision-detail__thesis-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.3rem;
+  color: #45151f;
+  line-height: 1.6;
+}
+
+.decision-detail__thesis-list li {
+  margin-bottom: 0.45rem;
+}
+
+.decision-detail__thesis-list li:last-child {
+  margin-bottom: 0;
 }
 
 .outcome-denominator {

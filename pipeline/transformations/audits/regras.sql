@@ -306,3 +306,34 @@ WHERE dp.corte_declarada
      duas linhas escapa de um padrão que espera um espaço só. */
   AND UNACCENT(LOWER(REGEXP_REPLACE(d.ementa, '\s+', ' ', 'g')))
       !~ 'stf|supremo|repercussao geral';
+
+AUDIT (
+  name tese_sem_secao_seguinte,
+  dialect postgres
+);
+/* O bloco da tese termina onde começa a lista de citações. Arrastá-la não dá
+   erro: a coluna fica preenchida, o card enche de referências de acórdão e a
+   tese some no meio. Só aparece olhando a tela. */
+SELECT *
+FROM @this_model
+WHERE tese IS NOT NULL
+  AND tese ~* '(Dispositivos?[[:space:]]+relevantes?|Jurisprud[eê]ncia[[:space:]]+relevante)';
+
+AUDIT (
+  name tese_com_cobertura,
+  dialect postgres
+);
+/* No dia em que o rótulo mudar de redação, a extração para de casar e a coluna
+   fica nula em silêncio — a tela mostra "sem tese" para a coleção inteira, com
+   aparência de funcionamento normal. O piso é 4%: medido em 5,6% sobre
+   984.824 decisões, e a tendência sobe porque o padrão do CNJ é de 2024.
+
+   O piso só vale a partir de 100 mil linhas. Porcentagem não distingue "a
+   extração quebrou" de "esta tabela é uma amostra": num ambiente com dez
+   registros de desenvolvimento a cobertura é zero e isso é o esperado, não
+   defeito. Sem essa condição a auditoria reprova todo ambiente que não seja o
+   de produção, e quem a vê falhar aprende a ignorá-la. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE tese IS NOT NULL) < COUNT(*) * 0.04;
