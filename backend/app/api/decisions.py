@@ -39,9 +39,34 @@ SNIPPET_OPTIONS = (
     "FragmentDelimiter=' … '"
 )
 
+HIGHLIGHT = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(highlight)s)"
+
+# Which words the snippet is cut around. By default the reader's own, which is
+# right in a plain search. Arriving from an indicator it is the words the
+# classification was read from, because the terms searched for sit where the
+# court frames the dispute, not where it answers it: measured over decisions
+# that carry a written thesis, 31,5% of snippets landed in "questão em
+# discussão" and 2,25% touched the thesis itself.
+#
+# The sets come from the rules that classify: SCRUM-128 for the outcome,
+# read from the dispositive, and SCRUM-166 for the adherence, read from the
+# words around the citation. Volume and timeline are not here: their
+# classification is a field copied from the source, not a reading of ours,
+# so there is no passage to point at.
+HIGHLIGHT_TERMS = {
+    "resultado": (
+        "provimento OR desprovido OR improvido OR provido OR negar OR "
+        "rejeitar OR indeferir OR acolher OR conceder OR deferir"
+    ),
+    "aderencia": (
+        "súmula OR tema OR incidência OR aplicar OR inaplicável OR óbice OR "
+        "enunciado OR precedente"
+    ),
+}
+
 SNIPPET = f"""
 ts_headline(
-    '{SEARCH_CONFIG}', ementa, {QUERY},
+    '{SEARCH_CONFIG}', ementa, {HIGHLIGHT},
     %(snippet_options)s
 )
 """
@@ -894,6 +919,20 @@ def search_decisions(
             examples=[["negado"], ["provido", "parcialmente_provido"]],
         ),
     ] = None,
+    highlight: Annotated[
+        Literal["resultado", "aderencia"] | None,
+        Query(
+            description=(
+                "Which indicator the reader arrived from, so the snippet is "
+                "cut around what produced the classification instead of around "
+                "what was typed. `resultado` points at the dispositive, "
+                "`aderencia` at the precedent citation. Omitted — a plain "
+                "search — the snippet keeps showing where the search terms "
+                "are, which is what that reader wants."
+            ),
+            examples=["aderencia"],
+        ),
+    ] = None,
     date_from: Annotated[
         date | None,
         Query(
@@ -1050,6 +1089,7 @@ def search_decisions(
     )
     parameters: dict[str, Any] = {
         **narrowed,
+        "highlight": HIGHLIGHT_TERMS.get(highlight or "", q),
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": offset,
