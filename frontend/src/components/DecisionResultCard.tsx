@@ -5,6 +5,8 @@ import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 import { readThesis } from '../api/decisions';
 import type { SearchDecisionMatch } from '../api/search';
 import {
+  DELIBERATION_LABELS,
+  deliberationStateOf,
   formatDate,
   getDisplayValue,
   NOT_INFORMED,
@@ -21,6 +23,7 @@ type DecisionCardData = Pick<
   | 'decided_on'
   | 'source_url'
   | 'source_url_reachable'
+  | 'deliberation'
   | 'snippet'
   | 'thesis'
 > & {
@@ -37,6 +40,7 @@ type DecisionResultCardProps = {
   state?: unknown;
   // Called as the card is followed, for what the address alone does not do.
   onOpen?: () => void;
+  onSelect?: () => void;
   openButtonId?: string;
   // The decision open in the detail panel, marked so the list says which.
   selected?: boolean;
@@ -99,6 +103,7 @@ function DecisionResultCard({
   replace,
   state,
   onOpen,
+  onSelect,
   openButtonId,
   selected = false,
   rank,
@@ -108,9 +113,15 @@ function DecisionResultCard({
 
   // The court and the case number head the card and the date sits beside
   // them, so the list below carries only what they do not.
+  // The card has no dispositive, so an undecided vote stays unsaid.
+  const deliberation = deliberationStateOf(decision.deliberation);
   const metadata = [
     { label: 'Órgão julgador', value: getDisplayValue(decision.judging_body) },
     { label: 'Relator', value: getDisplayValue(decision.reporting_judge) },
+    {
+      label: 'Deliberação',
+      value: deliberation ? DELIBERATION_LABELS[deliberation] : NOT_INFORMED,
+    },
     {
       label: 'Data de publicação',
       value: formatDate(decision.published_on) ?? NOT_INFORMED,
@@ -194,6 +205,11 @@ function DecisionResultCard({
         </dl>
 
         <div className="decision-result-card__actions" aria-live="polite">
+          {onSelect && (
+            <button type="button" className="indicator-document__open" onClick={onSelect}>
+              Abrir decisão
+            </button>
+          )}
           {officialUrl && decision.source_url_reachable !== false ? (
             <a
               className="decision-result-card__source-link"

@@ -40,7 +40,10 @@ const TESES = [
 function card(thesis?: string[]) {
   return render(
     <MemoryRouter>
-      <DecisionResultCard decision={{ ...MATCH, thesis }} to="/decisions/tjdft-jurisdf/2044172" />
+      <DecisionResultCard
+        decision={{ ...MATCH, thesis, deliberation: null }}
+        to="/decisions/tjdft-jurisdf/2044172"
+      />
     </MemoryRouter>,
   );
 }

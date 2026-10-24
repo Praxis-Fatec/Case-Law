@@ -25,6 +25,8 @@ CREATE TABLE core.decisao (
     tipo_texto           TEXT,
     decisao_texto        TEXT,
     tese                 TEXT,
+    resultado            TEXT,
+    deliberacao          TEXT,
     turma_recursal       BOOLEAN NOT NULL,
     possui_inteiro_teor  BOOLEAN NOT NULL,
     url_fonte            TEXT    NOT NULL,
@@ -90,4 +92,51 @@ CREATE TABLE verificacao.link (
     valido        BOOLEAN     NOT NULL,
     verificado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (fonte_codigo, identificador)
+);
+
+-- A amostra da tabela do CNJ que a transformação consulta. Traz de propósito
+-- "Ação Rescisória" em dois códigos, um deles sob a árvore do STJ, para que o
+-- desempate por raiz seja exercitado em vez de assumido.
+CREATE TABLE core.classe_processual (
+    codigo_cnj BIGINT NOT NULL PRIMARY KEY,
+    codigo_pai BIGINT,
+    nome       TEXT   NOT NULL
+);
+
+INSERT INTO core.classe_processual VALUES
+(2,     NULL, 'PROCESSO CÍVEL E DO TRABALHO'),
+(5,     NULL, 'SUPERIOR TRIBUNAL DE JUSTIÇA'),
+(47,    2,    'Ação Rescisória'),
+(1669,  5,    'Ação Rescisória'),
+(198,   2,    'Apelação Cível'),
+(213,   5,    'Recurso Especial'),
+(1321,  5,    'Agravo Regimental'),
+(1331,  5,    'Habeas Corpus');
+
+CREATE TABLE core.precedente (
+    corte        TEXT   NOT NULL,
+    tipo         TEXT   NOT NULL,
+    numero       BIGINT NOT NULL,
+    enunciado    TEXT   NOT NULL,
+    situacao     TEXT,
+    data         DATE,
+    url_fonte    TEXT,
+    origem       TEXT   NOT NULL,
+    transcricoes BIGINT,
+    carregado_em TIMESTAMPTZ,
+    PRIMARY KEY (corte, tipo, numero)
+);
+
+CREATE TABLE core.decisao_precedente (
+    fonte_codigo        TEXT   NOT NULL,
+    identificador_fonte TEXT   NOT NULL,
+    corte               TEXT   NOT NULL,
+    tipo                TEXT   NOT NULL,
+    numero              BIGINT NOT NULL,
+    trecho              TEXT   NOT NULL,
+    resolvida           BOOLEAN NOT NULL,
+    corte_declarada     BOOLEAN NOT NULL DEFAULT TRUE,
+    aderencia           TEXT   NOT NULL,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)
 );

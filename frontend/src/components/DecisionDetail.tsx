@@ -2,7 +2,15 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
-import { formatDate, normalizeOfficialUrl, normalizeText } from './decisionFormat';
+import { readCitedPrecedents } from '../api/precedents';
+import CitedPrecedents from './CitedPrecedents';
+import {
+  DELIBERATION_LABELS,
+  deliberationStateOf,
+  formatDate,
+  normalizeOfficialUrl,
+  normalizeText,
+} from './decisionFormat';
 
 type DetailState =
   | { status: 'loading' }
@@ -25,11 +33,13 @@ type MetadataItem = { label: string; value: string };
 function metadataOf(decision: Decision): MetadataItem[] {
   const judged = formatDate(decision.judged_on);
   const published = formatDate(decision.published_on);
+  const vote = deliberationStateOf(decision.deliberation, decision.outcome);
 
   const items: (MetadataItem | null)[] = [
     textItem('Número do processo', decision.case_number),
     textItem('Relator', decision.reporting_judge),
     textItem('Órgão julgador', decision.judging_body),
+    vote ? { label: 'Deliberação', value: DELIBERATION_LABELS[vote] } : null,
     decision.class_code !== null && Number.isFinite(decision.class_code)
       ? { label: 'Classe processual (código CNJ)', value: String(decision.class_code) }
       : null,
@@ -175,19 +185,28 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
       </header>
 
       {metadata.length > 0 && (
-        <dl className="decision-detail__meta">
-          {metadata.map((item) => (
-            <div className="decision-detail__meta-item" key={item.label}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <div className="decision-detail__facts">
+          <dl className="decision-detail__meta">
+            {metadata.map((item) => (
+              <div className="decision-detail__meta-item" key={item.label}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <Dispositive decision={decision} />
+        </div>
       )}
 
       <Thesis decision={decision} headingId={`${titleId}-tese`} />
 
       <Ementa decision={decision} headingId={`${titleId}-ementa`} />
+
+      <CitedPrecedents
+        precedents={readCitedPrecedents(decision.precedents)}
+        headingId={`${titleId}-precedentes`}
+      />
 
       <OfficialSource decision={decision} />
     </>
@@ -279,6 +298,24 @@ function Ementa({ decision, headingId }: EmentaProps) {
         </p>
       )}
     </section>
+  );
+}
+
+type DispositiveProps = { decision: Decision };
+
+// The sentence the deliberation was read from, so it can be checked.
+function Dispositive({ decision }: DispositiveProps) {
+  const outcome = normalizeText(decision.outcome);
+
+  if (!outcome) {
+    return null;
+  }
+
+  return (
+    <p className="decision-detail__dispositive">
+      <span className="decision-detail__dispositive-label">Dispositivo</span>
+      {outcome}
+    </p>
   );
 }
 

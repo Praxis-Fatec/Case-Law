@@ -92,6 +92,10 @@ def _filters_sql(
     date_to: date | None,
     published_from: date | None = None,
     published_to: date | None = None,
+    judging_bodies: list[str] | None = None,
+    reporting_judges: list[str] | None = None,
+    procedural_classes: list[int] | None = None,
+    outcomes: list[str] | None = None,
 ) -> str:
     """
     The optional narrowing, appended to the text match. The count and the page
@@ -105,6 +109,14 @@ def _filters_sql(
     clauses: list[str] = []
     if tribunals:
         clauses.append("tribunal_sigla = ANY(%(tribunais)s)")
+    if judging_bodies:
+        clauses.append("orgao_julgador = ANY(%(orgao_julgador)s)")
+    if reporting_judges:
+        clauses.append("relator = ANY(%(relator)s)")
+    if procedural_classes:
+        clauses.append("classe_cnj = ANY(%(classe_cnj)s)")
+    if outcomes:
+        clauses.append("resultado = ANY(%(resultado)s)")
     if date_from is not None:
         clauses.append("data_referencia >= %(date_from)s")
     if date_to is not None:
@@ -123,6 +135,11 @@ class Narrowing(NamedTuple):
     parameters: dict[str, Any]
 
 
+def _nonblank_unique_text(values: list[str] | None) -> list[str]:
+    """Drop blanks and exact duplicates without changing option identities."""
+    return list(dict.fromkeys(value for value in values or [] if value.strip()))
+
+
 def _narrowing(
     q: str,
     tribunal: list[str] | None,
@@ -130,6 +147,10 @@ def _narrowing(
     date_to: date | None,
     published_from: date | None,
     published_to: date | None,
+    orgao_julgador: list[str] | None = None,
+    relator: list[str] | None = None,
+    classe_cnj: list[int] | None = None,
+    resultado: list[str] | None = None,
 ) -> Narrowing:
     """
     Read the narrowing once, so nothing can describe a different set.
@@ -151,10 +172,24 @@ def _narrowing(
     tribunais = list(
         dict.fromkeys(value.strip() for value in tribunal or [] if value.strip())
     )
+    orgaos = _nonblank_unique_text(orgao_julgador)
+    relatores = _nonblank_unique_text(relator)
+    classes = list(dict.fromkeys(classe_cnj or []))
+    outcomes = list(
+        dict.fromkeys(value.strip() for value in resultado or [] if value.strip())
+    )
 
     parameters: dict[str, Any] = {"term": q}
     if tribunais:
         parameters["tribunais"] = tribunais
+    if orgaos:
+        parameters["orgao_julgador"] = orgaos
+    if relatores:
+        parameters["relator"] = relatores
+    if classes:
+        parameters["classe_cnj"] = classes
+    if outcomes:
+        parameters["resultado"] = outcomes
     if date_from is not None:
         parameters["date_from"] = date_from
     if date_to is not None:
@@ -165,7 +200,17 @@ def _narrowing(
         parameters["published_to"] = published_to
 
     return Narrowing(
-        _filters_sql(tribunais, date_from, date_to, published_from, published_to),
+        _filters_sql(
+            tribunais,
+            date_from,
+            date_to,
+            published_from,
+            published_to,
+            orgaos,
+            relatores,
+            classes,
+            outcomes,
+        ),
         parameters,
     )
 
@@ -195,6 +240,7 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
+    decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
     {SNIPPET} AS snippet
@@ -224,6 +270,7 @@ SELECT
     ementa,
     decisao_texto,
     tese,
+    deliberacao,
     turma_recursal,
     possui_inteiro_teor,
     url_fonte,
@@ -236,6 +283,32 @@ HIGHLIGHT_SQL = f"""
 SELECT {FULL_HIGHLIGHT} AS highlighted
 FROM core.decisao
 WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
+"""
+
+# LEFT JOIN, not JOIN: a citation the catalogue has no entry for still happened,
+# and dropping it here would let the screen show fewer precedents than the court
+# named.
+PRECEDENTS_SQL = """
+SELECT
+    dp.corte,
+    dp.tipo,
+    dp.numero,
+    dp.trecho,
+    dp.aderencia,
+    dp.resolvida,
+    dp.corte_declarada,
+    p.enunciado,
+    p.situacao,
+    p.data
+FROM core.decisao_precedente AS dp
+LEFT JOIN core.precedente AS p
+    -- The court has to have been stated for the join to mean anything: both
+    -- courts have a Tema 793, and matching on a guessed court answers with
+    -- the other one's thesis.
+    ON dp.corte_declarada
+   AND p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.fonte_codigo = %(source)s AND dp.identificador_fonte = %(identifier)s
+ORDER BY dp.tipo, dp.numero
 """
 
 
@@ -281,6 +354,16 @@ class DecisionBase(BaseModel):
         ),
         examples=[True],
     )
+    deliberation: str | None = Field(
+        description=(
+            "How the panel voted, read from the operative part: `unanime` "
+            "when it was of one mind, `maioria` when someone dissented. "
+            "`null` when the court records no vote, and also when the "
+            "decision holds two appeals voted differently, where there is no "
+            "single answer to give. 99,8% of the collection carries one."
+        ),
+        examples=["unanime"],
+    )
 
 
 class DecisionMatch(DecisionBase):
@@ -322,6 +405,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
     "small_claims": False,
     "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
     "source_url_reachable": True,
+    "deliberation": "unanime",
     "class_code": 1116,
     "judged_on": "2026-06-11",
     "published_on": "2026-06-18",
@@ -357,6 +441,27 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         ),
         "ruling": "4. Apelação conhecida e desprovida.",
     },
+    "precedents": [
+        {
+            "court": "STJ",
+            "kind": "sumula",
+            "number": 106,
+            "text": (
+                "Proposta a ação no prazo fixado para o seu exercício, a demora "
+                "na citação, por motivos inerentes ao mecanismo da Justiça, não "
+                "justifica o acolhimento da arguição de prescrição."
+            ),
+            "status": None,
+            "settled_on": None,
+            "snippet": (
+                "prescricao intercorrente. incidencia da sumula 106/stj. "
+                "apelacao desprovida."
+            ),
+            "adherence": "seguiu",
+            "resolved": True,
+            "court_stated": True,
+        }
+    ],
 }
 
 
@@ -389,6 +494,71 @@ class EmentaSections(BaseModel):
     ruling: str = Field(
         description="What was decided, and the thesis when the court states one.",
         examples=["4. Recurso conhecido e provido."],
+    )
+
+
+class CitedPrecedent(BaseModel):
+    court: str = Field(
+        description="Which court settled it. `STJ` or `STF`.", examples=["STJ"]
+    )
+    kind: str = Field(
+        description="`sumula` or `tema`, the two the collection carries.",
+        examples=["sumula"],
+    )
+    number: int = Field(description="The precedent's number.", examples=[7])
+    text: str | None = Field(
+        description=(
+            "What the court settled, when the catalogue holds it. `null` means "
+            "the decision cited something the catalogue has no entry for — the "
+            "citation is still real, and the screen shows it without a text "
+            "rather than hiding it. 4% of citations are in this state."
+        ),
+        examples=[
+            "A pretensão de simples reexame de prova não enseja recurso especial."
+        ],
+    )
+    status: str | None = Field(
+        default=None,
+        description=(
+            "Whether it is still in force. Always `null` for a súmula, whose "
+            "text is reconstructed from the collection and carries no status: "
+            "presenting a cancelled one as current is an error this refuses to "
+            "risk."
+        ),
+        examples=[None],
+    )
+    settled_on: date | None = Field(
+        default=None, description="When it was judged, for temas."
+    )
+    snippet: str = Field(
+        description=(
+            "The court's own words around the citation, 220 characters of the "
+            "ementa. This is what lets the reader check the label below against "
+            "what was actually written."
+        ),
+        examples=["reexame de provas. incidencia da sumula n. 7 do stj."],
+    )
+    adherence: str = Field(
+        description=(
+            "How the decision used it, read from the words around the citation: "
+            "`seguiu`, `afastou`, `distinguiu`, `mencionou` or `indeterminado`. "
+            "The last is a value, not an absence — a tool that guesses is worse "
+            "than one that says it does not know."
+        ),
+        examples=["seguiu"],
+    )
+    resolved: bool = Field(
+        description="Whether `text` could be filled from the catalogue."
+    )
+    court_stated: bool = Field(
+        description=(
+            "Whether the ementa said which court settled it. A tema cited "
+            'bare — "Tema 793", with no court — does not identify a '
+            "precedent: the STJ and the STF both have one, saying different "
+            "things. The citation is kept and the text withheld, because "
+            "answering with the wrong court's thesis is worse than answering "
+            "nothing. 6.3% of citations are in this state."
+        ),
     )
 
 
@@ -451,6 +621,14 @@ class Decision(DecisionBase):
             "carry the text."
         ),
     )
+    precedents: list[CitedPrecedent] = Field(
+        default_factory=list,
+        description=(
+            "Which súmulas and temas this decision cites, in the order the "
+            "numbering gives. Empty for the 72% of the collection that cites "
+            "none — an empty list, never an error."
+        ),
+    )
 
     model_config = {"json_schema_extra": {"example": STRUCTURED_EXAMPLE}}
 
@@ -499,6 +677,7 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
         "small_claims": row["turma_recursal"],
         "source_url": row["url_fonte"],
         "source_url_reachable": row["link_valido"],
+        "deliberation": row["deliberacao"],
     }
 
 
@@ -610,7 +789,6 @@ INVERTED_RANGE = "date_from must be less than or equal to date_to."
 INVERTED_PUBLICATION_RANGE = (
     "published_from must be less than or equal to published_to."
 )
-
 # The search fails with 400 in two ways, and a caller handles them differently:
 # one is a value the database cannot read, the other a range that is backwards.
 SEARCH_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -639,7 +817,7 @@ SEARCH_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 @router.get(
     "/decisions",
-    summary="Search decisions by term, court and date",
+    summary="Search decisions by term and filters",
     responses=SEARCH_RESPONSES,
 )
 def search_decisions(
@@ -668,6 +846,52 @@ def search_decisions(
                 "not an error. Omitted, every court is searched."
             ),
             examples=[["TJDFT"], ["TJDFT", "STJ"]],
+        ),
+    ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact judging-body values from `/filters`. Repeat the parameter "
+                "for OR within this field; it combines with other filters using "
+                "AND. Blank and repeated values are ignored."
+            ),
+            examples=[["1ª TURMA CÍVEL"], ["1ª TURMA CÍVEL", "CÂMARA CRIMINAL"]],
+        ),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact reporting-judge values from `/filters`. Repeat the "
+                "parameter for OR within this field; it combines with other "
+                "filters using AND. Blank and repeated values are ignored."
+            ),
+            examples=[["FABRÍCIO FONTOURA BEZERRA"]],
+        ),
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None,
+        Query(
+            description=(
+                "CNJ class codes from `/filters`. Repeat for OR within this "
+                "field; other filters combine using AND. Repeated codes are "
+                "ignored. Decisions without a class do not match."
+            ),
+            examples=[[198], [198, 213]],
+        ),
+    ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
         ),
     ] = None,
     date_from: Annotated[
@@ -775,9 +999,14 @@ def search_decisions(
     page number, never an error. A `page_size` above the maximum is served at
     the maximum, and the answer says which size was applied.
 
-    `tribunal`, `date_from`, `date_to`, `published_from` and `published_to` are
-    optional and narrow the search together: a result matches `q` **and** comes
-    from one of the courts **and** falls within every period sent.
+    `tribunal`, `orgao_julgador`, `relator`, `classe_cnj`, `date_from`, `date_to`,
+    `published_from` and `published_to` are optional and narrow the search
+    together. Repeated values within one field are ORed; different filters are
+    ANDed with the expression and each other. Text values are compared exactly
+    as returned by `/filters`, after blank entries are discarded.
+
+    Class values are numeric CNJ codes from `/filters`. Unknown codes return
+    no matches; decisions without a class are excluded only when it is filtered.
 
     There are two periods. `date_from`/`date_to` compare `decided_on` — the
     judgement date, or the publication date when the court did not record the
@@ -808,7 +1037,16 @@ def search_decisions(
     offset = (page - 1) * page_size
 
     filters, narrowed = _narrowing(
-        q, tribunal, date_from, date_to, published_from, published_to
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
     )
     parameters: dict[str, Any] = {
         **narrowed,
@@ -924,7 +1162,25 @@ def read_decision(
             if highlighted:
                 summary = _normalize_highlighted_text(highlighted["highlighted"], q)
 
+        cursor.execute(PRECEDENTS_SQL, parameters)
+        cited = [
+            CitedPrecedent(
+                court=cite["corte"],
+                kind=cite["tipo"],
+                number=cite["numero"],
+                text=cite["enunciado"],
+                status=cite["situacao"],
+                settled_on=cite["data"],
+                snippet=cite["trecho"],
+                adherence=cite["aderencia"],
+                resolved=cite["resolvida"],
+                court_stated=cite["corte_declarada"],
+            )
+            for cite in cursor.fetchall()
+        ]
+
     return Decision(
+        precedents=cited,
         **_base_fields(row),
         class_code=row["classe_cnj"],
         judged_on=row["data_julgamento"],

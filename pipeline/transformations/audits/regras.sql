@@ -84,6 +84,230 @@ WHERE f.codigo IS NULL
   AND EXISTS (SELECT 1 FROM @this_model);
 
 AUDIT (
+  name deliberacao_de_valor_conhecido,
+  dialect postgres
+);
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE deliberacao IS NOT NULL
+  AND deliberacao NOT IN ('unanime', 'maioria');
+
+AUDIT (
+  name deliberacao_com_cobertura,
+  dialect postgres
+);
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+WHERE decisao_texto IS NOT NULL
+HAVING COUNT(*) > 100000
+   AND COUNT(deliberacao) < COUNT(*) * 0.95;
+
+AUDIT (
+  name resultado_de_valor_conhecido,
+  dialect postgres
+);
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND resultado NOT IN ('provido', 'parcialmente_provido', 'negado');
+
+AUDIT (
+  name resultado_com_cobertura,
+  dialect postgres
+);
+/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
+   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
+   linhas, senão todo ambiente de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+WHERE decisao_texto IS NOT NULL
+HAVING COUNT(*) > 100000
+   AND COUNT(resultado) < COUNT(*) * 0.90;
+
+AUDIT (
+  name resultado_sem_contradicao,
+  dialect postgres
+);
+/* Os padrões se contêm, então a ordem da cascata é a regra — e trocá-la não
+   quebra nada visível, só erra o rótulo. Aqui cada rótulo é confrontado com o
+   padrão que tem prioridade sobre ele. */
+SELECT *
+FROM @this_model
+WHERE resultado IS NOT NULL
+  AND (
+    (resultado = 'provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi|\mnao\s+conhec|\mrejeit|\mindeferi|\mnao\s+acolh|\mdenega')
+    OR (resultado <> 'parcialmente_provido'
+     AND UNACCENT(LOWER(decisao_texto)) ~ 'parcial\w*\s+(provi|procedent)|provi\w*\s+(em\s+)?parte|provimento\s+parcial|acolh\w+\s+(em\s+)?parte|em\s+parte\s+provi')
+    OR ((SELECT COUNT(*) FROM REGEXP_MATCHES(UNACCENT(LOWER(decisao_texto)), 'recurso d[eo] |recurso interposto|opostos? pel|interposto pel|apelacao d[eo] ', 'g')) >= 2
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\mneg\w+\s+(-lhe\s+)?provimento|neg\w+-lhe\s+provimento|\mdesprovi|\mimprovi|\mnao\s+provi'
+     AND UNACCENT(LOWER(decisao_texto)) ~ '\md[aeo]\w*\s+(-lhe\s+)?provimento|deu-lhe\s+provimento|\mprovi[dm]')
+  );
+
+AUDIT (
+  name classe_de_codigo_conhecido,
+  dialect postgres
+);
+/* A ponte do STJ é um join por nome. Código que não existe na tabela significa
+   que a semente andou sem o modelo, e a tela mostra um filtro que não filtra. */
+SELECT d.*
+FROM @this_model AS d
+LEFT JOIN core.classe_processual AS c ON c.codigo_cnj = d.classe_cnj
+WHERE d.classe_cnj IS NOT NULL
+  AND c.codigo_cnj IS NULL;
+
+AUDIT (
+  name classe_com_cobertura,
+  dialect postgres
+);
+/* O STJ escreve a classe por extenso e já manda quebra de linha no meio. Se a
+   grafia mudar, o join para de casar e a coluna fica nula em silêncio: o filtro
+   encolhe sem avisar. Só vale a partir de 100 mil linhas, senão todo ambiente
+   de amostra reprova. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(classe_cnj) < COUNT(*) * 0.95;
+
+AUDIT (
+  name precedente_de_corte_conhecida,
+  dialect postgres
+);
+/* Súmula 7 do STJ e Súmula 7 do STF são precedentes diferentes. Uma linha sem
+   corte declarada colidiria com a outra na chave. */
+SELECT *
+FROM @this_model
+WHERE corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name precedente_com_enunciado,
+  dialect postgres
+);
+/* O enunciado é o produto: sem ele, sobra a contagem de citações, que é outra
+   história. Um recorte que pegou pontuação em vez de texto cai aqui. */
+SELECT *
+FROM @this_model
+WHERE LENGTH(BTRIM(COALESCE(enunciado, ''))) < 40;
+
+AUDIT (
+  name precedente_com_volume,
+  dialect postgres
+);
+/* Se o tribunal mudar a forma de transcrever, o recorte para de casar e a
+   tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
+   As duas origens degradam por motivos diferentes — o tribunal muda a forma de
+   transcrever, ou o portal muda o CSV —, então cada uma tem o próprio piso.
+   Hoje: 371 súmulas reconstruídas e 1.142 temas do catálogo. */
+SELECT 1 AS falha
+FROM @this_model
+GROUP BY origem
+HAVING (origem = 'reconstruido' AND COUNT(*) < 300)
+    OR (origem = 'catalogo' AND COUNT(*) < 1000);
+
+AUDIT (
+  name citacao_de_tipo_conhecido,
+  dialect postgres
+);
+/* Tipo fora da lista não casa com core.precedente: órfã, e sem erro. */
+SELECT *
+FROM @this_model
+WHERE tipo NOT IN ('sumula', 'tema')
+   OR corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name citacao_com_volume,
+  dialect postgres
+);
+/* Redação muda, extração encolhe calada: o indicador mediria menos acervo. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) < 300000;
+
+AUDIT (
+  name aderencia_de_valor_conhecido,
+  dialect postgres
+);
+/* Texto cru vazando de uma captura de grupo chega aqui. `indeterminado` é
+   valor, não ausência: numa ferramenta jurídica "não sei" é resposta. */
+SELECT *
+FROM @this_model
+WHERE aderencia NOT IN
+  ('seguiu', 'afastou', 'distinguiu', 'mencionou', 'indeterminado');
+
+AUDIT (
+  name aderencia_sem_contradicao,
+  dialect postgres
+);
+/* "nao se aplica" contém "aplica": trocar a ordem da cascata não quebra nada
+   visível, só inverte o rótulo. */
+SELECT *
+FROM @this_model
+WHERE aderencia IN ('seguiu', 'distinguiu')
+  AND trecho ~ 'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)';
+
+AUDIT (
+  name aderencia_com_cobertura,
+  dialect postgres
+);
+/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
+   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
+
+AUDIT (
+  name citacao_resolvida_com_precedente,
+  dialect postgres
+);
+/* `resolvida` é a promessa de que a tela consegue mostrar o enunciado. Catálogo
+   coletado pela metade deixaria ligação órfã marcada como resolvida, e o leitor
+   veria a citação de um precedente que o sistema não sabe exibir.
+   Numa direção só: a ligação sem corte declarada não resolve mesmo havendo
+   linha de mesmo número no catálogo, porque seria o precedente de outra corte. */
+SELECT dp.*
+FROM @this_model AS dp
+LEFT JOIN core.precedente AS p
+  ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.resolvida AND p.corte IS NULL;
+
+AUDIT (
+  name citacao_com_alcance,
+  dialect postgres
+);
+/* Se a redação das citações mudar, a extração encolhe calada e a tela diz
+   "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
+   O piso é sobre a proporção de decisões, não de ligações: hoje 30,2%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
+     < (SELECT COUNT(*) FROM core.decisao) * 0.24;
+
+AUDIT (
+  name citacao_com_corte_do_texto,
+  dialect postgres
+);
+/* A corte é metade da identidade do precedente, e atribuí-la por constante
+   fez 11.252 citações exibirem o enunciado de outro. Nenhuma ligação pode
+   afirmar STF sem que a ementa diga STF ou repercussão geral. */
+SELECT dp.*
+FROM @this_model AS dp
+JOIN core.decisao AS d
+  ON d.fonte_codigo = dp.fonte_codigo
+ AND d.identificador_fonte = dp.identificador_fonte
+WHERE dp.corte_declarada
+  AND dp.corte = 'STF'
+  /* Os espaços são colapsados como no modelo: "repercussão\ngeral" partida em
+     duas linhas escapa de um padrão que espera um espaço só. */
+  AND UNACCENT(LOWER(REGEXP_REPLACE(d.ementa, '\s+', ' ', 'g')))
+      !~ 'stf|supremo|repercussao geral';
+
+AUDIT (
   name tese_sem_secao_seguinte,
   dialect postgres
 );

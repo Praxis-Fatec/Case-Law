@@ -33,8 +33,13 @@ export type Decision = {
   // the court recorded none, which is most of the collection: the structured
   // ementa is a 2024 standard and the STJ's own reaches back to 1989.
   thesis: string[];
+  // How the panel voted: 'unanime', 'maioria', or null when neither was read.
+  deliberation: string | null;
   full_text_available: boolean;
   sections: EmentaSections | null;
+  // Súmulas and temas the decision cites. Absent on an older API, which is why
+  // the screen reads it through `readCitedPrecedents` rather than trusting it.
+  precedents?: unknown;
 };
 
 // A failed read, carrying the status so a missing decision can be told apart
