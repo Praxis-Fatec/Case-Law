@@ -1,5 +1,6 @@
 """
-Seguiu, afastou or distinguiu, read from the words around the citation.
+Seguiu, afastou, distinguiu, mencionou or indeterminado, read from the words
+around the citation.
 
 The negative forms contain the positive ones: "não se aplica a súmula" carries
 "aplica". The order the patterns are tried in is therefore part of the rule,
@@ -21,7 +22,11 @@ DISTINGUIU = re.compile(r"distingu|distincao")
 SEGUIU = re.compile(
     r"incid|aplica|obice|obsta|esbarra|atrai|conforme|consoante|conformidade|"
     r"nos\s+termos|a\s+teor|a\s+luz|consonancia|orientacao|entendimento|"
-    r"enunciado|observ|vedad|impede|precedente"
+    r"enunciado|observ|vedad|impede"
+)
+REFERENCIA = re.compile(
+    r"precedente|no\s+mesmo\s+sentido|\bcf\.|\bvide|\bv\.g\.|"
+    r"a\s+exemplo\s+d|dentre\s+outros|entre\s+outros"
 )
 
 
@@ -33,19 +38,22 @@ def _fold(text: str) -> str:
     )
 
 
-def adherence(snippet: str, ementa: str | None = None) -> str | None:
-    """The rule in core_decisao_precedente.sql, so a change there breaks a test here."""
-    for text in (snippet, ementa):
-        if text is None:
-            return None
-        folded = _fold(text)
-        if AFASTOU.search(folded):
-            return "afastou"
-        if DISTINGUIU.search(folded):
-            return "distinguiu"
-        if SEGUIU.search(folded):
-            return "seguiu"
+def _read(text: str) -> str | None:
+    folded = _fold(text)
+    if AFASTOU.search(folded):
+        return "afastou"
+    if DISTINGUIU.search(folded):
+        return "distinguiu"
+    if SEGUIU.search(folded):
+        return "seguiu"
+    if REFERENCIA.search(folded):
+        return "mencionou"
     return None
+
+
+def adherence(snippet: str, ementa: str | None = None) -> str:
+    """The rule in core_decisao_precedente.sql, so a change there breaks a test here."""
+    return _read(snippet) or (ementa and _read(ementa)) or "indeterminado"
 
 
 SEGUIDAS = [
@@ -101,6 +109,25 @@ def test_a_distinction_is_neither_of_the_other_two() -> None:
     assert adherence("há distinção entre o caso e o Tema 630") == "distinguiu"
 
 
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "precedentes: Súmula 83/STJ, Súmula 7/STJ",
+        "no mesmo sentido, a Súmula 284/STF",
+        "a exemplo do Tema 630/STJ",
+        "Súmula 7/STJ, dentre outros",
+    ],
+)
+def test_a_list_of_precedents_is_a_mention_not_an_application(snippet: str) -> None:
+    """
+    A citation carried in a list states no judgment about applying it. Reading
+    it as `seguiu` inflates the adherence indicator: 6,151 links were being
+    counted that way because the word "precedente" sat in the pattern for the
+    application.
+    """
+    assert adherence(snippet) == "mencionou"
+
+
 def test_the_ementa_answers_only_when_one_precedent_was_cited() -> None:
     """
     With a second citation in the same ementa the verb has another precedent
@@ -108,8 +135,13 @@ def test_the_ementa_answers_only_when_one_precedent_was_cited() -> None:
     """
     bare = "Súmula n. 7/STJ. decisão mantida."
     assert adherence(bare, "reexame de prova, óbice da súmula") == "seguiu"
-    assert adherence(bare, None) is None
+    assert adherence(bare, None) == "indeterminado"
 
 
-def test_a_snippet_without_any_signal_stays_unknown() -> None:
-    assert adherence("Súmula 7/STJ. honorários advocatícios.") is None
+def test_nothing_is_categorised_by_elimination() -> None:
+    """
+    The honesty rule the card states: a link with no signal is undetermined,
+    never the leftover category. An indicator built on guesses is worse than
+    no indicator.
+    """
+    assert adherence("Súmula 7/STJ. honorários advocatícios.") == "indeterminado"

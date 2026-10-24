@@ -3,12 +3,14 @@ MODEL (
   kind FULL,
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
   audits (
-    not_null(columns := (fonte_codigo, identificador_fonte, corte, tipo, numero, trecho)),
+    not_null(columns := (fonte_codigo, identificador_fonte, corte, tipo, numero, trecho, aderencia)),
     unique_combination_of_columns(
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
     ),
     citacao_de_tipo_conhecido,
     citacao_com_volume,
+    citacao_resolvida_com_precedente,
+    citacao_com_alcance,
     aderencia_de_valor_conhecido,
     aderencia_sem_contradicao,
     aderencia_com_cobertura
@@ -95,7 +97,10 @@ sinal AS (
   SELECT
     'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)' AS afasta,
     'distingu|distincao' AS distingue,
-    'incid|aplica|obice|obsta|esbarra|atrai|conforme|consoante|conformidade|nos\s+termos|a\s+teor|a\s+luz|consonancia|orientacao|entendimento|enunciado|observ|vedad|impede|precedente' AS segue
+    'incid|aplica|obice|obsta|esbarra|atrai|conforme|consoante|conformidade|nos\s+termos|a\s+teor|a\s+luz|consonancia|orientacao|entendimento|enunciado|observ|vedad|impede' AS segue,
+    /* Lista de precedentes não é juízo de aplicação: 6.151 ligações eram lidas
+       como `seguiu` só por conter a palavra. */
+    'precedente|no\s+mesmo\s+sentido|\mcf\.|\mvide|\mv\.g\.|a\s+exemplo\s+d|dentre\s+outros|entre\s+outros' AS referencia
 )
 
 SELECT
@@ -107,13 +112,16 @@ SELECT
   r.trecho              AS trecho,
   (p.corte IS NOT NULL) AS resolvida,
   CASE
-    WHEN r.trecho ~ g.afasta    THEN 'afastou'
-    WHEN r.trecho ~ g.distingue THEN 'distinguiu'
-    WHEN r.trecho ~ g.segue     THEN 'seguiu'
-    WHEN u.fonte_codigo IS NULL THEN NULL
-    WHEN r.texto ~ g.afasta     THEN 'afastou'
-    WHEN r.texto ~ g.distingue  THEN 'distinguiu'
-    WHEN r.texto ~ g.segue      THEN 'seguiu'
+    WHEN r.trecho ~ g.afasta     THEN 'afastou'
+    WHEN r.trecho ~ g.distingue  THEN 'distinguiu'
+    WHEN r.trecho ~ g.segue      THEN 'seguiu'
+    WHEN r.trecho ~ g.referencia THEN 'mencionou'
+    WHEN u.fonte_codigo IS NULL  THEN 'indeterminado'
+    WHEN r.texto ~ g.afasta      THEN 'afastou'
+    WHEN r.texto ~ g.distingue   THEN 'distinguiu'
+    WHEN r.texto ~ g.segue       THEN 'seguiu'
+    WHEN r.texto ~ g.referencia  THEN 'mencionou'
+    ELSE 'indeterminado'
   END                   AS aderencia,
   NOW()                 AS carregado_em
 FROM recortada AS r

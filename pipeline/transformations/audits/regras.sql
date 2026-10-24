@@ -232,11 +232,12 @@ AUDIT (
   name aderencia_de_valor_conhecido,
   dialect postgres
 );
-/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+/* Texto cru vazando de uma captura de grupo chega aqui. `indeterminado` é
+   valor, não ausência: numa ferramenta jurídica "não sei" é resposta. */
 SELECT *
 FROM @this_model
-WHERE aderencia IS NOT NULL
-  AND aderencia NOT IN ('seguiu', 'afastou', 'distinguiu');
+WHERE aderencia NOT IN
+  ('seguiu', 'afastou', 'distinguiu', 'mencionou', 'indeterminado');
 
 AUDIT (
   name aderencia_sem_contradicao,
@@ -253,9 +254,34 @@ AUDIT (
   name aderencia_com_cobertura,
   dialect postgres
 );
-/* Se o vocabulário do tribunal mudar, a coluna fica nula em silêncio e o
-   indicador encolhe sem avisar. Hoje a cobertura é de 76%. */
+/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
+   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
 SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) > 100000
-   AND COUNT(aderencia) < COUNT(*) * 0.65;
+   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
+
+AUDIT (
+  name citacao_resolvida_com_precedente,
+  dialect postgres
+);
+/* `resolvida` é a promessa de que a tela consegue mostrar o enunciado. Catálogo
+   coletado pela metade deixaria ligação órfã marcada como resolvida, e o leitor
+   veria a citação de um precedente que o sistema não sabe exibir. */
+SELECT dp.*
+FROM @this_model AS dp
+LEFT JOIN core.precedente AS p
+  ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.resolvida <> (p.corte IS NOT NULL);
+
+AUDIT (
+  name citacao_com_alcance,
+  dialect postgres
+);
+/* Se a redação das citações mudar, a extração encolhe calada e a tela diz
+   "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
+   O piso é sobre a proporção de decisões, não de ligações: hoje 27,8%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
+     < (SELECT COUNT(*) FROM core.decisao) * 0.24;
