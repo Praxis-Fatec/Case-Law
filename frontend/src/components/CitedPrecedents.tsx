@@ -37,14 +37,12 @@ function Standing({ status }: { status: string | null }) {
     );
   }
 
-  // Never "em vigor": the catalogue carries no status for a reconstructed
-  // súmula, and silence is not the same as currency.
+  // Nothing at all when the status is unknown, which is every reconstructed
+  // súmula: a warning that appears on all of them stops being read, and it
+  // would compete with the one above, which is the one that matters. The
+  // section says it once instead.
   if (standing === 'unknown') {
-    return (
-      <p className="precedent__standing precedent__standing--unknown">
-        Situação não conhecida — confira na fonte oficial antes de citar.
-      </p>
-    );
+    return null;
   }
 
   return <p className="precedent__standing">Situação: {status}</p>;
@@ -118,7 +116,9 @@ function CitedPrecedents({ precedents, headingId }: CitedPrecedentsProps) {
       </h3>
       <p className="precedents__lead">
         Súmulas e temas que esta decisão invoca. O enunciado e o trecho são do acórdão; o rótulo ao
-        final de cada bloco é leitura automática, não texto do tribunal.
+        final de cada bloco é leitura automática, não texto do tribunal. O acervo não registra se um
+        precedente segue valendo, salvo quando marcado abaixo — confira na fonte oficial antes de
+        citar.
       </p>
 
       <div className="precedents__list">

@@ -95,8 +95,13 @@ describe('the precedents a decision cites', () => {
   it('never reads an unknown status as current', () => {
     showDetail([precedent({ status: null })]);
 
-    expect(screen.getByText(/Situação não conhecida/)).toBeInTheDocument();
+    // Said once for the section rather than on every block: the catalogue
+    // carries no status for any reconstructed súmula, so a warning repeated
+    // on all of them would stop being read and would compete with the one
+    // that marks a cancelled precedent.
+    expect(screen.getByText(/confira na fonte oficial antes de citar/)).toBeInTheDocument();
     expect(screen.queryByText(/em vigor/i)).toBeNull();
+    expect(screen.queryByText(/^Situação:/)).toBeNull();
   });
 
   it('shows a citation the catalogue has no text for, instead of hiding it', () => {

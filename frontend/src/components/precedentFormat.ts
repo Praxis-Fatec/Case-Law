@@ -127,6 +127,9 @@ export function rankAdherences(adherences: AdherenceCount[]): AdherenceCount[] {
 // by number, so two citations of the same kind sit together.
 export function orderCited(precedents: CitedPrecedent[]): CitedPrecedent[] {
   return [...precedents].sort((a, b) => {
+    // What the catalogue can explain comes first: a citation with no text
+    // tells the reader less, and reading starts at the top.
+    if (a.resolved !== b.resolved) return a.resolved ? -1 : 1;
     if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1;
     if (a.court !== b.court) return a.court < b.court ? -1 : 1;
     return (a.number ?? 0) - (b.number ?? 0);
