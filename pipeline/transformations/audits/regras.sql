@@ -208,3 +208,23 @@ FROM @this_model
 GROUP BY origem
 HAVING (origem = 'reconstruido' AND COUNT(*) < 300)
     OR (origem = 'catalogo' AND COUNT(*) < 1000);
+
+AUDIT (
+  name citacao_de_tipo_conhecido,
+  dialect postgres
+);
+/* Tipo fora da lista não casa com core.precedente: órfã, e sem erro. */
+SELECT *
+FROM @this_model
+WHERE tipo NOT IN ('sumula', 'tema')
+   OR corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name citacao_com_volume,
+  dialect postgres
+);
+/* Redação muda, extração encolhe calada: o indicador mediria menos acervo. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) < 300000;
+
