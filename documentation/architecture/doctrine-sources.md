@@ -42,17 +42,34 @@ host**, not the harvesting path: `/`, `/server/api` and `/oai/request` all
 answer 403.
 
 This is a deliberate measure, not an outage, and it is not to be worked around.
-The page carries a support channel — weekdays, 7h to 20h — which is the route
-for institutional harvesting.
+
+**It lets a person through.** Opened in a browser on 2026-10-24, the endpoint
+answers normally, which confirms the challenge is doing what it is for rather
+than refusing the public. What a browser read that day:
+
+| | |
+|---|---|
+| Repository | BDJur, protocol 2.0, DSpace |
+| **Contact** | **`bdjur@stj.jus.br`** |
+| Earliest record | 2004-04-06 13:40:01 |
+| Granularity | `YYYY-MM-DD hh:mm:ss` — incremental harvesting by `from`/`until` |
+| Sets | 57 |
+
+That contact is published by the protocol itself and belongs to the library,
+not to the security team. It is the address to ask for harvesting access.
 
 **Sets the sprint was planned on**, recorded here so the request to the STJ can
 name them:
 
 ```
 com_2011_2   Doutrina                    83.374 registros
-col_2011_8   Artigos de Acesso Aberto    20.504 registros
+col_2011_8   Artigos de Acesso Aberto    20.597 registros   ← 20.504 em 05/10
 col_2011_9   Artigos de Acesso Restrito  ← never collected
 ```
+
+Confirmed in the browser on 2026-10-24: the three codes still name the same
+sets, and the open-access one has grown by 93 records since the planning test.
+Of the 57 sets the repository publishes, these are the ones this story needs.
 
 That the STJ separates open from restricted into distinct collections is what
 settles the copyright question the client asked about: collecting only the
