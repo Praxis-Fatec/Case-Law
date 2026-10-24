@@ -158,8 +158,10 @@ export type VolumeParams = Pick<
   'q' | 'tribunal' | 'date_from' | 'date_to' | 'published_from' | 'published_to'
 >;
 
-// The cut as the indicators take it, the same for every one of them.
-function cutUrl(path: string, params: VolumeParams): URL {
+// The cut as the indicators take it, the same for every one of them. Exported
+// because every indicator module builds the same URL, and two copies of this
+// would drift the day a filter is added.
+export function cutUrl(path: string, params: VolumeParams): URL {
   const url = new URL(`${apiBaseUrl}${path}`, window.location.origin);
   url.searchParams.set('q', params.q);
 

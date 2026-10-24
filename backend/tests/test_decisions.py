@@ -11,6 +11,7 @@ from app.api.decisions import (
     HIGHLIGHT_SQL,
     MAX_SNIPPET_WORDS,
     PAGE_SQL,
+    PRECEDENTS_SQL,
     _fallback_ementa_start,
     _normalize_highlighted_text,
     _safe_snippet,
@@ -84,6 +85,7 @@ class FakeDatabase:
     def __init__(self, total: int = 1, found: bool = True) -> None:
         self.total = total
         self.found = found
+        self.precedents: list[dict[str, Any]] = []
         self.statements: list[str] = []
         self.parameters: list[dict[str, Any]] = []
         self.answer: Callable[[str, dict[str, Any]], list[dict[str, Any]]] = (
@@ -101,6 +103,8 @@ class FakeDatabase:
             return [DETAIL_ROW] if self.found else []
         if statement == HIGHLIGHT_SQL:
             return [{"highlighted": "Ementa: <mark>Dano</mark> moral configurado."}]
+        if statement == PRECEDENTS_SQL:
+            return self.precedents
         raise AssertionError(f"unexpected statement: {statement}")
 
     def cursor(self) -> FakeCursor:

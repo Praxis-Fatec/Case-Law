@@ -237,6 +237,27 @@ FROM core.decisao
 WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
 """
 
+# LEFT JOIN, not JOIN: a citation the catalogue has no entry for still happened,
+# and dropping it here would let the screen show fewer precedents than the court
+# named.
+PRECEDENTS_SQL = """
+SELECT
+    dp.corte,
+    dp.tipo,
+    dp.numero,
+    dp.trecho,
+    dp.aderencia,
+    dp.resolvida,
+    p.enunciado,
+    p.situacao,
+    p.data
+FROM core.decisao_precedente AS dp
+LEFT JOIN core.precedente AS p
+    ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.fonte_codigo = %(source)s AND dp.identificador_fonte = %(identifier)s
+ORDER BY dp.tipo, dp.numero
+"""
+
 
 class DecisionBase(BaseModel):
     source: str = Field(
@@ -344,6 +365,26 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         ),
         "ruling": "4. Apelação conhecida e desprovida.",
     },
+    "precedents": [
+        {
+            "court": "STJ",
+            "kind": "sumula",
+            "number": 106,
+            "text": (
+                "Proposta a ação no prazo fixado para o seu exercício, a demora "
+                "na citação, por motivos inerentes ao mecanismo da Justiça, não "
+                "justifica o acolhimento da arguição de prescrição."
+            ),
+            "status": None,
+            "settled_on": None,
+            "snippet": (
+                "prescricao intercorrente. incidencia da sumula 106/stj. "
+                "apelacao desprovida."
+            ),
+            "adherence": "seguiu",
+            "resolved": True,
+        }
+    ],
 }
 
 
@@ -376,6 +417,61 @@ class EmentaSections(BaseModel):
     ruling: str = Field(
         description="What was decided, and the thesis when the court states one.",
         examples=["4. Recurso conhecido e provido."],
+    )
+
+
+class CitedPrecedent(BaseModel):
+    court: str = Field(
+        description="Which court settled it. `STJ` or `STF`.", examples=["STJ"]
+    )
+    kind: str = Field(
+        description="`sumula` or `tema`, the two the collection carries.",
+        examples=["sumula"],
+    )
+    number: int = Field(description="The precedent's number.", examples=[7])
+    text: str | None = Field(
+        description=(
+            "What the court settled, when the catalogue holds it. `null` means "
+            "the decision cited something the catalogue has no entry for — the "
+            "citation is still real, and the screen shows it without a text "
+            "rather than hiding it. 4% of citations are in this state."
+        ),
+        examples=[
+            "A pretensão de simples reexame de prova não enseja recurso especial."
+        ],
+    )
+    status: str | None = Field(
+        default=None,
+        description=(
+            "Whether it is still in force. Always `null` for a súmula, whose "
+            "text is reconstructed from the collection and carries no status: "
+            "presenting a cancelled one as current is an error this refuses to "
+            "risk."
+        ),
+        examples=[None],
+    )
+    settled_on: date | None = Field(
+        default=None, description="When it was judged, for temas."
+    )
+    snippet: str = Field(
+        description=(
+            "The court's own words around the citation, 220 characters of the "
+            "ementa. This is what lets the reader check the label below against "
+            "what was actually written."
+        ),
+        examples=["reexame de provas. incidencia da sumula n. 7 do stj."],
+    )
+    adherence: str = Field(
+        description=(
+            "How the decision used it, read from the words around the citation: "
+            "`seguiu`, `afastou`, `distinguiu`, `mencionou` or `indeterminado`. "
+            "The last is a value, not an absence — a tool that guesses is worse "
+            "than one that says it does not know."
+        ),
+        examples=["seguiu"],
+    )
+    resolved: bool = Field(
+        description="Whether `text` could be filled from the catalogue."
     )
 
 
@@ -420,6 +516,14 @@ class Decision(DecisionBase):
             "Always read from the court's own text, so a search term never "
             "changes the answer: `summary` carries the highlighting, these "
             "carry the text."
+        ),
+    )
+    precedents: list[CitedPrecedent] = Field(
+        default_factory=list,
+        description=(
+            "Which súmulas and temas this decision cites, in the order the "
+            "numbering gives. Empty for the 72% of the collection that cites "
+            "none — an empty list, never an error."
         ),
     )
 
@@ -895,7 +999,24 @@ def read_decision(
             if highlighted:
                 summary = _normalize_highlighted_text(highlighted["highlighted"], q)
 
+        cursor.execute(PRECEDENTS_SQL, parameters)
+        cited = [
+            CitedPrecedent(
+                court=cite["corte"],
+                kind=cite["tipo"],
+                number=cite["numero"],
+                text=cite["enunciado"],
+                status=cite["situacao"],
+                settled_on=cite["data"],
+                snippet=cite["trecho"],
+                adherence=cite["aderencia"],
+                resolved=cite["resolvida"],
+            )
+            for cite in cursor.fetchall()
+        ]
+
     return Decision(
+        precedents=cited,
         **_base_fields(row),
         class_code=row["classe_cnj"],
         judged_on=row["data_julgamento"],

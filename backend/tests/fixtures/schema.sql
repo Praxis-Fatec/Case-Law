@@ -111,3 +111,30 @@ INSERT INTO core.classe_processual VALUES
 (213,   5,    'Recurso Especial'),
 (1321,  5,    'Agravo Regimental'),
 (1331,  5,    'Habeas Corpus');
+
+CREATE TABLE core.precedente (
+    corte        TEXT   NOT NULL,
+    tipo         TEXT   NOT NULL,
+    numero       BIGINT NOT NULL,
+    enunciado    TEXT   NOT NULL,
+    situacao     TEXT,
+    data         DATE,
+    url_fonte    TEXT,
+    origem       TEXT   NOT NULL,
+    transcricoes BIGINT,
+    carregado_em TIMESTAMPTZ,
+    PRIMARY KEY (corte, tipo, numero)
+);
+
+CREATE TABLE core.decisao_precedente (
+    fonte_codigo        TEXT   NOT NULL,
+    identificador_fonte TEXT   NOT NULL,
+    corte               TEXT   NOT NULL,
+    tipo                TEXT   NOT NULL,
+    numero              BIGINT NOT NULL,
+    trecho              TEXT   NOT NULL,
+    resolvida           BOOLEAN NOT NULL,
+    aderencia           TEXT   NOT NULL,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)
+);

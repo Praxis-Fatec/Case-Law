@@ -39,6 +39,7 @@ DETAIL = (MATCH - {"snippet"}) | {
     "outcome",
     "full_text_available",
     "sections",
+    "precedents",
 }
 
 NULLABLE = {
