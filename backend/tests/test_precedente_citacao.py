@@ -21,8 +21,12 @@ SUMULA = re.compile(
     r"sumula\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\s*[/, -]*(?:do\s+)?(stj|stf)"
 )
 # The number is what separates the precedent from the common noun: without it,
-# "relevância do tema" would be a citation of nothing.
-TEMA = re.compile(r"\btema[s]?\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\b")
+# "relevância do tema" would be a citation of nothing. The court is read from
+# the text, as it is for a súmula: both courts have a Tema 793.
+TEMA = re.compile(
+    r"\btema[s]?\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\b\s*[/, ();-]*(?:d[aeo]\s+)?"
+    r"(stf|stj|repercussao geral)?"
+)
 
 
 def _fold(text: str) -> str:
@@ -40,8 +44,29 @@ def cited(ementa: str) -> set[tuple[str, str, int]]:
     found = {
         (court.upper(), "sumula", int(number)) for number, court in SUMULA.findall(text)
     }
-    found |= {("STJ", "tema", int(number)) for number in TEMA.findall(text)}
+    # Aggregated per number, the way the SQL groups: the same ementa names the
+    # court in one occurrence and omits it in the next.
+    temas: dict[int, str | None] = {}
+    for number, court in TEMA.findall(text):
+        seen = temas.get(int(number))
+        temas[int(number)] = court or seen
+    found |= {
+        (
+            "STF" if court and ("stf" in court or "repercussao" in court) else "STJ",
+            "tema",
+            number,
+        )
+        for number, court in temas.items()
+    }
     return found
+
+
+def tema_court_stated(ementa: str) -> dict[int, bool]:
+    """Whether the ementa said which court settled each tema it cites."""
+    stated: dict[int, bool] = {}
+    for number, court in TEMA.findall(_fold(ementa)):
+        stated[int(number)] = stated.get(int(number), False) or bool(court)
+    return stated
 
 
 def test_three_precedents_cited_make_three_links() -> None:
@@ -180,3 +205,39 @@ class TestResolution:
 
         with pytest.raises(psycopg.errors.UniqueViolation):
             self.link(db_rolled_back, 7, resolved=False)
+
+
+def test_a_tema_of_the_supreme_court_is_not_recorded_as_the_other_one() -> None:
+    """
+    The defect this test exists for. The court was a constant, so every tema
+    was the STJ's — and 11,252 citations showed the thesis of a different
+    precedent of the same number. Tema 793 of the STF is about the duty of
+    federated entities in health care; Tema 793 of the STJ is about court
+    registry records.
+    """
+    assert cited("Incidência do Tema 793 do STF") == {("STF", "tema", 793)}
+    assert cited("nos termos do Tema 793 do STJ") == {("STJ", "tema", 793)}
+
+
+def test_repercussao_geral_is_the_supreme_court() -> None:
+    assert cited("Tema 69 da repercussão geral") == {("STF", "tema", 69)}
+
+
+def test_a_tema_with_no_court_named_identifies_no_precedent() -> None:
+    """
+    Both courts have a Tema 793. Reading a bare citation as either one is a
+    guess, so the link is kept and the court recorded as not stated — the
+    screen then shows the citation without a thesis.
+    """
+    assert tema_court_stated("conforme o Tema 793, o recurso não prospera") == {
+        793: False
+    }
+    assert tema_court_stated("conforme o Tema 793 do STF") == {793: True}
+
+
+def test_one_occurrence_naming_the_court_settles_the_whole_citation() -> None:
+    """The same ementa names it once and omits it after; one link, not two."""
+    ementa = "Tema 793 do STF. Aplicou-se o Tema 793 ao caso."
+
+    assert cited(ementa) == {("STF", "tema", 793)}
+    assert tema_court_stated(ementa) == {793: True}

@@ -59,12 +59,13 @@ def cite(
     how: str,
     resolved: bool = True,
     source: str = SOURCE,
+    court_stated: bool = True,
 ) -> None:
     db.execute(
         "INSERT INTO core.decisao_precedente"
         " (fonte_codigo, identificador_fonte, corte, tipo, numero, trecho,"
-        "  resolvida, aderencia)"
-        " VALUES (%s, %s, 'STJ', 'sumula', %s, %s, %s, %s)",
+        "  resolvida, aderencia, corte_declarada)"
+        " VALUES (%s, %s, 'STJ', 'sumula', %s, %s, %s, %s, %s)",
         (
             source,
             identifier,
@@ -72,6 +73,7 @@ def cite(
             f"trecho citando a sumula {number}",
             resolved,
             how,
+            court_stated,
         ),
     )
 
@@ -242,3 +244,43 @@ def test_a_precedent_outside_the_catalogue_still_ranks(client: TestClient) -> No
 
 def test_the_most_cited_obeys_the_limit(client: TestClient) -> None:
     assert len(most_cited(client, limit=1)) == 1
+
+
+def test_a_thesis_is_never_answered_for_a_court_nobody_named(
+    cited: psycopg.Connection[DictRow], client: TestClient
+) -> None:
+    """
+    The fixtures hid this one: the detail joined the catalogue on the court
+    the extraction had guessed, so a bare "Tema 793" came back carrying the
+    STJ's thesis even with `resolved` false. Both courts have a Tema 793, and
+    answering with the wrong one's is worse than answering nothing.
+    """
+    # The catalogue has to hold it, or the join comes back empty for the right
+    # reason and the test proves nothing.
+    catalogue(cited, 500)
+    cite(cited, "a", 500, "seguiu", resolved=False, court_stated=False)
+
+    bare = next(
+        p for p in detail(client, "a")["precedents"] if p["court_stated"] is False
+    )
+
+    assert bare["resolved"] is False
+    assert bare["text"] is None
+
+
+def test_a_citation_naming_no_court_is_left_out_of_the_ranking(
+    cited: psycopg.Connection[DictRow], client: TestClient
+) -> None:
+    """
+    It identifies no precedent, so it cannot be ranked under one: counting it
+    among the STJ's would pad that row with citations of the STF's.
+    """
+    before = next(row for row in most_cited(client) if row["number"] == 83)["citations"]
+    # Same decision, same precedent, cited again without naming the court: the
+    # key allows it only because `b` had no link to 83 yet.
+    cite(cited, "d", 83, "seguiu", resolved=False, court_stated=False)
+
+    assert (
+        next(row for row in most_cited(client) if row["number"] == 83)["citations"]
+        == before
+    )

@@ -558,6 +558,10 @@ JOIN core.decisao_precedente AS dp
    AND dp.identificador_fonte = r.identificador_fonte
 LEFT JOIN core.precedente AS p
     ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+-- A citation that never said which court settled it identifies no precedent,
+-- so it cannot be ranked under one: counting a bare "Tema 793" among the
+-- STJ's would inflate that row with citations of the STF's.
+WHERE dp.corte_declarada
 GROUP BY dp.corte, dp.tipo, dp.numero, p.enunciado
 ORDER BY COUNT(*) DESC, dp.corte, dp.tipo, dp.numero
 LIMIT %(limit)s

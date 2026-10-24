@@ -26,6 +26,7 @@ const precedent = (over: Partial<CitedPrecedent> = {}): CitedPrecedent => ({
   snippet: 'reexame de provas. incidencia da sumula n. 7 do stj.',
   adherence: 'seguiu',
   resolved: true,
+  court_stated: true,
   ...over,
 });
 
@@ -118,6 +119,18 @@ describe('the precedents a decision cites', () => {
 
     expect(link).toHaveAttribute('target', '_blank');
     expect(link.getAttribute('href')).toContain('stf.jus.br');
+  });
+
+  it('does not name a court the acórdão never named', () => {
+    showDetail([precedent({ kind: 'tema', number: 793, court_stated: false, resolved: false })]);
+
+    // Both courts have a Tema 793, saying different things. Naming one would
+    // be a claim the decision never made — it cost 11,252 citations the wrong
+    // enunciado before the court was read from the text.
+    expect(screen.getByRole('article', { name: 'Tema 793' })).toBeInTheDocument();
+    expect(screen.queryByText(/Tema 793 do STJ/)).toBeNull();
+    expect(screen.getByText(/não disse de qual corte é este tema/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Fonte oficial/ })).toBeNull();
   });
 
   it('renders nothing at all when the decision cites none', () => {

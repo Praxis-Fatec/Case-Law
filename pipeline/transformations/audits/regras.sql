@@ -267,12 +267,14 @@ AUDIT (
 );
 /* `resolvida` é a promessa de que a tela consegue mostrar o enunciado. Catálogo
    coletado pela metade deixaria ligação órfã marcada como resolvida, e o leitor
-   veria a citação de um precedente que o sistema não sabe exibir. */
+   veria a citação de um precedente que o sistema não sabe exibir.
+   Numa direção só: a ligação sem corte declarada não resolve mesmo havendo
+   linha de mesmo número no catálogo, porque seria o precedente de outra corte. */
 SELECT dp.*
 FROM @this_model AS dp
 LEFT JOIN core.precedente AS p
   ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
-WHERE dp.resolvida <> (p.corte IS NOT NULL);
+WHERE dp.resolvida AND p.corte IS NULL;
 
 AUDIT (
   name citacao_com_alcance,
@@ -285,3 +287,22 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
      < (SELECT COUNT(*) FROM core.decisao) * 0.24;
+
+AUDIT (
+  name citacao_com_corte_do_texto,
+  dialect postgres
+);
+/* A corte é metade da identidade do precedente, e atribuí-la por constante
+   fez 11.252 citações exibirem o enunciado de outro. Nenhuma ligação pode
+   afirmar STF sem que a ementa diga STF ou repercussão geral. */
+SELECT dp.*
+FROM @this_model AS dp
+JOIN core.decisao AS d
+  ON d.fonte_codigo = dp.fonte_codigo
+ AND d.identificador_fonte = dp.identificador_fonte
+WHERE dp.corte_declarada
+  AND dp.corte = 'STF'
+  /* Os espaços são colapsados como no modelo: "repercussão\ngeral" partida em
+     duas linhas escapa de um padrão que espera um espaço só. */
+  AND UNACCENT(LOWER(REGEXP_REPLACE(d.ementa, '\s+', ' ', 'g')))
+      !~ 'stf|supremo|repercussao geral';

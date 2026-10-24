@@ -36,6 +36,9 @@ export type CitedPrecedent = {
   snippet: string | null;
   adherence: Adherence | null;
   resolved: boolean;
+  // Whether the ementa said which court settled it. A bare "Tema 793"
+  // identifies no precedent: both courts have one, saying different things.
+  court_stated: boolean;
 };
 
 export type AdherenceCount = {
@@ -99,6 +102,8 @@ export function readCitedPrecedent(value: unknown): CitedPrecedent | null {
     snippet: text(row.snippet),
     adherence: adherenceOf(row.adherence),
     resolved: row.resolved === true,
+    // Absent on an older API reads as stated, which is what every súmula is.
+    court_stated: row.court_stated !== false,
   };
 }
 

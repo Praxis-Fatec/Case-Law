@@ -3,7 +3,10 @@ MODEL (
   kind FULL,
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
   audits (
-    not_null(columns := (fonte_codigo, identificador_fonte, corte, tipo, numero, trecho, aderencia)),
+    not_null(columns := (
+      fonte_codigo, identificador_fonte, corte, tipo, numero, trecho,
+      aderencia, corte_declarada
+    )),
     unique_combination_of_columns(
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
     ),
@@ -11,6 +14,7 @@ MODEL (
     citacao_com_volume,
     citacao_resolvida_com_precedente,
     citacao_com_alcance,
+    citacao_com_corte_do_texto,
     aderencia_de_valor_conhecido,
     aderencia_sem_contradicao,
     aderencia_com_cobertura
@@ -32,9 +36,9 @@ citada AS (
   SELECT DISTINCT
     b.fonte_codigo,
     b.identificador_fonte,
-    b.texto,
-    UPPER(achado[2]) AS corte,
-    'sumula'         AS tipo,
+    UPPER(achado[2])  AS corte,
+    TRUE              AS corte_declarada,
+    'sumula'          AS tipo,
     achado[1]::BIGINT AS numero
   FROM base AS b,
        LATERAL (
@@ -45,23 +49,32 @@ citada AS (
          )) AS achado
        ) AS s
 
-  UNION
+  UNION ALL
 
   /* "relevância do tema e da urgência" não é citação: o número é o que separa
-     o substantivo comum do precedente. */
-  SELECT DISTINCT
+     o substantivo comum do precedente.
+
+     A corte vem do texto, como na súmula. Repercussão geral é tema do STF, e
+     atribuí-la ao STJ fazia 11.252 citações exibirem o enunciado de outro
+     precedente de mesmo número. Agregado por decisão e número porque a mesma
+     ementa diz a corte numa ocorrência e a omite na seguinte: uma linha por
+     tema citado, declarada se qualquer ocorrência disse de quem é. */
+  SELECT
     b.fonte_codigo,
     b.identificador_fonte,
-    b.texto,
-    'STJ'             AS corte,
+    CASE WHEN BOOL_OR(achado[2] ~ 'stf|repercussao') THEN 'STF' ELSE 'STJ' END AS corte,
+    BOOL_OR(achado[2] IS NOT NULL) AS corte_declarada,
     'tema'            AS tipo,
     achado[1]::BIGINT AS numero
   FROM base AS b,
        LATERAL (
          SELECT (REGEXP_MATCHES(
-           b.texto, '\mtema[s]?\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\M', 'g'
+           b.texto,
+           '\mtema[s]?\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\M\s*[/, ();-]*(?:d[aeo]\s+)?(stf|stj|repercussao geral)?',
+           'g'
          )) AS achado
        ) AS t
+  GROUP BY b.fonte_codigo, b.identificador_fonte, achado[1]::BIGINT
 ),
 
 /* Recorte por posição: capturar o contexto na mesma expressão faz uma citação
@@ -69,12 +82,14 @@ citada AS (
 situada AS (
   SELECT
     c.*,
+    b.texto,
     REGEXP_INSTR(
-      c.texto,
+      b.texto,
       CASE c.tipo WHEN 'sumula' THEN 'sumula' ELSE 'tema[s]?' END
         || '\s*(?:n[.oº°]*\s*)?' || c.numero || '\M'
     ) AS posicao
   FROM citada AS c
+  JOIN base AS b USING (fonte_codigo, identificador_fonte)
 ),
 
 recortada AS (
@@ -110,7 +125,11 @@ SELECT
   r.tipo                AS tipo,
   r.numero              AS numero,
   r.trecho              AS trecho,
-  (p.corte IS NOT NULL) AS resolvida,
+  r.corte_declarada     AS corte_declarada,
+  /* Sem corte declarada não se sabe qual tema foi citado, e o catálogo
+     responderia pelo precedente errado de mesmo número. A ligação é real e
+     fica; o enunciado é que não pode ser afirmado. */
+  (p.corte IS NOT NULL AND r.corte_declarada) AS resolvida,
   CASE
     WHEN r.trecho ~ g.afasta     THEN 'afastou'
     WHEN r.trecho ~ g.distingue  THEN 'distinguiu'

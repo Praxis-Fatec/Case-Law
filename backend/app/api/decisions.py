@@ -248,12 +248,17 @@ SELECT
     dp.trecho,
     dp.aderencia,
     dp.resolvida,
+    dp.corte_declarada,
     p.enunciado,
     p.situacao,
     p.data
 FROM core.decisao_precedente AS dp
 LEFT JOIN core.precedente AS p
-    ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+    -- The court has to have been stated for the join to mean anything: both
+    -- courts have a Tema 793, and matching on a guessed court answers with
+    -- the other one's thesis.
+    ON dp.corte_declarada
+   AND p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
 WHERE dp.fonte_codigo = %(source)s AND dp.identificador_fonte = %(identifier)s
 ORDER BY dp.tipo, dp.numero
 """
@@ -383,6 +388,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
             ),
             "adherence": "seguiu",
             "resolved": True,
+            "court_stated": True,
         }
     ],
 }
@@ -472,6 +478,16 @@ class CitedPrecedent(BaseModel):
     )
     resolved: bool = Field(
         description="Whether `text` could be filled from the catalogue."
+    )
+    court_stated: bool = Field(
+        description=(
+            "Whether the ementa said which court settled it. A tema cited "
+            'bare — "Tema 793", with no court — does not identify a '
+            "precedent: the STJ and the STF both have one, saying different "
+            "things. The citation is kept and the text withheld, because "
+            "answering with the wrong court's thesis is worse than answering "
+            "nothing. 6.3% of citations are in this state."
+        ),
     )
 
 
@@ -1011,6 +1027,7 @@ def read_decision(
                 snippet=cite["trecho"],
                 adherence=cite["aderencia"],
                 resolved=cite["resolvida"],
+                court_stated=cite["corte_declarada"],
             )
             for cite in cursor.fetchall()
         ]

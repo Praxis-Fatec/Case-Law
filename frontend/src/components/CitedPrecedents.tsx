@@ -50,7 +50,7 @@ function Standing({ status }: { status: string | null }) {
 
 function Precedent({ precedent }: { precedent: CitedPrecedent }) {
   const name = precedentName(precedent);
-  const source = officialUrl(precedent);
+  const source = precedent.court_stated ? officialUrl(precedent) : null;
   const reading = precedent.adherence;
 
   return (
@@ -67,6 +67,13 @@ function Precedent({ precedent }: { precedent: CitedPrecedent }) {
       </header>
 
       <Standing status={precedent.status} />
+
+      {!precedent.court_stated && (
+        <p className="precedent__standing precedent__standing--unknown">
+          O acórdão não disse de qual corte é este tema. O STJ e o STF têm um com esse número, e
+          dizem coisas diferentes — por isso o enunciado não é mostrado.
+        </p>
+      )}
 
       {precedent.text ? (
         <blockquote className="precedent__text">{precedent.text}</blockquote>

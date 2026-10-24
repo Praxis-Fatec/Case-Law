@@ -134,6 +134,7 @@ CREATE TABLE core.decisao_precedente (
     numero              BIGINT NOT NULL,
     trecho              TEXT   NOT NULL,
     resolvida           BOOLEAN NOT NULL,
+    corte_declarada     BOOLEAN NOT NULL DEFAULT TRUE,
     aderencia           TEXT   NOT NULL,
     carregado_em        TIMESTAMPTZ,
     PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)

@@ -43,15 +43,19 @@ export const KIND_LABELS: Record<string, string> = {
   tema: 'Tema',
 };
 
-// "Súmula 284 do STF", the way a petition would name it.
+// "Súmula 284 do STF", the way a petition would name it. Without a court in
+// the ementa the name stops at the number: "Tema 793 do STJ" would be a claim
+// the decision never made, and both courts have a Tema 793.
 export function precedentName(precedent: {
   court: string;
   kind: string;
   number: number | null;
+  court_stated?: boolean;
 }): string {
   const kind = KIND_LABELS[precedent.kind] ?? precedent.kind;
   const number = precedent.number === null ? '' : ` ${precedent.number}`;
-  return `${kind}${number} do ${precedent.court}`;
+  const court = precedent.court_stated === false ? '' : ` do ${precedent.court}`;
+  return `${kind}${number}${court}`;
 }
 
 // Three states, not two. A null status is "we do not know", which is why it
