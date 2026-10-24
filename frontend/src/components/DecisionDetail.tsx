@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, type Decision } from '../api/decisions';
+import { readCitedPrecedents } from '../api/precedents';
+import CitedPrecedents from './CitedPrecedents';
 import {
   DELIBERATION_LABELS,
   deliberationStateOf,
@@ -198,6 +200,11 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
       )}
 
       <Ementa decision={decision} headingId={`${titleId}-ementa`} />
+
+      <CitedPrecedents
+        precedents={readCitedPrecedents(decision.precedents)}
+        headingId={`${titleId}-precedentes`}
+      />
 
       <OfficialSource decision={decision} />
     </>

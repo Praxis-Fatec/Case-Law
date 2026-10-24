@@ -173,3 +173,136 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) > 100000
    AND COUNT(classe_cnj) < COUNT(*) * 0.95;
+
+AUDIT (
+  name precedente_de_corte_conhecida,
+  dialect postgres
+);
+/* Súmula 7 do STJ e Súmula 7 do STF são precedentes diferentes. Uma linha sem
+   corte declarada colidiria com a outra na chave. */
+SELECT *
+FROM @this_model
+WHERE corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name precedente_com_enunciado,
+  dialect postgres
+);
+/* O enunciado é o produto: sem ele, sobra a contagem de citações, que é outra
+   história. Um recorte que pegou pontuação em vez de texto cai aqui. */
+SELECT *
+FROM @this_model
+WHERE LENGTH(BTRIM(COALESCE(enunciado, ''))) < 40;
+
+AUDIT (
+  name precedente_com_volume,
+  dialect postgres
+);
+/* Se o tribunal mudar a forma de transcrever, o recorte para de casar e a
+   tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
+   As duas origens degradam por motivos diferentes — o tribunal muda a forma de
+   transcrever, ou o portal muda o CSV —, então cada uma tem o próprio piso.
+   Hoje: 371 súmulas reconstruídas e 1.142 temas do catálogo. */
+SELECT 1 AS falha
+FROM @this_model
+GROUP BY origem
+HAVING (origem = 'reconstruido' AND COUNT(*) < 300)
+    OR (origem = 'catalogo' AND COUNT(*) < 1000);
+
+AUDIT (
+  name citacao_de_tipo_conhecido,
+  dialect postgres
+);
+/* Tipo fora da lista não casa com core.precedente: órfã, e sem erro. */
+SELECT *
+FROM @this_model
+WHERE tipo NOT IN ('sumula', 'tema')
+   OR corte NOT IN ('STJ', 'STF');
+
+AUDIT (
+  name citacao_com_volume,
+  dialect postgres
+);
+/* Redação muda, extração encolhe calada: o indicador mediria menos acervo. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) < 300000;
+
+AUDIT (
+  name aderencia_de_valor_conhecido,
+  dialect postgres
+);
+/* Texto cru vazando de uma captura de grupo chega aqui. `indeterminado` é
+   valor, não ausência: numa ferramenta jurídica "não sei" é resposta. */
+SELECT *
+FROM @this_model
+WHERE aderencia NOT IN
+  ('seguiu', 'afastou', 'distinguiu', 'mencionou', 'indeterminado');
+
+AUDIT (
+  name aderencia_sem_contradicao,
+  dialect postgres
+);
+/* "nao se aplica" contém "aplica": trocar a ordem da cascata não quebra nada
+   visível, só inverte o rótulo. */
+SELECT *
+FROM @this_model
+WHERE aderencia IN ('seguiu', 'distinguiu')
+  AND trecho ~ 'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)';
+
+AUDIT (
+  name aderencia_com_cobertura,
+  dialect postgres
+);
+/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
+   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
+
+AUDIT (
+  name citacao_resolvida_com_precedente,
+  dialect postgres
+);
+/* `resolvida` é a promessa de que a tela consegue mostrar o enunciado. Catálogo
+   coletado pela metade deixaria ligação órfã marcada como resolvida, e o leitor
+   veria a citação de um precedente que o sistema não sabe exibir.
+   Numa direção só: a ligação sem corte declarada não resolve mesmo havendo
+   linha de mesmo número no catálogo, porque seria o precedente de outra corte. */
+SELECT dp.*
+FROM @this_model AS dp
+LEFT JOIN core.precedente AS p
+  ON p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.resolvida AND p.corte IS NULL;
+
+AUDIT (
+  name citacao_com_alcance,
+  dialect postgres
+);
+/* Se a redação das citações mudar, a extração encolhe calada e a tela diz
+   "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
+   O piso é sobre a proporção de decisões, não de ligações: hoje 30,2%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
+     < (SELECT COUNT(*) FROM core.decisao) * 0.24;
+
+AUDIT (
+  name citacao_com_corte_do_texto,
+  dialect postgres
+);
+/* A corte é metade da identidade do precedente, e atribuí-la por constante
+   fez 11.252 citações exibirem o enunciado de outro. Nenhuma ligação pode
+   afirmar STF sem que a ementa diga STF ou repercussão geral. */
+SELECT dp.*
+FROM @this_model AS dp
+JOIN core.decisao AS d
+  ON d.fonte_codigo = dp.fonte_codigo
+ AND d.identificador_fonte = dp.identificador_fonte
+WHERE dp.corte_declarada
+  AND dp.corte = 'STF'
+  /* Os espaços são colapsados como no modelo: "repercussão\ngeral" partida em
+     duas linhas escapa de um padrão que espera um espaço só. */
+  AND UNACCENT(LOWER(REGEXP_REPLACE(d.ementa, '\s+', ' ', 'g')))
+      !~ 'stf|supremo|repercussao geral';
