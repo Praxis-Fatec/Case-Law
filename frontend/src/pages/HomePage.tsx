@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
@@ -15,6 +15,14 @@ import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
+import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
+import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
+import PanoramaLayout from '../components/PanoramaLayout';
+import {
+  selectIndicator,
+  type IndicatorPoint,
+  type IndicatorSelection,
+} from '../search/indicatorSelection';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
@@ -26,6 +34,7 @@ import {
   getLastUpdate,
   getOutcomeShare,
   getVolumeByCourt,
+  getVolumeByPeriod,
   type VolumeParams,
 } from '../api/indicators';
 import {
@@ -45,6 +54,7 @@ import type { PageInfo } from '../search/paging';
 import { HeaderSearchSlot } from '../search/headerSearchSlot';
 import { fetchPage, heldPage, prefetchAfter, resetBuffer } from '../search/resultsBuffer';
 import { useCourts } from '../search/useCourts';
+import { useFilterOptions } from '../search/useFilterOptions';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
@@ -124,6 +134,9 @@ const volumeFor = (search: AppliedSearch): VolumeParams => {
   return {
     q: params.q,
     tribunal: params.tribunal,
+    orgao_julgador: params.orgao_julgador,
+    relator: params.relator,
+    classe_cnj: params.classe_cnj,
     date_from: params.date_from,
     date_to: params.date_to,
     published_from: params.published_from,
@@ -143,6 +156,7 @@ type PanoramaCache = {
   outcome: OutcomeState;
   adherence: AdherenceState;
   mostCited: MostCitedState;
+  timeline: TimelineState;
 } | null;
 
 function volumeFailure(error: unknown): string {
@@ -185,11 +199,38 @@ function HomePage() {
   // while a page loads or after one failed: no range is shown that was not read.
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
+  const [indicatorSelection, setIndicatorSelection] = useSessionState<IndicatorSelection | null>(
+    'indicatorSelection',
+    null,
+  );
+  const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
+  const openIndicator = (point: IndicatorPoint) => {
+    if (!applied || indicatorOpen || isLoading) return;
+    resetBuffer();
+    setIndicatorTrigger(
+      document.activeElement instanceof HTMLElement || document.activeElement instanceof SVGElement
+        ? document.activeElement
+        : null,
+    );
+    setIndicatorSelection(
+      selectIndicator(requestFor(applied), point, {
+        total: totalResults ?? 0,
+        filterCount: countFilters(applied.filters),
+      }),
+    );
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { state: { ...location.state, indicatorDocuments: true } },
+    );
+  };
   // Only the most recent search may write to the screen. An answer that
   // arrives after a newer search, or a newer order, started is dropped.
   const { startSearch, isLatestSearch } = useSearchSession();
   const navigate = useNavigate();
   const location = useLocation();
+  const indicatorOpen =
+    (location.state as { indicatorDocuments?: boolean } | null)?.indicatorDocuments === true;
+  const closeIndicator = () => navigate(-1);
 
   // A decision the reader chose has its own address, so it can be copied,
   // opened in another tab or reloaded. Without one, the list's address shows
@@ -257,7 +298,9 @@ function HomePage() {
     judged: submitErrors.judged ?? liveErrors.judged,
     published: submitErrors.published ?? liveErrors.published,
   };
-  const appliedCount = appliedFilters ? countFilters(appliedFilters) : 0;
+  const appliedCount =
+    (appliedFilters ? countFilters(appliedFilters) : 0) +
+    (indicatorOpen && indicatorSelection?.contextActive ? 1 : 0);
   const hasPendingFilters = appliedFilters !== null && !sameFilters(filterDraft, appliedFilters);
 
   const updateFilters = (next: SearchFilterValues) => {
@@ -474,7 +517,7 @@ function HomePage() {
   const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
   const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
   const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
-  const panoramaKey = panorama?.key ?? null;
+  const panoramaKey = panorama?.timeline ? panorama.key : null;
 
   // Asked when the panorama is up and what it holds is not this cut: a new
   // expression or new filters, applied while it was up or before it opened.
@@ -494,14 +537,21 @@ function HomePage() {
       setPanorama((current) => (current?.key === key ? { ...current, adherence } : current));
     const settleMostCited = (mostCited: MostCitedState) =>
       setPanorama((current) => (current?.key === key ? { ...current, mostCited } : current));
+    const settleTimeline = (timeline: TimelineState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
 
     setPanorama({
       key,
       volume: { status: 'loading' },
       outcome: { status: 'loading' },
+      timeline: { status: 'loading' },
       adherence: { status: 'loading' },
       mostCited: { status: 'loading' },
     });
+    getVolumeByPeriod(volumeFor(applied)).then(
+      (volume) => settleTimeline({ status: 'loaded', volume }),
+      () => settleTimeline({ status: 'failed' }),
+    );
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
       (error: unknown) => settleVolume({ status: 'failed', message: volumeFailure(error) }),
@@ -570,6 +620,12 @@ function HomePage() {
         ? panorama.mostCited
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+  const timelineState: TimelineState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.timeline
+        ? panorama.timeline
+        : { status: 'loading' };
 
   const retryPanorama = () => {
     setPanorama(null);
@@ -597,6 +653,46 @@ function HomePage() {
   // it stays in the screen.
   const searchSlot = useContext(HeaderSearchSlot);
   const courts = useCourts();
+  const filterOptions = useFilterOptions();
+  const activeOptions =
+    filterOptions.state.status === 'loaded' ? filterOptions.state.options : null;
+  const activeTags = applied
+    ? [
+        ...applied.filters.judgingBodies.map((value) => ({
+          field: 'judgingBodies',
+          value,
+          label: `Órgão julgador: ${value}`,
+        })),
+        ...applied.filters.reportingJudges.map((value) => ({
+          field: 'reportingJudges',
+          value,
+          label: `Relator: ${value}`,
+        })),
+        ...applied.filters.proceduralClasses.map((value) => ({
+          field: 'proceduralClasses',
+          value,
+          label: `Classe processual: ${activeOptions?.procedural_classes.find((option) => option.value === value)?.label ?? value}`,
+        })),
+      ]
+    : [];
+  const removeActiveFilter = (field: string, value: string | number) => {
+    if (!applied) return;
+    const remove = (filters: SearchFilterValues): SearchFilterValues => ({
+      ...filters,
+      judgingBodies: filters.judgingBodies.filter(
+        (item) => field !== 'judgingBodies' || item !== value,
+      ),
+      reportingJudges: filters.reportingJudges.filter(
+        (item) => field !== 'reportingJudges' || item !== value,
+      ),
+      proceduralClasses: filters.proceduralClasses.filter(
+        (item) => field !== 'proceduralClasses' || item !== value,
+      ),
+    });
+    updateFilters(remove(filterDraft));
+    resetBuffer();
+    void runSearch({ ...applied, filters: remove(applied.filters), page: 1 });
+  };
   const searchForm = (
     <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
       <div className="legal-search">
@@ -655,6 +751,7 @@ function HomePage() {
           hidden={!filtersOpen}
           disabled={isLoading}
           courts={courts}
+          filterOptions={filterOptions}
         />
 
         {/* The results below were searched with the applied filters, not with
@@ -674,6 +771,22 @@ function HomePage() {
       {searchSlot ? createPortal(searchForm, searchSlot) : searchForm}
 
       <ResultsTabs value={view} onChange={setView} />
+      {activeTags.length > 0 && (
+        <div className="filter-tags applied-filter-tags" aria-label="Filtros aplicados">
+          {activeTags.map((tag) => (
+            <button
+              type="button"
+              className="filter-tag"
+              key={`${tag.field}-${tag.value}`}
+              disabled={isLoading}
+              aria-label={`Remover filtro ${tag.label}`}
+              onClick={() => removeActiveFilter(tag.field, tag.value)}
+            >
+              {tag.label} ×
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The rest of the window. The page itself never scrolls: the list, the
           decision and the panorama each scroll inside their own box. */}
@@ -809,19 +922,61 @@ function HomePage() {
           hidden={view !== 'panorama'}
           tabIndex={0}
         >
-          <CourtVolumePanel
-            volume={volumeState}
-            lastUpdate={lastUpdateState}
-            onRetry={retryPanorama}
-          />
-          <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
-          <AdherencePanel
-            adherence={adherenceState}
-            mostCited={mostCitedState}
-            onRetry={retryPanorama}
+          <PanoramaLayout
+            courts={
+              <CourtVolumePanel
+                compact
+                volume={volumeState}
+                lastUpdate={lastUpdateState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectCourt={(court, count) => openIndicator({ kind: 'court', court, count })}
+              />
+            }
+            temporal={
+              <TimelineVolumePanel
+                timeline={timelineState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectPeriod={(period, granularity, count) =>
+                  openIndicator({ kind: 'period', period, granularity, count })
+                }
+              />
+            }
+            precedents={
+              <AdherencePanel
+                adherence={adherenceState}
+                mostCited={mostCitedState}
+                onRetry={retryPanorama}
+              />
+            }
+            outcomes={
+              <OutcomeSharePanel
+                compact
+                outcome={outcomeState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelectOutcome={(outcome, count) =>
+                  openIndicator({ kind: 'outcome', outcome, count })
+                }
+              />
+            }
           />
         </div>
       </div>
+      {indicatorOpen && indicatorSelection && (
+        <IndicatorDocumentsDrawer
+          selection={indicatorSelection}
+          returnFocus={indicatorTrigger}
+          onClose={closeIndicator}
+          onRemoveSelection={() => {
+            resetBuffer();
+            setIndicatorSelection((current) =>
+              current ? { ...current, contextActive: false } : null,
+            );
+          }}
+        />
+      )}
     </main>
   );
 }

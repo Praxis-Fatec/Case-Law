@@ -9,12 +9,16 @@ writes, never the courts themselves.
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
-from app.api.decisions import MATCH, SEARCH_RESPONSES, _narrowing
+from app.api.decisions import (
+    MATCH,
+    SEARCH_RESPONSES,
+    _narrowing,
+)
 from app.db import get_connection
 from app.errors import NOT_PUBLISHED, UNAVAILABLE
 
@@ -212,6 +216,34 @@ def read_volume_by_court(
         list[str] | None,
         Query(description="The same court filter the search takes."),
     ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(description="The same judging-body filter the search takes."),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(description="The same reporting-judge filter the search takes."),
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None,
+        Query(
+            description="The same repeatable CNJ class filter the search takes.",
+            examples=[[198], [198, 213]],
+        ),
+    ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
+        ),
+    ] = None,
     date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
     date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
     published_from: Annotated[
@@ -230,7 +262,16 @@ def read_volume_by_court(
     an error: no court is the honest answer to a question with no decisions.
     """
     filters, parameters = _narrowing(
-        q, tribunal, date_from, date_to, published_from, published_to
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
     )
 
     with connection.cursor() as cursor:
@@ -244,6 +285,247 @@ def read_volume_by_court(
         for row in rows
     ]
     return VolumeByCourt(total=sum(c.decisions for c in courts), courts=courts)
+
+
+# LEFT JOIN against generate_series so periods without decisions inside the
+# interval are not omitted, which would draw false continuity on the chart.
+# The bucket unit (month, quarter, or year) adapts to the cut's amplitude unless
+# explicitly chosen.
+PERIOD_VOLUME_SQL = f"""
+WITH bounds AS (
+    SELECT
+        MIN(d.data_referencia) AS inicio_raw,
+        MAX(d.data_referencia) AS fim_raw
+    FROM core.decisao AS d
+    WHERE {MATCH}{{filters}}
+),
+config AS (
+    SELECT
+        CASE
+            WHEN %(granularity)s::text IS NOT NULL THEN %(granularity)s::text
+            WHEN inicio_raw IS NULL THEN 'month'
+            WHEN fim_raw - inicio_raw <= 1096 THEN 'month'
+            WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter'
+            ELSE 'year'
+        END AS step_unit,
+        CASE
+            WHEN COALESCE(%(granularity)s::text, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'year' THEN '1 year'::interval
+            WHEN COALESCE(%(granularity)s::text, CASE WHEN fim_raw - inicio_raw <= 1096 THEN 'month' WHEN fim_raw - inicio_raw <= 3653 THEN 'quarter' ELSE 'year' END) = 'quarter' THEN '3 months'::interval
+            ELSE '1 month'::interval
+        END AS step_interval,
+        inicio_raw,
+        fim_raw
+    FROM bounds
+),
+contagens AS (
+    SELECT
+        date_trunc(c.step_unit, d.data_referencia)::date AS periodo,
+        COUNT(*) AS decisoes
+    FROM core.decisao AS d
+    CROSS JOIN config AS c
+    WHERE {MATCH}{{filters}}
+    GROUP BY c.step_unit, date_trunc(c.step_unit, d.data_referencia)
+),
+serie AS (
+    SELECT
+        c.step_unit,
+        generate_series(
+            date_trunc(c.step_unit, c.inicio_raw)::date,
+            date_trunc(c.step_unit, c.fim_raw)::date,
+            c.step_interval
+        )::date AS periodo
+    FROM config AS c
+    WHERE c.inicio_raw IS NOT NULL
+)
+SELECT
+    s.step_unit AS granularity,
+    s.periodo,
+    COALESCE(cnt.decisoes, 0) AS decisoes
+FROM serie AS s
+LEFT JOIN contagens AS cnt USING (periodo)
+ORDER BY s.periodo ASC
+"""
+
+Granularity = Literal["month", "quarter", "year"]
+
+INVALID_GRANULARITY = "Granularity must be 'month', 'quarter', or 'year'."
+
+GRANULARITY_ALIASES: dict[str, Granularity] = {
+    "month": "month",
+    "quarter": "quarter",
+    "year": "year",
+    "mes": "month",
+    "mês": "month",
+    "trimestre": "quarter",
+    "ano": "year",
+}
+
+
+class PeriodVolume(BaseModel):
+    period: date = Field(
+        description="The start of the period, as `YYYY-MM-DD`.",
+        examples=["2026-03-01"],
+    )
+    decisions: int = Field(
+        description="How many of the search's decisions fell in this period.",
+        examples=[120],
+    )
+
+
+class VolumeByPeriod(BaseModel):
+    total: int = Field(
+        description=(
+            "Every decision the same search matches. The periods' counts add up "
+            "to it, so a chart drawn from this cannot disagree with the number "
+            "beside the results."
+        ),
+        examples=[984824],
+    )
+    granularity: Granularity = Field(
+        description=(
+            "The period bucket used: `month`, `quarter`, or `year`. Chosen "
+            "automatically from the span of the cut when omitted."
+        ),
+        examples=["month"],
+    )
+    periods: list[PeriodVolume] = Field(
+        description=(
+            "Chronological order, earliest first. Periods with zero decisions inside "
+            "the interval appear with count 0 so continuity is preserved. Empty "
+            "when the search matches nothing."
+        )
+    )
+
+
+@router.get(
+    "/indicators/volume-by-period",
+    summary="How the search's decisions divide across time",
+    responses=SEARCH_RESPONSES,
+)
+@router.get(
+    "/indicators/volume-over-time",
+    include_in_schema=False,
+)
+def read_volume_by_period(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[
+        str,
+        Query(
+            min_length=2,
+            description="The same expression the search takes.",
+            examples=["dano moral"],
+        ),
+    ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(description="The same court filter the search takes."),
+    ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable judging-body filter the search takes.",
+            examples=[["CORTE ESPECIAL"]],
+        ),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable reporting-judge filter the search takes.",
+            examples=[["ANA CANTARINO"]],
+        ),
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None,
+        Query(
+            description="The same repeatable CNJ class filter the search takes.",
+            examples=[[198], [198, 213]],
+        ),
+    ] = None,
+    granularity: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Bucket size: `month`, `quarter`, or `year`. When omitted, "
+                "chosen automatically from the span of the cut: month up to "
+                "3 years, quarter up to 10 years, and year beyond."
+            ),
+            examples=["month", "quarter", "year"],
+        ),
+    ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
+        ),
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+) -> VolumeByPeriod:
+    """
+    The same decisions the search would return, counted by period.
+
+    It takes the search's parameters and narrows the same way, from the same
+    builder, so the chart and the results can never describe different sets. A
+    search that matches nothing answers an empty list and a total of zero, not
+    an error. The bucket size adapts to the cut's amplitude (month for up to 3
+    years, quarter for up to 10, year beyond) unless a specific granularity is
+    requested. Periods with zero decisions inside the interval are kept with
+    count 0 so the timeline preserves visual continuity.
+    """
+    normalized_granularity: Granularity | None = None
+    if granularity is not None:
+        cleaned = granularity.strip().lower()
+        if cleaned not in GRANULARITY_ALIASES:
+            raise HTTPException(status_code=400, detail=INVALID_GRANULARITY)
+        normalized_granularity = GRANULARITY_ALIASES[cleaned]
+
+    filters, parameters = _narrowing(
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
+    )
+    parameters["granularity"] = normalized_granularity
+
+    with connection.cursor() as cursor:
+        cursor.execute(PERIOD_VOLUME_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    if not rows:
+        return VolumeByPeriod(
+            total=0,
+            granularity=normalized_granularity or "month",
+            periods=[],
+        )
+
+    resolved_granularity: Granularity = rows[0]["granularity"]
+    periods = [
+        PeriodVolume(period=row["periodo"], decisions=row["decisoes"]) for row in rows
+    ]
+    return VolumeByPeriod(
+        total=sum(p.decisions for p in periods),
+        granularity=resolved_granularity,
+        periods=periods,
+    )
 
 
 OUTCOME_SQL = f"""
@@ -331,6 +613,40 @@ def read_outcome_share(
         list[str] | None,
         Query(description="The same court filter the search takes."),
     ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable judging-body filter the search takes.",
+            examples=[["CORTE ESPECIAL"]],
+        ),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable reporting-judge filter the search takes.",
+            examples=[["ANA CANTARINO"]],
+        ),
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None,
+        Query(
+            description="The same repeatable CNJ class filter the search takes.",
+            examples=[[198], [198, 213]],
+        ),
+    ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
+        ),
+    ] = None,
     date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
     date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
     published_from: Annotated[
@@ -349,7 +665,16 @@ def read_outcome_share(
     list and a total of zero, not an error.
     """
     filters, parameters = _narrowing(
-        q, tribunal, date_from, date_to, published_from, published_to
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
     )
 
     with connection.cursor() as cursor:
