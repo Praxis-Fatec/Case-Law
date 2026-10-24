@@ -33,6 +33,9 @@ export type Decision = {
   deliberation: string | null;
   full_text_available: boolean;
   sections: EmentaSections | null;
+  // Súmulas and temas the decision cites. Absent on an older API, which is why
+  // the screen reads it through `readCitedPrecedents` rather than trusting it.
+  precedents?: unknown;
 };
 
 // A failed read, carrying the status so a missing decision can be told apart

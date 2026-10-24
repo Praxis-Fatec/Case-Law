@@ -13,11 +13,14 @@ import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
 import CourtVolumePanel from '../components/CourtVolumePanel';
+import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
 import type { OutcomeState } from '../components/outcomeFormat';
+import type { AdherenceState, MostCitedState } from '../components/precedentFormat';
+import { getAdherence, getMostCited } from '../api/precedents';
 import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
 import {
   getLastUpdate,
@@ -134,7 +137,13 @@ const volumeKey = (params: VolumeParams) =>
   JSON.stringify({ ...params, tribunal: params.tribunal && [...params.tribunal].sort() });
 
 // A counted cut, kept under the key of the cut it counts.
-type PanoramaCache = { key: string; volume: VolumeState; outcome: OutcomeState } | null;
+type PanoramaCache = {
+  key: string;
+  volume: VolumeState;
+  outcome: OutcomeState;
+  adherence: AdherenceState;
+  mostCited: MostCitedState;
+} | null;
 
 function volumeFailure(error: unknown): string {
   if (error instanceof SearchRequestError) {
@@ -481,8 +490,18 @@ function HomePage() {
       setPanorama((current) => (current?.key === key ? { ...current, volume } : current));
     const settleOutcome = (outcome: OutcomeState) =>
       setPanorama((current) => (current?.key === key ? { ...current, outcome } : current));
+    const settleAdherence = (adherence: AdherenceState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, adherence } : current));
+    const settleMostCited = (mostCited: MostCitedState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, mostCited } : current));
 
-    setPanorama({ key, volume: { status: 'loading' }, outcome: { status: 'loading' } });
+    setPanorama({
+      key,
+      volume: { status: 'loading' },
+      outcome: { status: 'loading' },
+      adherence: { status: 'loading' },
+      mostCited: { status: 'loading' },
+    });
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
       (error: unknown) => settleVolume({ status: 'failed', message: volumeFailure(error) }),
@@ -493,6 +512,16 @@ function HomePage() {
     getOutcomeShare(volumeFor(applied)).then(
       (outcome) => settleOutcome({ status: 'loaded', outcome }),
       (error: unknown) => settleOutcome({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    getAdherence(volumeFor(applied)).then(
+      (adherence) => settleAdherence({ status: 'loaded', adherence }),
+      (error: unknown) => settleAdherence({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    getMostCited(volumeFor(applied), { limit: 8 }).then(
+      (precedents) => settleMostCited({ status: 'loaded', precedents }),
+      (error: unknown) => settleMostCited({ status: 'failed', message: volumeFailure(error) }),
     );
 
     // Read again with each cut, so the date shown is the one the counts were
@@ -527,6 +556,18 @@ function HomePage() {
       ? { status: 'idle' }
       : panorama?.key === cutKey
         ? panorama.outcome
+        : { status: 'loading' };
+  const adherenceState: AdherenceState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.adherence
+        : { status: 'loading' };
+  const mostCitedState: MostCitedState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.mostCited
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
 
@@ -774,6 +815,11 @@ function HomePage() {
             onRetry={retryPanorama}
           />
           <OutcomeSharePanel outcome={outcomeState} onRetry={retryPanorama} />
+          <AdherencePanel
+            adherence={adherenceState}
+            mostCited={mostCitedState}
+            onRetry={retryPanorama}
+          />
         </div>
       </div>
     </main>
