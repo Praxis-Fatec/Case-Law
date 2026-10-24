@@ -228,3 +228,34 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) < 300000;
 
+AUDIT (
+  name aderencia_de_valor_conhecido,
+  dialect postgres
+);
+/* Valor que a tela não traduz não dá erro: ela mostra em branco. */
+SELECT *
+FROM @this_model
+WHERE aderencia IS NOT NULL
+  AND aderencia NOT IN ('seguiu', 'afastou', 'distinguiu');
+
+AUDIT (
+  name aderencia_sem_contradicao,
+  dialect postgres
+);
+/* "nao se aplica" contém "aplica": trocar a ordem da cascata não quebra nada
+   visível, só inverte o rótulo. */
+SELECT *
+FROM @this_model
+WHERE aderencia IN ('seguiu', 'distinguiu')
+  AND trecho ~ 'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)';
+
+AUDIT (
+  name aderencia_com_cobertura,
+  dialect postgres
+);
+/* Se o vocabulário do tribunal mudar, a coluna fica nula em silêncio e o
+   indicador encolhe sem avisar. Hoje a cobertura é de 76%. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 100000
+   AND COUNT(aderencia) < COUNT(*) * 0.65;

@@ -8,7 +8,10 @@ MODEL (
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
     ),
     citacao_de_tipo_conhecido,
-    citacao_com_volume
+    citacao_com_volume,
+    aderencia_de_valor_conhecido,
+    aderencia_sem_contradicao,
+    aderencia_com_cobertura
   )
 );
 
@@ -77,6 +80,22 @@ recortada AS (
     s.*,
     BTRIM(SUBSTRING(s.texto FROM GREATEST(1, s.posicao - 80) FOR 220)) AS trecho
   FROM situada AS s
+),
+
+/* Citando um precedente só, o verbo da ementa não tem outro a que se referir;
+   com vários, atribuí-lo seria chute. */
+unica AS (
+  SELECT fonte_codigo, identificador_fonte
+  FROM situada
+  GROUP BY 1, 2
+  HAVING COUNT(*) = 1
+),
+
+sinal AS (
+  SELECT
+    'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)' AS afasta,
+    'distingu|distincao' AS distingue,
+    'incid|aplica|obice|obsta|esbarra|atrai|conforme|consoante|conformidade|nos\s+termos|a\s+teor|a\s+luz|consonancia|orientacao|entendimento|enunciado|observ|vedad|impede|precedente' AS segue
 )
 
 SELECT
@@ -87,11 +106,22 @@ SELECT
   r.numero              AS numero,
   r.trecho              AS trecho,
   (p.corte IS NOT NULL) AS resolvida,
-  CAST(NULL AS TEXT)    AS aderencia,
+  CASE
+    WHEN r.trecho ~ g.afasta    THEN 'afastou'
+    WHEN r.trecho ~ g.distingue THEN 'distinguiu'
+    WHEN r.trecho ~ g.segue     THEN 'seguiu'
+    WHEN u.fonte_codigo IS NULL THEN NULL
+    WHEN r.texto ~ g.afasta     THEN 'afastou'
+    WHEN r.texto ~ g.distingue  THEN 'distinguiu'
+    WHEN r.texto ~ g.segue      THEN 'seguiu'
+  END                   AS aderencia,
   NOW()                 AS carregado_em
 FROM recortada AS r
+CROSS JOIN sinal AS g
 LEFT JOIN core.precedente AS p
   ON p.corte = r.corte AND p.tipo = r.tipo AND p.numero = r.numero
+LEFT JOIN unica AS u
+  ON u.fonte_codigo = r.fonte_codigo AND u.identificador_fonte = r.identificador_fonte
 
 ;
 
