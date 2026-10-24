@@ -256,6 +256,7 @@ export default function IndicatorDocumentsDrawer({
                       <li key={`${decision.source}/${decision.identifier}`}>
                         <DecisionResultCard
                           decision={decision}
+                          justifies={params?.highlight}
                           onSelect={() => {
                             setChosen(decision);
                             title.current?.focus();

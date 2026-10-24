@@ -6,6 +6,8 @@ matches the item pattern, and one thesis becomes two fragments that read as
 nonsense on screen.
 """
 
+import re
+
 from app.ementa import theses
 
 
@@ -78,3 +80,78 @@ def test_nothing_in_nothing_out() -> None:
     assert theses(None) == []
     assert theses("") == []
     assert theses("   ") == []
+
+
+# The label and the block boundary, mirrored from the `rotulada` and `tese`
+# CTEs in core_decisao.sql, so a change there breaks a test here.
+ROTULO = re.compile(
+    r"teses?\s+(?:de\s+julgamento|firmadas?|fixadas?|adotada|do\s+julgado)\s*:",
+    re.IGNORECASE,
+)
+BORDA_ESQUERDA = re.compile("^[\\s\u00a0\"\u201c\u201d'_.\u2013\u2014-]+")
+BORDA_DIREITA = re.compile("[\\s\u00a0\"\u201c\u201d'_]+$")
+SEGUINTE = re.compile(
+    r"Dispositivos?\s+relevantes?|Jurisprud[eê]ncia\s+relevante", re.IGNORECASE
+)
+
+
+def extracted(ementa: str) -> str | None:
+    """The rule in core_decisao.sql: where the thesis starts and where it stops."""
+    rotulo = ROTULO.search(ementa)
+    if rotulo is None:
+        return None
+
+    # REGEXP_INSTR with return_opt 1 gives the position after the match, so
+    # the label itself is not part of the thesis.
+    bloco = ementa[rotulo.end() :]
+    corte = SEGUINTE.search(bloco)
+    if corte is not None:
+        bloco = bloco[: corte.start()]
+
+    # The left trim takes the typesetting marks; the right one leaves the
+    # full stop alone, because that one is the court's.
+    return re.sub(BORDA_DIREITA, "", re.sub(BORDA_ESQUERDA, "", bloco)) or None
+
+
+def test_the_block_stops_before_the_citations_that_follow_it() -> None:
+    """
+    The test the card calls the block-limit one. The CNJ's shape puts two
+    lists of citations right after the thesis, and dragging them in does not
+    fail: the column fills, the card is buried in references and the thesis
+    is lost in the middle. It only shows up on the screen.
+    """
+    ementa = (
+        "IV. DISPOSITIVO E TESE 5. Recurso conhecido e desprovido. "
+        "Tese de julgamento: 1. O prazo corre da ciência da primeira "
+        "diligência infrutífera. "
+        "Dispositivos relevantes citados: CPC, art. 921. "
+        "Jurisprudência relevante citada: STJ, REsp 1.340.553/RS."
+    )
+
+    assert extracted(ementa) == (
+        "1. O prazo corre da ciência da primeira diligência infrutífera."
+    )
+
+
+def test_the_other_label_the_courts_use_is_read_too() -> None:
+    assert (
+        extracted("Tese firmada: A citação válida interrompe a prescrição.")
+        == "A citação válida interrompe a prescrição."
+    )
+
+
+def test_an_ementa_with_no_label_answers_nothing_rather_than_empty() -> None:
+    """
+    `null` and `''` read the same on a screen and not in a query: a column
+    that fills with empty strings stops `COUNT(tese)` from meaning anything.
+    """
+    assert extracted("CIVIL. Dano moral. Recurso desprovido.") is None
+    assert extracted("Tese de julgamento:") is None
+
+
+def test_the_colon_is_what_separates_the_label_from_prose() -> None:
+    """
+    Without it the pattern catches prose — "tese de julgamento extra petita"
+    contaminated 3.925 decisions of the STJ.
+    """
+    assert extracted("Nulidade por tese de julgamento extra petita.") is None

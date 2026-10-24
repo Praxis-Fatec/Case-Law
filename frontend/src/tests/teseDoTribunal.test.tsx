@@ -37,11 +37,15 @@ const TESES = [
   'A correção monetária incide desde a data do trânsito em julgado.',
 ];
 
-function card(thesis?: string[]) {
+// The justification only exists on a list that came from an indicator: it
+// answers for a classification this tool inferred, and a plain search has
+// none to answer for.
+function card(thesis?: string[], justifies: 'resultado' | 'aderencia' = 'resultado') {
   return render(
     <MemoryRouter>
       <DecisionResultCard
         decision={{ ...MATCH, thesis, deliberation: null }}
+        justifies={justifies}
         to="/decisions/tjdft-jurisdf/2044172"
       />
     </MemoryRouter>,
@@ -90,17 +94,36 @@ describe('a tese no card da lista', () => {
     expect(container.querySelector('details')?.open).toBe(false);
   });
 
-  it('não aparece quando o tribunal não escreveu tese', () => {
+  it('diz que o tribunal não escreveu tese, em vez de sumir', () => {
+    // 94,2% do acervo não traz tese escrita. Esconder a justificativa nesses
+    // casos deixaria a classificação sem nada que respondesse por ela; o
+    // trecho acima é a evidência, e esta linha diz isso.
     card([]);
 
-    expect(screen.queryByText('Por que esta decisão está aqui')).not.toBeInTheDocument();
+    expect(screen.getByText('Por que esta decisão está aqui')).toBeInTheDocument();
+    expect(screen.getByText(/O tribunal não escreveu tese/)).toBeInTheDocument();
   });
 
   it('não quebra quando a API não manda o campo', () => {
     card(undefined);
 
-    expect(screen.queryByText('Por que esta decisão está aqui')).not.toBeInTheDocument();
+    expect(screen.getByText(/O tribunal não escreveu tese/)).toBeInTheDocument();
     expect(screen.getByText(/DIREITO CIVIL/)).toBeInTheDocument();
+  });
+
+  it('não aparece numa lista que não veio de indicador nenhum', () => {
+    // A regra que o card marca: falha se alguém o ligar em tudo. Numa busca
+    // comum não há classificação nossa por que responder.
+    render(
+      <MemoryRouter>
+        <DecisionResultCard
+          decision={{ ...MATCH, thesis: TESES, deliberation: null }}
+          to="/decisions/tjdft-jurisdf/2044172"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText('Por que esta decisão está aqui')).not.toBeInTheDocument();
   });
 
   it('fica acima do link esticado, senão abrir a tese abriria a decisão', () => {
