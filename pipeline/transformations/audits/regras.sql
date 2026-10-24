@@ -202,7 +202,7 @@ AUDIT (
    tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
    As duas origens degradam por motivos diferentes — o tribunal muda a forma de
    transcrever, ou o portal muda o CSV —, então cada uma tem o próprio piso.
-   Hoje: 340 súmulas reconstruídas e 1.142 temas do catálogo. */
+   Hoje: 371 súmulas reconstruídas e 1.142 temas do catálogo. */
 SELECT 1 AS falha
 FROM @this_model
 GROUP BY origem
@@ -280,7 +280,7 @@ AUDIT (
 );
 /* Se a redação das citações mudar, a extração encolhe calada e a tela diz
    "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
-   O piso é sobre a proporção de decisões, não de ligações: hoje 27,8%. */
+   O piso é sobre a proporção de decisões, não de ligações: hoje 30,2%. */
 SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))

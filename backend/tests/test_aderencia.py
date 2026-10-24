@@ -105,6 +105,18 @@ def test_a_refusal_is_never_read_as_an_application(snippet: str) -> None:
     assert adherence(snippet) == "afastou"
 
 
+def test_the_two_sentences_the_story_turns_on() -> None:
+    """
+    The test the card names as deciding the story. The two sentences are
+    nearly identical, cite the same precedent, and mean opposite things. If
+    this fails, the adherence indicator measures the reverse of what it
+    claims — and no code review catches it, because the SQL stays valid and
+    the column stays full.
+    """
+    assert adherence("Aplica-se, na espécie, o óbice da Súmula 284 do STF") == "seguiu"
+    assert adherence("Não se aplica ao caso a Súmula 284, porquanto...") == "afastou"
+
+
 def test_a_distinction_is_neither_of_the_other_two() -> None:
     assert adherence("há distinção entre o caso e o Tema 630") == "distinguiu"
 

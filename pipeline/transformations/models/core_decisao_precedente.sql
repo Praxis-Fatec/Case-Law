@@ -40,7 +40,7 @@ citada AS (
        LATERAL (
          SELECT (REGEXP_MATCHES(
            b.texto,
-           'sumula\s*(?:n[.o]*\s*)?([0-9]{1,4})\s*[/, -]*(?:do\s+)?(stj|stf)',
+           'sumula\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\s*[/, -]*(?:do\s+)?(stj|stf)',
            'g'
          )) AS achado
        ) AS s
@@ -59,7 +59,7 @@ citada AS (
   FROM base AS b,
        LATERAL (
          SELECT (REGEXP_MATCHES(
-           b.texto, '\mtema[s]?\s*(?:n[.o]*\s*)?([0-9]{1,4})\M', 'g'
+           b.texto, '\mtema[s]?\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\M', 'g'
          )) AS achado
        ) AS t
 ),
@@ -72,7 +72,7 @@ situada AS (
     REGEXP_INSTR(
       c.texto,
       CASE c.tipo WHEN 'sumula' THEN 'sumula' ELSE 'tema[s]?' END
-        || '\s*(?:n[.o]*\s*)?' || c.numero || '\M'
+        || '\s*(?:n[.oº°]*\s*)?' || c.numero || '\M'
     ) AS posicao
   FROM citada AS c
 ),

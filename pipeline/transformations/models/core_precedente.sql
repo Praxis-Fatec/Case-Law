@@ -19,13 +19,13 @@ MODEL (
   scon responde 403 a quem se identifica. O enunciado é reconstruído do próprio
   acervo, onde as decisões o transcrevem entre aspas.
 
-  A repetição é a verificação. 1.996 decisões escreveram a mesma frase para a
+  A repetição é a verificação. 1.994 decisões escreveram a mesma frase para a
   Súmula 7 do STJ; o piso de três transcrições idênticas descarta o recorte que
   pegou texto vizinho por acidente.
 
   Sem corte declarada não há precedente: Súmula 7 do STJ e Súmula 7 do STF são
-  coisas diferentes, e uma citação que não diz qual não tem chave. São 340
-  súmulas, cobrindo 97,5% das citações que dizem a corte.
+  coisas diferentes, e uma citação que não diz qual não tem chave. São 371
+  súmulas, cobrindo 97,2% das citações de súmula.
 
   `situacao` fica nula de propósito. Súmula cancelada continua sendo citada em
   decisão antiga, e apresentar cancelada como vigente é erro grave numa
@@ -34,7 +34,7 @@ MODEL (
 WITH citado AS (
   SELECT (REGEXP_MATCHES(
     UNACCENT(LOWER(REGEXP_REPLACE(ementa, '\s+', ' ', 'g'))),
-    'sumula\s*(?:n[.o]*\s*)?([0-9]{1,4})\s*[/, -]*(?:do\s+)?(stj|stf)[^"]{0,70}"([^"]{40,})"',
+    'sumula\s*(?:n[.oº°]*\s*)?([0-9]{1,4})\s*[/, -]*(?:do\s+)?(stj|stf)[^"]{0,70}"([^"]{40,})"',
     'g'
   )) AS achado
   FROM core.decisao
