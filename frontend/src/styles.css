@@ -3561,6 +3561,116 @@ input:focus-visible {
   font-weight: 400;
 }
 
+/* Scholarship by other people. The third kind of claim on this screen, and
+   the only one that lives somewhere else: every card is built around its
+   outbound link, and the rule down the left says the words are not ours. */
+.doctrine {
+  margin-top: 28px;
+}
+
+.doctrine__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.doctrine__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.doctrine__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.doctrine__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A reading list, which is what it is. Deliberately not the precedent card's
+   box and not its left rule: there the rule means "the court's own words",
+   and reusing it here would say these words came from the court. */
+.work {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.work:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.work__title {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.work__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.work__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.work__link:hover,
+.work__link:focus-visible {
+  text-decoration: underline;
+}
+
+.work__authors {
+  margin: 4px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-sm)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.work__imprint {
+  margin: 2px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Why it is here, in the work's own words. Without this the reader has to
+   open every article to find out whether it has anything to do with them. */
+.work__ground {
+  margin: 7px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.work__ground-label {
+  color: var(--search-muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
   .denominators__item {
     flex-basis: 100%;
@@ -3569,5 +3679,10 @@ input:focus-visible {
   .precedent__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* Phone width: the list tightens, the hairline still separates. */
+  .work {
+    padding-top: 11px;
   }
 }
