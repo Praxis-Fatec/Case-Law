@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 
-import { DecisionRequestError, getDecision, type Decision } from '../api/decisions';
+import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
+import { readCitedPrecedents } from '../api/precedents';
+import CitedPrecedents from './CitedPrecedents';
+import RelatedDoctrine from './RelatedDoctrine';
 import {
   DELIBERATION_LABELS,
   deliberationStateOf,
@@ -197,10 +200,54 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         </div>
       )}
 
+      <Thesis decision={decision} headingId={`${titleId}-tese`} />
+
       <Ementa decision={decision} headingId={`${titleId}-ementa`} />
+
+      <CitedPrecedents
+        precedents={readCitedPrecedents(decision.precedents)}
+        headingId={`${titleId}-precedentes`}
+      />
+
+      {/* Last of the three, because it is the furthest from the decision:
+          what it settled, what it cited, and what other people wrote. */}
+      <RelatedDoctrine
+        key={`${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        headingId={`${titleId}-doutrina`}
+      />
 
       <OfficialSource decision={decision} />
     </>
+  );
+}
+
+// Open, not folded: the detail is the reading screen, and someone who got this
+// far wants the thesis. The list folds it because six cards open stop being
+// scannable; here there is one.
+//
+// The label carries the origin. These are the court's own words, so they can
+// be quoted as they stand — and on a screen that will also show what we
+// inferred, the reader has to tell the two apart without being told.
+function Thesis({ decision, headingId }: { decision: Decision; headingId: string }) {
+  const thesis = readThesis(decision.thesis);
+
+  if (thesis.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="decision-detail__thesis" aria-labelledby={headingId}>
+      <h3 id={headingId} className="decision-detail__section-title">
+        Tese firmada pelo tribunal
+      </h3>
+      <ol className="decision-detail__thesis-list">
+        {thesis.map((item, index) => (
+          <li key={index}>{item}</li>
+        ))}
+      </ol>
+    </section>
   );
 }
 

@@ -15,6 +15,7 @@ import ResultsSort from '../components/ResultsSort';
 import ExportAction from '../components/ExportAction';
 import { exportParams } from '../api/exports';
 import CourtVolumePanel from '../components/CourtVolumePanel';
+import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
 import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
@@ -28,6 +29,8 @@ import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
 import type { OutcomeState } from '../components/outcomeFormat';
+import type { AdherenceState, MostCitedState } from '../components/precedentFormat';
+import { getAdherence, getMostCited } from '../api/precedents';
 import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
 import {
   getLastUpdate,
@@ -153,6 +156,8 @@ type PanoramaCache = {
   key: string;
   volume: VolumeState;
   outcome: OutcomeState;
+  adherence: AdherenceState;
+  mostCited: MostCitedState;
   timeline: TimelineState;
 } | null;
 
@@ -530,6 +535,10 @@ function HomePage() {
       setPanorama((current) => (current?.key === key ? { ...current, volume } : current));
     const settleOutcome = (outcome: OutcomeState) =>
       setPanorama((current) => (current?.key === key ? { ...current, outcome } : current));
+    const settleAdherence = (adherence: AdherenceState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, adherence } : current));
+    const settleMostCited = (mostCited: MostCitedState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, mostCited } : current));
     const settleTimeline = (timeline: TimelineState) =>
       setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
 
@@ -538,6 +547,8 @@ function HomePage() {
       volume: { status: 'loading' },
       outcome: { status: 'loading' },
       timeline: { status: 'loading' },
+      adherence: { status: 'loading' },
+      mostCited: { status: 'loading' },
     });
     getVolumeByPeriod(volumeFor(applied)).then(
       (volume) => settleTimeline({ status: 'loaded', volume }),
@@ -553,6 +564,16 @@ function HomePage() {
     getOutcomeShare(volumeFor(applied)).then(
       (outcome) => settleOutcome({ status: 'loaded', outcome }),
       (error: unknown) => settleOutcome({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    getAdherence(volumeFor(applied)).then(
+      (adherence) => settleAdherence({ status: 'loaded', adherence }),
+      (error: unknown) => settleAdherence({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    getMostCited(volumeFor(applied), { limit: 8 }).then(
+      (precedents) => settleMostCited({ status: 'loaded', precedents }),
+      (error: unknown) => settleMostCited({ status: 'failed', message: volumeFailure(error) }),
     );
 
     // Read again with each cut, so the date shown is the one the counts were
@@ -587,6 +608,18 @@ function HomePage() {
       ? { status: 'idle' }
       : panorama?.key === cutKey
         ? panorama.outcome
+        : { status: 'loading' };
+  const adherenceState: AdherenceState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.adherence
+        : { status: 'loading' };
+  const mostCitedState: MostCitedState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey
+        ? panorama.mostCited
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
   const timelineState: TimelineState =
@@ -916,6 +949,13 @@ function HomePage() {
                 onSelectPeriod={(period, granularity, count) =>
                   openIndicator({ kind: 'period', period, granularity, count })
                 }
+              />
+            }
+            precedents={
+              <AdherencePanel
+                adherence={adherenceState}
+                mostCited={mostCitedState}
+                onRetry={retryPanorama}
               />
             }
             outcomes={

@@ -11,6 +11,7 @@ vi.mock('../api/client', () => ({
 }));
 
 const DECISION: Decision = {
+  thesis: [],
   source: 'tjdft-jurisdf',
   identifier: '2119440',
   court: 'TJDFT',

@@ -97,6 +97,12 @@ function installApi(total: number, answer?: Answer) {
       if (url.pathname === '/courts') {
         return json({ courts: COURTS });
       }
+      // O bloco de doutrina do detalhe também não é busca: ele pede por
+      // decisão aberta, e contá-lo como página faria a conta de requisições
+      // desta suíte dobrar sem que nada tivesse mudado na paginação.
+      if (url.pathname.endsWith('/doctrine')) {
+        return json({ results: [] });
+      }
       const found = url.pathname.match(/^\/decisions\/[^/]+\/([^/]+)$/);
       if (found) {
         return json(detail(found[1]));
