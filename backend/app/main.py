@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
-from app.api import courts, decisions, filters, health, indicators
+from app.api import courts, decisions, doctrine, filters, health, indicators
 from app.config import settings
 from app.db import pool
 
@@ -16,6 +16,13 @@ TAGS = [
     {
         "name": "indicators",
         "description": "What the collection is: how recent, and how distributed.",
+    },
+    {
+        "name": "doctrine",
+        "description": (
+            "Legal scholarship that treats what a decision settled. "
+            "Enrichment: a decision opens whether this answers or not."
+        ),
     },
     {
         "name": "infrastructure",
@@ -60,3 +67,4 @@ app.include_router(decisions.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)
+app.include_router(doctrine.router)
