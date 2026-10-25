@@ -1,4 +1,7 @@
 :root {
+  --motion-fast: 140ms;
+  --motion-enter: 220ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --search-primary: #45151f;
   --search-primary-hover: #5d202c;
   --search-surface: #ffffff;
@@ -3868,5 +3871,327 @@ input:focus-visible {
   /* Phone width: the list tightens, the hairline still separates. */
   .work {
     padding-top: 11px;
+  }
+}
+
+/* Motion follows existing states; controls never wait for an animation. */
+@media (prefers-reduced-motion: no-preference) {
+  :is(.app-shell, .indicator-drawer) :where(button, a, input, select, summary) {
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      opacity var(--motion-fast) ease;
+  }
+
+  :is(.app-shell, .indicator-drawer)
+    :is(
+      .search-button,
+      .filter-button,
+      .search-welcome__example,
+      .export-action__button,
+      .search-state__retry,
+      .results-pagination__button,
+      .results-pagination__page,
+      .indicator-drawer__close
+    ) {
+    transition:
+      transform var(--motion-fast) var(--motion-ease),
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease,
+      opacity var(--motion-fast) ease;
+  }
+
+  :is(.app-shell, .indicator-drawer)
+    :is(
+      .search-button,
+      .filter-button,
+      .search-welcome__example,
+      .export-action__button,
+      .search-state__retry,
+      .results-pagination__button,
+      .results-pagination__page,
+      .indicator-drawer__close
+    ):not(:disabled, [aria-disabled='true']):active {
+    transform: scale(0.98);
+  }
+
+  .search-welcome__content {
+    animation: surface-enter 320ms var(--motion-ease) both;
+  }
+
+  .search-filters:not([hidden]),
+  .panorama-dimension__content:not([hidden]) {
+    animation: surface-enter var(--motion-enter) var(--motion-ease) both;
+  }
+
+  .results-layout:not([hidden]),
+  .results-panorama:not([hidden]) {
+    animation: panel-reveal 180ms ease-out both;
+  }
+
+  .results-tabs__tab.is-active::after {
+    transform-origin: center;
+    animation: tab-indicator var(--motion-enter) var(--motion-ease) both;
+  }
+
+  .filter-tag {
+    animation: surface-enter 160ms var(--motion-ease) both;
+  }
+
+  .indicator-drawer[open] {
+    animation: drawer-enter 300ms var(--motion-ease) both;
+  }
+
+  .indicator-drawer__content > .decision-detail {
+    animation: detail-enter 260ms var(--motion-ease) both;
+  }
+
+  .decision-detail[aria-busy='false'] {
+    animation: detail-ready 200ms var(--motion-ease) both;
+  }
+
+  .indicator-drawer__list-view {
+    animation: documents-return 220ms var(--motion-ease) both;
+  }
+
+  .indicator-drawer[open]::backdrop {
+    animation: panel-reveal var(--motion-enter) ease-out both;
+  }
+
+  .search-welcome__example svg {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  .search-welcome__example:focus-visible svg {
+    transform: translateX(3px);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :is(.app-shell, .indicator-drawer)
+    :is(
+      .search-button,
+      .filter-button,
+      .search-welcome__example,
+      .export-action__button,
+      .search-state__retry
+    ):not(:disabled, [aria-disabled='true']):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgb(69 21 31 / 10%);
+  }
+
+  .search-welcome__example:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panel-reveal {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tab-indicator {
+  from {
+    transform: scaleX(0.5);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes drawer-enter {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes detail-enter {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes detail-ready {
+  from {
+    opacity: 0.75;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes documents-return {
+  from {
+    opacity: 0.6;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *,
+  .app-shell *::before,
+  .app-shell *::after,
+  .indicator-drawer,
+  .indicator-drawer *,
+  .indicator-drawer *::before,
+  .indicator-drawer *::after,
+  .indicator-drawer::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Secondary flows share the same short motion scale as the main search. */
+.search-button {
+  gap: 8px;
+}
+.motion-spinner {
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .coverage-layout {
+    animation: surface-enter 260ms var(--motion-ease) both;
+  }
+
+  .coverage-summary[aria-busy='false'] .coverage-summary__total,
+  .court-coverage[aria-busy='false'] tbody,
+  .doctrine__list,
+  .decision-result-card__thesis[open] > :not(summary) {
+    animation: panel-reveal 180ms ease-out both;
+  }
+
+  .search-state--error,
+  .search-state--empty,
+  .doctrine__state--failed,
+  .date-group__error,
+  .filters-pending,
+  .export-action > :is([role='status'], [role='alert']) {
+    animation: surface-enter 160ms var(--motion-ease) both;
+  }
+
+  .court-option__body,
+  .filter-choice > span,
+  .panorama-dimension__explore,
+  .indicator-target {
+    transition:
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease;
+  }
+
+  .filter-choice:has(input:checked) > span {
+    color: var(--search-primary);
+  }
+
+  :is(
+    .coverage-back,
+    .decision-detail__back,
+    .indicator-drawer__back,
+    .indicator-document__open,
+    .official-source__action,
+    button.filter-tag
+  ) {
+    transition:
+      transform var(--motion-fast) var(--motion-ease),
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease;
+  }
+
+  :is(
+      .coverage-back,
+      .decision-detail__back,
+      .indicator-drawer__back,
+      .indicator-document__open,
+      .official-source__action,
+      button.filter-tag
+    )
+    :is(svg) {
+    transition: transform var(--motion-fast) var(--motion-ease);
+  }
+
+  :is(
+      .coverage-back,
+      .decision-detail__back,
+      .indicator-drawer__back,
+      .indicator-document__open,
+      button.filter-tag
+    ):not(:disabled):active {
+    transform: scale(0.98);
+  }
+
+  .motion-spinner {
+    animation: motion-spin 900ms linear infinite;
+  }
+
+  @supports (interpolate-size: allow-keywords) and selector(details::details-content) {
+    .decision-result-card__thesis {
+      interpolate-size: allow-keywords;
+    }
+    .decision-result-card__thesis::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size var(--motion-enter) var(--motion-ease),
+        content-visibility var(--motion-enter) allow-discrete;
+    }
+    .decision-result-card__thesis[open]::details-content {
+      block-size: auto;
+    }
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :is(.coverage-back, .decision-detail__back, .indicator-drawer__back):hover svg {
+    transform: translateX(-2px);
+  }
+  .official-source__action:not([aria-disabled='true']):hover svg {
+    transform: translate(1px, -1px);
+  }
+  .indicator-document__open:hover {
+    box-shadow: 0 3px 10px rgb(69 21 31 / 10%);
+  }
+}
+
+@keyframes motion-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
