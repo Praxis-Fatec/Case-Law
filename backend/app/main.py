@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
-from app.api import courts, decisions, exports, filters, health, indicators
+from app.api import courts, decisions, doctrine, exports, filters, health, indicators
 from app.config import settings
 from app.db import pool
 
@@ -69,3 +69,4 @@ app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)
 app.include_router(exports.router)
+app.include_router(doctrine.router)

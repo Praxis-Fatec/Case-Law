@@ -181,7 +181,7 @@ def test_collection_supports_search_snippets_with_a_highlight_parameter(
     monkeypatch.setattr(
         export,
         "SNIPPET",
-        f"CASE WHEN %(highlight)s THEN {export.SNIPPET} ELSE ementa END",
+        f"CASE WHEN %(highlight)s = %(term)s THEN {export.SNIPPET} ELSE ementa END",
     )
     result = collect_export(collection, "dano moral")
     assert len(result.decisions) == result.total == 19

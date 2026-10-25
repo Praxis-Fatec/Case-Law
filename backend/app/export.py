@@ -115,7 +115,7 @@ def collect_export(
                 url_fonte, link_valido, {SNIPPET} AS snippet
             FROM core.decisao WHERE {MATCH}{filters}
             {ordering}""",
-            {**parameters, "snippet_options": SNIPPET_OPTIONS, "highlight": True},
+            {**parameters, "snippet_options": SNIPPET_OPTIONS, "highlight": q},
         ).fetchall()
         indicators = collect_export_indicators(
             connection, q, parameters, rows, filters_sql=filters
