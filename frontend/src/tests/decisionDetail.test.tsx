@@ -30,6 +30,7 @@ const STRUCTURED: Decision = {
     'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE. I. CASO EM EXAME 1. Apelação. II. QUESTÃO EM DISCUSSÃO 2. Termo inicial. III. RAZÕES DE DECIDIR 3. O prazo corre. IV. DISPOSITIVO 4. Desprovida.',
   outcome: 'APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.',
   deliberation: 'unanime',
+  thesis: ['O prazo corre da ciência da primeira diligência infrutífera.'],
   full_text_available: true,
   sections: {
     headnote: 'EXECUÇÃO FISCAL. PRESCRIÇÃO INTERCORRENTE.',
@@ -279,6 +280,23 @@ describe('the panel states', () => {
     await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
 
     expect(await screen.findByText('JOÃO EGMONT')).toBeInTheDocument();
+  });
+
+  it('a doutrina fora do ar não impede ler a decisão', async () => {
+    // A regra de degradação, afirmada em vez de suposta. O resto deste
+    // arquivo já roda com a consulta de doutrina recusada pelo stub, então
+    // sem este teste a garantia ficaria sendo um efeito colateral.
+    await renderDetail(STRUCTURED);
+
+    expect(await screen.findByText(/Não foi possível consultar a doutrina/)).toBeInTheDocument();
+
+    // E tudo que é da decisão continua lá: metadados, ementa e link oficial.
+    expect(screen.getByText('JOÃO EGMONT')).toBeInTheDocument();
+    expect(screen.getByText(/Definir o termo inicial da suspensão/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /oficial/i })).toHaveAttribute(
+      'href',
+      STRUCTURED.source_url,
+    );
   });
 });
 

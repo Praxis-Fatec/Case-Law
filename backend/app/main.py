@@ -18,6 +18,13 @@ TAGS = [
         "description": "What the collection is: how recent, and how distributed.",
     },
     {
+        "name": "doctrine",
+        "description": (
+            "Legal scholarship that treats what a decision settled. "
+            "Enrichment: a decision opens whether this answers or not."
+        ),
+    },
+    {
         "name": "infrastructure",
         "description": "Operational endpoints. Not part of the product surface.",
     },

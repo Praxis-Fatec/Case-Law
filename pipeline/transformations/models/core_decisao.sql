@@ -12,6 +12,8 @@ MODEL (
     ementa_nao_vazia,
     token_do_documento_por_fonte,
     verdito_de_fonte_conhecida,
+    tese_sem_secao_seguinte,
+    tese_com_cobertura,
     deliberacao_de_valor_conhecido,
     deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
@@ -127,6 +129,65 @@ bruto AS (
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
 ),
 
+/*
+  A tese que o próprio tribunal escreveu, quando escreveu.
+
+  Desde 2024 o CNJ pede uma ementa em quatro seções, e a quarta é "DISPOSITIVO
+  E TESE". Dentro dela o relator rotula o que firmou. 54.918 decisões trazem o
+  rótulo — 34,5% do TJDFT e 2,0% do STJ, que tem acervo desde 1989.
+
+  Os dois-pontos são obrigatórios: sem eles o padrão pega prosa, como em "tese
+  de julgamento extra petita", e contamina 3.925 decisões do STJ.
+
+  O bloco termina no primeiro "Dispositivos relevantes" ou "Jurisprudência
+  relevante", que é a lista de citações que vem depois. Arrastá-la enche o card
+  de referências e esconde a tese.
+
+  A limpeza da borda esquerda tira aspas, sublinhados e travessões de
+  diagramação; a da direita não tira o ponto final, que é do tribunal. Os dois
+  conjuntos incluem \u00a0, o espaço não separável que os tribunais usam: sem
+  ele a limpeza para no primeiro e deixa o lixo no texto.
+
+  A separação em itens NÃO acontece aqui. Ela depende da consulta de quem
+  pesquisa, então mora no backend.
+*/
+rotulada AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    SUBSTRING(
+      ementa
+      FROM REGEXP_INSTR(
+        ementa,
+        '(?i)teses?[[:space:]]+(de[[:space:]]+julgamento|firmadas?|fixadas?|adotada|do[[:space:]]+julgado)[[:space:]]*:',
+        1, 1, 1
+      )
+    ) AS depois_do_rotulo
+  FROM bruto
+  WHERE ementa ~* 'teses?[[:space:]]+(de[[:space:]]+julgamento|firmadas?|fixadas?|adotada|do[[:space:]]+julgado)[[:space:]]*:'
+),
+
+tese AS (
+  SELECT
+    fonte_codigo,
+    identificador,
+    NULLIF(
+      REGEXP_REPLACE(
+        REGEXP_REPLACE(
+          CASE
+            WHEN REGEXP_INSTR(depois_do_rotulo, '(?i)(Dispositivos?[[:space:]]+relevantes?|Jurisprud[eê]ncia[[:space:]]+relevante)') > 0
+            THEN SUBSTRING(depois_do_rotulo FOR REGEXP_INSTR(depois_do_rotulo, '(?i)(Dispositivos?[[:space:]]+relevantes?|Jurisprud[eê]ncia[[:space:]]+relevante)') - 1)
+            ELSE depois_do_rotulo
+          END,
+          '^[[:space:]\u00a0"“”''_.–—-]+', ''
+        ),
+        '[[:space:]\u00a0"“”''_]+$', ''
+      ),
+      ''
+    ) AS tese
+  FROM rotulada
+),
+
 /* Três degraus acham o mérito quando o acórdão decidiu mais de uma coisa e
    cada uma teve sua votação: o que vem depois de "no mérito"; o primeiro
    marcador quando a maioria é sobre multa, honorários ou custas; senão o
@@ -235,6 +296,7 @@ SELECT
   CAST(NULL AS TEXT)                                    AS conhecimento,
   j.resultado                                           AS resultado,
   l.deliberacao                                         AS deliberacao,
+  t.tese                                                AS tese,
   b.turma_recursal                                      AS turma_recursal,
   b.possui_inteiro_teor                                 AS possui_inteiro_teor,
   REPLACE(f.url_documento_template, '{documento}', b.identificador_documento) AS url_fonte,
@@ -247,6 +309,9 @@ JOIN core.fonte AS f ON f.codigo = b.fonte_codigo
 LEFT JOIN verificacao.link AS v
   ON v.fonte_codigo = b.fonte_codigo
  AND v.identificador = b.identificador
+LEFT JOIN tese AS t
+  ON t.fonte_codigo = b.fonte_codigo
+ AND t.identificador = b.identificador
 LEFT JOIN lida AS l
   ON l.fonte_codigo = b.fonte_codigo
  AND l.identificador = b.identificador

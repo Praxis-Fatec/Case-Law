@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
+from app.ementa import theses as split_theses
 from app.errors import (
     DATABASE_RESPONSES,
     MALFORMED,
@@ -38,9 +39,34 @@ SNIPPET_OPTIONS = (
     "FragmentDelimiter=' … '"
 )
 
+HIGHLIGHT = f"websearch_to_tsquery('{SEARCH_CONFIG}', %(highlight)s)"
+
+# Which words the snippet is cut around. By default the reader's own, which is
+# right in a plain search. Arriving from an indicator it is the words the
+# classification was read from, because the terms searched for sit where the
+# court frames the dispute, not where it answers it: measured over decisions
+# that carry a written thesis, 31,5% of snippets landed in "questão em
+# discussão" and 2,25% touched the thesis itself.
+#
+# The sets come from the rules that classify: SCRUM-128 for the outcome,
+# read from the dispositive, and SCRUM-166 for the adherence, read from the
+# words around the citation. Volume and timeline are not here: their
+# classification is a field copied from the source, not a reading of ours,
+# so there is no passage to point at.
+HIGHLIGHT_TERMS = {
+    "resultado": (
+        "provimento OR desprovido OR improvido OR provido OR negar OR "
+        "rejeitar OR indeferir OR acolher OR conceder OR deferir"
+    ),
+    "aderencia": (
+        "súmula OR tema OR incidência OR aplicar OR inaplicável OR óbice OR "
+        "enunciado OR precedente"
+    ),
+}
+
 SNIPPET = f"""
 ts_headline(
-    '{SEARCH_CONFIG}', ementa, {QUERY},
+    '{SEARCH_CONFIG}', ementa, {HIGHLIGHT},
     %(snippet_options)s
 )
 """
@@ -241,6 +267,7 @@ SELECT
     decisao.link_valido,
     decisao.deliberacao,
     decisao.ementa,
+    decisao.tese,
     {SNIPPET} AS snippet
 FROM pagina
 JOIN core.decisao USING (fonte_codigo, identificador_fonte)
@@ -267,6 +294,7 @@ SELECT
     data_referencia,
     ementa,
     decisao_texto,
+    tese,
     deliberacao,
     turma_recursal,
     possui_inteiro_teor,
@@ -280,6 +308,32 @@ HIGHLIGHT_SQL = f"""
 SELECT {FULL_HIGHLIGHT} AS highlighted
 FROM core.decisao
 WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
+"""
+
+# LEFT JOIN, not JOIN: a citation the catalogue has no entry for still happened,
+# and dropping it here would let the screen show fewer precedents than the court
+# named.
+PRECEDENTS_SQL = """
+SELECT
+    dp.corte,
+    dp.tipo,
+    dp.numero,
+    dp.trecho,
+    dp.aderencia,
+    dp.resolvida,
+    dp.corte_declarada,
+    p.enunciado,
+    p.situacao,
+    p.data
+FROM core.decisao_precedente AS dp
+LEFT JOIN core.precedente AS p
+    -- The court has to have been stated for the join to mean anything: both
+    -- courts have a Tema 793, and matching on a guessed court answers with
+    -- the other one's thesis.
+    ON dp.corte_declarada
+   AND p.corte = dp.corte AND p.tipo = dp.tipo AND p.numero = dp.numero
+WHERE dp.fonte_codigo = %(source)s AND dp.identificador_fonte = %(identifier)s
+ORDER BY dp.tipo, dp.numero
 """
 
 
@@ -338,6 +392,22 @@ class DecisionBase(BaseModel):
 
 
 class DecisionMatch(DecisionBase):
+    thesis: list[str] = Field(
+        description=(
+            "The thesis the court itself wrote, one entry per numbered item. "
+            "Empty when the court did not record one — which is most of the "
+            "collection, because the structured ementa is a 2024 standard."
+        ),
+        examples=[
+            [
+                (
+                    "A palavra da vítima possui especial relevância em crimes "
+                    "de violência doméstica, quando coerente e corroborada por "
+                    "outros elementos de prova."
+                )
+            ]
+        ],
+    )
     snippet: str = Field(
         description=(
             "The part of the ementa that matched, with every hit wrapped in "
@@ -374,6 +444,13 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         "4. Apelação conhecida e desprovida."
     ),
     "outcome": "APELAÇÃO CONHECIDA E DESPROVIDA. UNÂNIME.",
+    "thesis": [
+        (
+            "O prazo de suspensão da execução fiscal corre da ciência da "
+            "primeira diligência infrutífera, independentemente de despacho "
+            "que a declare."
+        )
+    ],
     "full_text_available": True,
     "sections": {
         "headnote": (
@@ -389,6 +466,27 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
         ),
         "ruling": "4. Apelação conhecida e desprovida.",
     },
+    "precedents": [
+        {
+            "court": "STJ",
+            "kind": "sumula",
+            "number": 106,
+            "text": (
+                "Proposta a ação no prazo fixado para o seu exercício, a demora "
+                "na citação, por motivos inerentes ao mecanismo da Justiça, não "
+                "justifica o acolhimento da arguição de prescrição."
+            ),
+            "status": None,
+            "settled_on": None,
+            "snippet": (
+                "prescricao intercorrente. incidencia da sumula 106/stj. "
+                "apelacao desprovida."
+            ),
+            "adherence": "seguiu",
+            "resolved": True,
+            "court_stated": True,
+        }
+    ],
 }
 
 
@@ -424,6 +522,71 @@ class EmentaSections(BaseModel):
     )
 
 
+class CitedPrecedent(BaseModel):
+    court: str = Field(
+        description="Which court settled it. `STJ` or `STF`.", examples=["STJ"]
+    )
+    kind: str = Field(
+        description="`sumula` or `tema`, the two the collection carries.",
+        examples=["sumula"],
+    )
+    number: int = Field(description="The precedent's number.", examples=[7])
+    text: str | None = Field(
+        description=(
+            "What the court settled, when the catalogue holds it. `null` means "
+            "the decision cited something the catalogue has no entry for — the "
+            "citation is still real, and the screen shows it without a text "
+            "rather than hiding it. 4% of citations are in this state."
+        ),
+        examples=[
+            "A pretensão de simples reexame de prova não enseja recurso especial."
+        ],
+    )
+    status: str | None = Field(
+        default=None,
+        description=(
+            "Whether it is still in force. Always `null` for a súmula, whose "
+            "text is reconstructed from the collection and carries no status: "
+            "presenting a cancelled one as current is an error this refuses to "
+            "risk."
+        ),
+        examples=[None],
+    )
+    settled_on: date | None = Field(
+        default=None, description="When it was judged, for temas."
+    )
+    snippet: str = Field(
+        description=(
+            "The court's own words around the citation, 220 characters of the "
+            "ementa. This is what lets the reader check the label below against "
+            "what was actually written."
+        ),
+        examples=["reexame de provas. incidencia da sumula n. 7 do stj."],
+    )
+    adherence: str = Field(
+        description=(
+            "How the decision used it, read from the words around the citation: "
+            "`seguiu`, `afastou`, `distinguiu`, `mencionou` or `indeterminado`. "
+            "The last is a value, not an absence — a tool that guesses is worse "
+            "than one that says it does not know."
+        ),
+        examples=["seguiu"],
+    )
+    resolved: bool = Field(
+        description="Whether `text` could be filled from the catalogue."
+    )
+    court_stated: bool = Field(
+        description=(
+            "Whether the ementa said which court settled it. A tema cited "
+            'bare — "Tema 793", with no court — does not identify a '
+            "precedent: the STJ and the STF both have one, saying different "
+            "things. The citation is kept and the text withheld, because "
+            "answering with the wrong court's thesis is worse than answering "
+            "nothing. 6.3% of citations are in this state."
+        ),
+    )
+
+
 class Decision(DecisionBase):
     class_code: int | None = Field(
         description="Case class, as the national court council codes it.",
@@ -454,6 +617,22 @@ class Decision(DecisionBase):
         description="The operative part, when the court records it separately.",
         examples=["ADMITIR. JULGAR IMPROCEDENTE A REVISÃO CRIMINAL. UNÂNIME."],
     )
+    thesis: list[str] = Field(
+        description=(
+            "The thesis the court itself wrote, one entry per numbered item. "
+            "It is the court's own text, not ours: citable as it stands. Empty "
+            "when the court did not record one."
+        ),
+        examples=[
+            [
+                (
+                    "A palavra da vítima possui especial relevância em crimes "
+                    "de violência doméstica, quando coerente e corroborada por "
+                    "outros elementos de prova."
+                )
+            ]
+        ],
+    )
     full_text_available: bool = Field(
         description="Whether the court offers the complete document."
     )
@@ -465,6 +644,14 @@ class Decision(DecisionBase):
             "Always read from the court's own text, so a search term never "
             "changes the answer: `summary` carries the highlighting, these "
             "carry the text."
+        ),
+    )
+    precedents: list[CitedPrecedent] = Field(
+        default_factory=list,
+        description=(
+            "Which súmulas and temas this decision cites, in the order the "
+            "numbering gives. Empty for the 72% of the collection that cites "
+            "none — an empty list, never an error."
         ),
     )
 
@@ -732,6 +919,20 @@ def search_decisions(
             examples=[["negado"], ["provido", "parcialmente_provido"]],
         ),
     ] = None,
+    highlight: Annotated[
+        Literal["resultado", "aderencia"] | None,
+        Query(
+            description=(
+                "Which indicator the reader arrived from, so the snippet is "
+                "cut around what produced the classification instead of around "
+                "what was typed. `resultado` points at the dispositive, "
+                "`aderencia` at the precedent citation. Omitted — a plain "
+                "search — the snippet keeps showing where the search terms "
+                "are, which is what that reader wants."
+            ),
+            examples=["aderencia"],
+        ),
+    ] = None,
     date_from: Annotated[
         date | None,
         Query(
@@ -888,6 +1089,7 @@ def search_decisions(
     )
     parameters: dict[str, Any] = {
         **narrowed,
+        "highlight": HIGHLIGHT_TERMS.get(highlight or "", q),
         "snippet_options": SNIPPET_OPTIONS,
         "limit": page_size,
         "offset": offset,
@@ -911,6 +1113,7 @@ def search_decisions(
         results=[
             DecisionMatch(
                 **_base_fields(row),
+                thesis=split_theses(row.get("tese")),
                 snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
             )
             for row in rows
@@ -999,13 +1202,32 @@ def read_decision(
             if highlighted:
                 summary = _normalize_highlighted_text(highlighted["highlighted"], q)
 
+        cursor.execute(PRECEDENTS_SQL, parameters)
+        cited = [
+            CitedPrecedent(
+                court=cite["corte"],
+                kind=cite["tipo"],
+                number=cite["numero"],
+                text=cite["enunciado"],
+                status=cite["situacao"],
+                settled_on=cite["data"],
+                snippet=cite["trecho"],
+                adherence=cite["aderencia"],
+                resolved=cite["resolvida"],
+                court_stated=cite["corte_declarada"],
+            )
+            for cite in cursor.fetchall()
+        ]
+
     return Decision(
+        precedents=cited,
         **_base_fields(row),
         class_code=row["classe_cnj"],
         judged_on=row["data_julgamento"],
         published_on=row["data_publicacao"],
         summary=summary,
         outcome=row["decisao_texto"],
+        thesis=split_theses(row["tese"]),
         full_text_available=row["possui_inteiro_teor"],
         sections=_sections(row["ementa"]),
     )

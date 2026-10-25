@@ -1012,6 +1012,52 @@ input:focus-visible {
   z-index: 2;
 }
 
+/* The thesis is the court's own words, so it carries a label saying so: on a
+   screen that also shows what we inferred, the reader has to tell them apart
+   at a glance. Above the stretched link for the same reason the official link
+   is, or opening it would open the decision instead. */
+.decision-result-card__thesis {
+  position: relative;
+  z-index: 2;
+  margin-top: 0.6rem;
+  font-size: 0.82rem;
+}
+
+.decision-result-card__thesis > summary {
+  cursor: pointer;
+  color: #6b5b5e;
+  list-style-position: inside;
+}
+
+.decision-result-card__thesis > summary:hover,
+.decision-result-card__thesis > summary:focus-visible {
+  color: #45151f;
+}
+
+.decision-result-card__thesis-origin {
+  margin: 0.5rem 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #8a7579;
+}
+
+.decision-result-card__thesis-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: #45151f;
+}
+
+.decision-result-card__thesis-list li {
+  margin-bottom: 0.35rem;
+  line-height: 1.5;
+}
+
+.decision-result-card__thesis-list li:last-child {
+  margin-bottom: 0;
+}
+
 .decision-result-card__arrow {
   grid-column: 3;
   grid-row: 1;
@@ -2409,6 +2455,27 @@ input:focus-visible {
   }
 }
 
+/* The thesis the court wrote, on the reading screen. Open, unlike the card:
+   someone who opened the decision wants it. */
+.decision-detail__thesis {
+  margin-top: 1.2rem;
+}
+
+.decision-detail__thesis-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.3rem;
+  color: #45151f;
+  line-height: 1.6;
+}
+
+.decision-detail__thesis-list li {
+  margin-bottom: 0.45rem;
+}
+
+.decision-detail__thesis-list li:last-child {
+  margin-bottom: 0;
+}
+
 .outcome-denominator {
   margin: 0.35rem 0 0.9rem;
   color: var(--search-muted);
@@ -3258,4 +3325,401 @@ input:focus-visible {
 }
 .indicator-drawer__filters button.filter-tag {
   min-height: 44px;
+}
+
+/* One bar split by how the court used the precedent. The colour names the
+   category, never its size, and every row below carries the label and the
+   number as text — nothing here is told by colour alone. */
+.outcome-chart__part[data-adherence='seguiu'],
+.outcome-list__swatch[data-adherence='seguiu'] {
+  background: #4a1520;
+}
+
+.outcome-chart__part[data-adherence='afastou'],
+.outcome-list__swatch[data-adherence='afastou'] {
+  background: #8c4034;
+}
+
+.outcome-chart__part[data-adherence='distinguiu'],
+.outcome-list__swatch[data-adherence='distinguiu'] {
+  background: #a06b63;
+}
+
+.outcome-chart__part[data-adherence='mencionou'],
+.outcome-list__swatch[data-adherence='mencionou'] {
+  background: #d4b2ab;
+}
+
+/* The three denominators, side by side and never behind an interaction. The
+   last one is the base of every percentage below, so it is the one marked. */
+.denominators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.denominators__item {
+  flex: 1 1 140px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--search-soft);
+}
+
+.denominators__item--base {
+  border-color: var(--search-border);
+  background: var(--search-surface);
+}
+
+.denominators__value {
+  display: block;
+  color: var(--search-text);
+  font:
+    700 var(--text-lg)/1.1 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.denominators__label {
+  display: block;
+  margin-top: 3px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.35 'Source Sans 3',
+    sans-serif;
+}
+
+.denominators__rest {
+  color: var(--search-muted);
+}
+
+/* The precedents a decision cites. Quotation above the rule, inference below
+   it: the reader can put the first in a petition and not the second. */
+.precedents {
+  margin-top: 28px;
+}
+
+.precedents__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.precedents__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.precedent {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--search-surface);
+}
+
+.precedent__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 14px;
+}
+
+.precedent__name {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    700 var(--text-md)/1.25 'Source Sans 3',
+    sans-serif;
+}
+
+.precedent__source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--search-primary);
+  font:
+    600 var(--text-xs)/1.2 'Source Sans 3',
+    sans-serif;
+  text-decoration: none;
+}
+
+.precedent__source:hover,
+.precedent__source:focus-visible {
+  text-decoration: underline;
+}
+
+.precedent__standing {
+  margin: 8px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Marked, not mentioned in passing: a decision that applied a súmula later
+   cancelled is still a valid fact, and reading it as current misleads. */
+.precedent__standing--superseded {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.precedent__text {
+  margin: 10px 0 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--search-border);
+  color: var(--search-text);
+  font:
+    400 var(--text-sm)/1.55 'Source Serif 4',
+    Georgia,
+    serif;
+}
+
+.precedent__text--missing {
+  border-left-style: dashed;
+  color: var(--search-muted);
+  font-family: 'Source Sans 3', sans-serif;
+  font-style: italic;
+}
+
+.precedent__quote {
+  margin-top: 12px;
+}
+
+.precedent__quote-label {
+  margin: 0 0 3px;
+  color: var(--search-muted);
+  font:
+    600 var(--text-xs)/1.2 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.precedent__quote-text {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* The rule is the point: above it is the court, below it is this tool. */
+.precedent__reading {
+  margin-top: 14px;
+  padding-top: 11px;
+  border-top: 1px dashed var(--search-border);
+}
+
+.precedent__reading-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 3px;
+  color: var(--search-muted);
+  font:
+    600 var(--text-xs)/1.2 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.precedent__reading-value {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-sm)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.most-cited {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.most-cited__item {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.most-cited__item:last-child {
+  border-bottom: 0;
+}
+
+.most-cited__name {
+  margin: 0;
+  color: var(--search-text);
+  font:
+    700 var(--text-sm)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.most-cited__text {
+  margin: 3px 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.most-cited__text--missing {
+  font-style: italic;
+}
+
+.most-cited__count {
+  margin: 5px 0 0;
+  color: var(--search-text);
+  font:
+    600 var(--text-xs)/1.2 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.most-cited__decisions {
+  color: var(--search-muted);
+  font-weight: 400;
+}
+
+/* Scholarship by other people. The third kind of claim on this screen, and
+   the only one that lives somewhere else: every card is built around its
+   outbound link, and the rule down the left says the words are not ours. */
+.doctrine {
+  margin-top: 28px;
+}
+
+.doctrine__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.doctrine__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.doctrine__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.doctrine__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* A reading list, which is what it is. Deliberately not the precedent card's
+   box and not its left rule: there the rule means "the court's own words",
+   and reusing it here would say these words came from the court. */
+.work {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.work:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.work__title {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.work__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.work__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.work__link:hover,
+.work__link:focus-visible {
+  text-decoration: underline;
+}
+
+.work__authors {
+  margin: 4px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-sm)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.work__imprint {
+  margin: 2px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Why it is here, in the work's own words. Without this the reader has to
+   open every article to find out whether it has anything to do with them. */
+.work__ground {
+  margin: 7px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.work__ground-label {
+  color: var(--search-muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .denominators__item {
+    flex-basis: 100%;
+  }
+
+  .precedent__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* Phone width: the list tightens, the hairline still separates. */
+  .work {
+    padding-top: 11px;
+  }
 }
