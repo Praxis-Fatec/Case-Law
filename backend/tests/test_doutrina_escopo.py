@@ -24,13 +24,9 @@ from tests.test_courts import decide, register
 
 pytestmark = needs_database
 
-MODEL = (
-    Path(__file__).resolve().parents[2]
-    / "pipeline"
-    / "transformations"
-    / "models"
-    / "core_doutrina.sql"
-)
+TRANSFORMATIONS = Path(__file__).resolve().parents[2] / "pipeline" / "transformations"
+MODEL = TRANSFORMATIONS / "models" / "core_doutrina.sql"
+AUDITS = TRANSFORMATIONS / "audits" / "regras.sql"
 
 ABERTO = "col_2011_8"
 RESTRITO = "col_2011_9"
@@ -49,6 +45,19 @@ def scope_sql() -> str:
     text = MODEL.read_text(encoding="utf-8")
     body = text.split("*/", 1)[1].split("JINJA_STATEMENT_BEGIN", 1)[0]
     return body.strip().rstrip(";").strip()
+
+
+def audit_sql(name: str) -> str:
+    """
+    One audit's body, read off disk. An audit is a query that must return no
+    row; restating it in the test would pass even if someone deleted it from
+    the pipeline, which is exactly the day it has to fail.
+    """
+    blocks = AUDITS.read_text(encoding="utf-8").split("AUDIT (")
+    for block in blocks:
+        if block.lstrip().startswith(f"name {name},"):
+            return block.split(");", 1)[1].strip().rstrip(";")
+    raise AssertionError(f"a auditoria {name} sumiu de regras.sql")
 
 
 def raw(
@@ -169,14 +178,13 @@ def test_nenhum_texto_integral_e_armazenado(
     assert len(linha["resumo"] or "") > 5000, (
         "a camada bruta guarda o que a fonte mandou, sem interpretar"
     )
-    # E a auditoria que roda na carga reprova exatamente esta linha.
+    # E a auditoria que roda na carga reprova exatamente esta linha. A consulta
+    # vem do arquivo de auditorias, não daqui: apagá-la de lá quebra isto.
+    regra = audit_sql("doutrina_sem_texto_integral").replace(
+        "@this_model", "(" + scope_sql() + ") AS modelo"
+    )
     with layers.cursor() as cursor:
-        cursor.execute(
-            "SELECT COUNT(*) AS reprovadas FROM ("
-            + scope_sql()
-            + ") AS modelo WHERE LENGTH(resumo) > 5000"
-            " OR url_fonte ~* '\\.(pdf|doc|docx|rtf|epub)$'"
-        )
+        cursor.execute(f"SELECT COUNT(*) AS reprovadas FROM ({regra}) AS auditoria")
         row = cursor.fetchone()
 
     assert row is not None and row["reprovadas"] == 1
