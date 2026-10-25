@@ -131,7 +131,13 @@ def collection(
     )
     # The same identifier in another source is a different decision.
     db_rolled_back.execute(
-        """INSERT INTO core.decisao
+        """INSERT INTO core.decisao (
+            fonte_codigo, identificador_fonte, tribunal_sigla, processo,
+            orgao_julgador, relator, classe_cnj, data_julgamento, data_publicacao,
+            data_referencia, ementa, tipo_texto, decisao_texto, resultado,
+            deliberacao, turma_recursal, possui_inteiro_teor, url_fonte,
+            link_valido, ementa_busca
+        )
         SELECT 'export-other', identificador_fonte, tribunal_sigla, processo,
             orgao_julgador, relator, classe_cnj, data_julgamento, data_publicacao,
             data_referencia, ementa, tipo_texto, decisao_texto, resultado,
@@ -165,6 +171,21 @@ def test_collects_every_page_in_the_same_stable_order_as_the_search(
         len({(r["fonte_codigo"], r["identificador_fonte"]) for r in exported.decisions})
         == 19
     )
+
+
+def test_collection_supports_search_snippets_with_a_highlight_parameter(
+    collection: psycopg.Connection[DictRow], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app import export
+
+    monkeypatch.setattr(
+        export,
+        "SNIPPET",
+        f"CASE WHEN %(highlight)s THEN {export.SNIPPET} ELSE ementa END",
+    )
+    result = collect_export(collection, "dano moral")
+    assert len(result.decisions) == result.total == 19
+    assert all("<mark>" in row["snippet"] for row in result.decisions)
 
 
 @pytest.mark.parametrize(
