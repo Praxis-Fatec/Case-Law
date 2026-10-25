@@ -160,12 +160,14 @@ afterEach(() => {
 });
 
 describe('the top bar', () => {
-  it('holds the search and the way to the coverage, and nothing else', () => {
+  it('holds the Jusmap brand, search and way to the coverage', () => {
     installApi();
     renderApp();
 
     const bar = within(topBar());
-    expect(bar.getAllByRole('link')).toHaveLength(1);
+    expect(bar.getAllByRole('link')).toHaveLength(2);
+    expect(bar.getByRole('link', { name: 'Jusmap — início' })).toHaveAttribute('href', '/');
+    expect(bar.getByRole('img', { name: 'Jusmap' })).toHaveAttribute('src', '/jusmap-logo.png');
     expect(bar.getByRole('searchbox', { name: 'Pesquisar decisões' })).toBeInTheDocument();
     expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Filtros',
@@ -174,12 +176,12 @@ describe('the top bar', () => {
     expect(coverageLink()).toHaveTextContent('Informações do sistema');
   });
 
-  it('on the coverage, holds only the way to it: there is no search there', () => {
+  it('on the coverage, keeps the brand and coverage link without a search', () => {
     installApi();
     renderApp('/cobertura');
 
     const bar = within(topBar());
-    expect(bar.getAllByRole('link')).toHaveLength(1);
+    expect(bar.getAllByRole('link')).toHaveLength(2);
     expect(bar.queryByRole('searchbox')).toBeNull();
     expect(bar.queryAllByRole('button')).toHaveLength(0);
   });
