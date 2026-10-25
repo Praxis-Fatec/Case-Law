@@ -1,12 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { DownloadSimple } from '@phosphor-icons/react';
-import {
-  downloadPdf,
-  exportPdf,
-  getExportLimit,
-  ExportRequestError,
-  type ExportParams,
-} from '../api/exports';
+import { downloadPdf, exportPdf, ExportRequestError, type ExportParams } from '../api/exports';
 
 type ExportState =
   { status: 'ready' | 'generating' | 'complete' } | { status: 'failed'; message: string };
@@ -20,33 +14,17 @@ export default function ExportAction({
   total: number | null;
   disabled: boolean;
 }) {
-  const [limit, setLimit] = useState<number | null>(null);
   const hintId = useId();
-  const [limitFailed, setLimitFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<ExportState>({ status: 'ready' });
   const inFlight = useRef<AbortController | null>(null);
   useEffect(() => {
-    const controller = new AbortController();
-    getExportLimit(controller.signal).then(
-      (value) => {
-        if (!controller.signal.aborted) {
-          setLimit(value);
-          setLimitFailed(false);
-        }
-      },
-      () => {
-        if (!controller.signal.aborted) setLimitFailed(true);
-      },
-    );
     return () => {
-      controller.abort();
       inFlight.current?.abort();
     };
-  }, [attempt]);
+  }, []);
 
   const generate = async () => {
-    if (inFlight.current || disabled || !total || limit === null || total > limit) return;
+    if (inFlight.current || disabled || !total) return;
     const controller = new AbortController();
     inFlight.current = controller;
     setState({ status: 'generating' });
@@ -68,18 +46,12 @@ export default function ExportAction({
       if (inFlight.current === controller) inFlight.current = null;
     }
   };
-  const blocked = disabled || total === null || total === 0 || limit === null || total > limit;
+  const blocked = disabled || total === null || total === 0;
   const count = total?.toLocaleString('pt-BR');
   const hint =
     total === 0
       ? 'Não há decisões neste recorte para exportar.'
-      : limitFailed
-        ? 'Não foi possível consultar o limite de exportação.'
-        : limit === null
-          ? 'Consultando limite de exportação...'
-          : total !== null && total > limit
-            ? `O recorte tem ${count} decisões. O limite é ${limit.toLocaleString('pt-BR')}. Aplique mais filtros para exportar.`
-            : `Limite: ${limit.toLocaleString('pt-BR')} decisões por exportação.`;
+      : 'O PDF inclui todas as decisões do recorte, na ordem da pesquisa.';
   return (
     <div className="export-action" aria-label="Exportação do recorte">
       <button
@@ -99,15 +71,6 @@ export default function ExportAction({
       <p id={hintId} className="export-action__hint">
         {hint}
       </p>
-      {limitFailed && (
-        <button
-          type="button"
-          className="search-state__retry"
-          onClick={() => setAttempt((value) => value + 1)}
-        >
-          Tentar carregar limite de exportação
-        </button>
-      )}
       {state.status === 'generating' && (
         <p role="status">Gerando o PDF do recorte. Aguarde a conclusão.</p>
       )}

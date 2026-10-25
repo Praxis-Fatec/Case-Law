@@ -14,7 +14,6 @@ from psycopg import IsolationLevel
 from psycopg.rows import DictRow
 from pypdf import PdfReader
 
-from app.config import settings
 from app.export import ExportRefused, collect_export
 from tests.conftest import TEST_DATABASE_URL, needs_database
 
@@ -76,33 +75,20 @@ def test_downloaded_pdf_matches_actual_search_records_order_and_audited_links(
     assert links == [urls[identity] for identity in identities]
 
 
-@pytest.mark.parametrize(
-    ("query", "limit", "status", "code"),
-    [
-        ("termo inexistente", 1000, 409, "empty"),
-        ("dano moral", 18, 413, "limit_exceeded"),
-    ],
-)
-def test_actual_export_refusals_never_render_a_document(
+def test_actual_empty_export_never_renders_a_document(
     client: TestClient,
     collection: psycopg.Connection[DictRow],
     monkeypatch: pytest.MonkeyPatch,
-    query: str,
-    limit: int,
-    status: int,
-    code: str,
 ) -> None:
     from app.api import exports
 
-    monkeypatch.setattr(settings, "export_max_decisions", limit)
-
     def forbidden(*args: Any, **kwargs: Any) -> bytes:
-        pytest.fail("A refused cut must never reach the PDF renderer")
+        pytest.fail("An empty cut must never reach the PDF renderer")
 
     monkeypatch.setattr(exports, "render_export_pdf", forbidden)
-    response = client.post("/exports/pdf", json={"q": query})
-    assert response.status_code == status
-    assert response.json()["code"] == code
+    response = client.post("/exports/pdf", json={"q": "inexistente"})
+    assert response.status_code == 409
+    assert response.json()["code"] == "empty"
     assert "content-disposition" not in response.headers
 
 
@@ -350,34 +336,22 @@ def recorded_queries(
     return queries
 
 
-@pytest.mark.parametrize(("limit", "code"), [(18, "limit_exceeded"), (1000, "empty")])
-def test_refuses_before_reading_or_sorting_references(
+def test_empty_cut_refuses_before_reading_or_sorting_references(
     collection: psycopg.Connection[DictRow],
     monkeypatch: pytest.MonkeyPatch,
-    limit: int,
-    code: str,
 ) -> None:
-    monkeypatch.setattr(settings, "export_max_decisions", limit)
     queries = recorded_queries(monkeypatch)
     with pytest.raises(ExportRefused) as failure:
-        collect_export(
-            collection, "dano moral" if code == "limit_exceeded" else "inexistente"
-        )
-    assert failure.value.code == code
-    assert failure.value.limit == limit
-    assert failure.value.total == (19 if code == "limit_exceeded" else 0)
-    if code == "limit_exceeded":
-        assert "19" in str(failure.value) and "18" in str(failure.value)
-        assert "filters" in str(failure.value)
+        collect_export(collection, "inexistente")
+    assert failure.value.code == "empty"
+    assert failure.value.total == 0
     assert any("COUNT(*)" in query for query in queries)
     assert not any("ORDER BY" in query or "ts_rank" in query for query in queries)
 
 
-def test_accepts_exactly_the_limit_and_retains_reference_metadata(
+def test_retains_reference_metadata(
     collection: psycopg.Connection[DictRow],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(settings, "export_max_decisions", 19)
     collection.execute(
         "UPDATE core.decisao SET relator = NULL, link_valido = FALSE "
         "WHERE identificador_fonte = '1'"
@@ -392,7 +366,7 @@ def test_accepts_exactly_the_limit_and_retains_reference_metadata(
 
 
 @pytest.mark.parametrize("size", [1000, 1001])
-def test_one_thousand_is_complete_and_one_thousand_and_one_is_refused(
+def test_large_exports_include_every_reference_without_a_record_limit(
     collection: psycopg.Connection[DictRow],
     size: int,
 ) -> None:
@@ -406,17 +380,10 @@ def test_one_thousand_is_complete_and_one_thousand_and_one_is_refused(
         FROM generate_series(1, %s) n""",
         (size,),
     )
-    if size > 1000:
-        with pytest.raises(ExportRefused) as failure:
-            collect_export(collection, "amostra exportável")
-        assert failure.value.code == "limit_exceeded"
-        assert failure.value.total == 1001
-        assert failure.value.limit == 1000
-        return
     result = collect_export(collection, "amostra exportável")
-    assert result.total == len(result.decisions) == 1000
+    assert result.total == len(result.decisions) == size
     assert {row["identificador_fonte"] for row in result.decisions} == {
-        str(n) for n in range(1, 1001)
+        str(n) for n in range(1, size + 1)
     }
     from app.export_document import render_export_pdf
 
@@ -431,7 +398,7 @@ def test_one_thousand_is_complete_and_one_thousand_and_one_is_refused(
     ]
     # Measure the complete current template; do not impose the spike's timing
     # on CI machines with different resources or silently count only collection.
-    print(f"1000 decisions: PDF generation {elapsed:.3f}s, {len(pdf.pages)} pages")
+    print(f"{size} decisions: PDF generation {elapsed:.3f}s, {len(pdf.pages)} pages")
 
 
 def test_idle_connection_owns_a_read_only_snapshot(

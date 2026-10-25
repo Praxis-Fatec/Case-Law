@@ -36,22 +36,8 @@ def test_environment_is_read_from_the_environment(
     assert Settings().environment == "production"
 
 
-def test_export_limit_defaults_to_the_measured_ceiling() -> None:
-    assert Settings().export_max_decisions == 1000
-
-
-def test_export_limit_can_be_lowered(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("EXPORT_MAX_DECISIONS", "250")
-    assert Settings().export_max_decisions == 250
-
-
-@pytest.mark.parametrize("value", ["0", "-1", "1001"])
-def test_export_limit_cannot_be_empty_or_exceed_the_measured_ceiling(
+def test_legacy_export_limit_does_not_restrict_exports(
     monkeypatch: pytest.MonkeyPatch,
-    value: str,
 ) -> None:
-    from pydantic import ValidationError
-
-    monkeypatch.setenv("EXPORT_MAX_DECISIONS", value)
-    with pytest.raises(ValidationError):
-        Settings()
+    monkeypatch.setenv("EXPORT_MAX_DECISIONS", "1000")
+    assert "export_max_decisions" not in Settings.model_fields

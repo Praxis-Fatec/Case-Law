@@ -17,7 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.api.decisions import DEFAULT_ORDER, SEARCH_RESPONSES, Order
-from app.config import settings
 from app.db import get_connection
 from app.export import ExportRefused, collect_export
 from app.export_document import render_export_pdf
@@ -43,12 +42,12 @@ class ExportRequest(BaseModel):
 
 
 class ExportOptions(BaseModel):
-    max_decisions: int
+    max_decisions: None = None
 
 
-@router.get("/options", summary="Current maximum number of decisions in a PDF export")
+@router.get("/options", summary="Export options; null means no decision limit")
 def export_options() -> ExportOptions:
-    return ExportOptions(max_decisions=settings.export_max_decisions)
+    return ExportOptions()
 
 
 def export_filename(params: ExportRequest, generated_at: datetime) -> str:
@@ -74,9 +73,6 @@ def export_filename(params: ExportRequest, generated_at: datetime) -> str:
             }
         },
         409: {"description": "The cut has no decisions to export."},
-        413: {
-            "description": "The entire cut exceeds the configured export limit; no PDF is generated."
-        },
     },
 )
 async def export_pdf(
@@ -89,19 +85,12 @@ async def export_pdf(
             collect_export, connection, **params.model_dump()
         )
     except ExportRefused as error:
-        detail = (
-            "Não há decisões neste recorte para exportar."
-            if error.code == "empty"
-            else f"O recorte tem {error.total} decisões e o limite é {error.limit}. "
-            "Aplique mais filtros para reduzir o recorte."
-        )
         return JSONResponse(
-            status_code=409 if error.code == "empty" else 413,
+            status_code=409,
             content={
-                "detail": detail,
+                "detail": "Não há decisões neste recorte para exportar.",
                 "code": error.code,
                 "total": error.total,
-                "limit": error.limit,
             },
         )
     if await request.is_disconnected():

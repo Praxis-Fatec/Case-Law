@@ -1,7 +1,7 @@
-"""Collect the complete, bounded cut before a document renderer is invoked."""
+"""Collect the complete cut before a document renderer is invoked."""
 
 from datetime import date
-from typing import Any, Literal, NamedTuple
+from typing import Any, NamedTuple
 
 from psycopg import Connection
 from psycopg.pq import TransactionStatus
@@ -17,24 +17,15 @@ from app.api.decisions import (
     _count_sql,
     _narrowing,
 )
-from app.config import settings
 from app.export_indicators import ExportIndicators, collect_export_indicators
 
 
 class ExportRefused(ValueError):
-    def __init__(
-        self, code: Literal["empty", "limit_exceeded"], total: int, limit: int
-    ) -> None:
-        self.code = code
-        self.total = total
-        self.limit = limit
-        message = (
-            "There are no decisions to export."
-            if code == "empty"
-            else f"This cut contains {total} decisions; the export limit is {limit}. "
-            "Narrow the search using filters and try again."
-        )
-        super().__init__(message)
+    code = "empty"
+    total = 0
+
+    def __init__(self) -> None:
+        super().__init__("There are no decisions to export.")
 
 
 class ExportDataset(NamedTuple):
@@ -81,7 +72,6 @@ def collect_export(
         resultado,
     )
     ordering = ORDERINGS[order]
-    limit = settings.export_max_decisions
     idle = connection.info.transaction_status == TransactionStatus.IDLE
     with connection.transaction():
         if idle:
@@ -102,9 +92,7 @@ def collect_export(
         assert counted is not None
         total = int(counted["total"])
         if total == 0:
-            raise ExportRefused("empty", total, limit)
-        if total > limit:
-            raise ExportRefused("limit_exceeded", total, limit)
+            raise ExportRefused()
 
         # Expensive rank and excerpt generation run only after accepting the
         # count. The excerpt is the same ts_headline used by the search cards.

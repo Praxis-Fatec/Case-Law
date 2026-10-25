@@ -10,16 +10,6 @@ export function exportParams(params: SearchParams): ExportParams {
   return cut;
 }
 
-export async function getExportLimit(signal: AbortSignal): Promise<number> {
-  assertApiConfiguration();
-  const response = await fetch(`${apiBaseUrl}/exports/options`, { signal });
-  if (!response.ok) throw new Error('Não foi possível consultar o limite de exportação.');
-  const body = (await response.json()) as { max_decisions?: unknown };
-  if (!Number.isInteger(body.max_decisions) || Number(body.max_decisions) < 1)
-    throw new Error('Não foi possível consultar o limite de exportação.');
-  return Number(body.max_decisions);
-}
-
 export async function exportPdf(params: ExportParams, signal: AbortSignal) {
   assertApiConfiguration();
   const response = await fetch(`${apiBaseUrl}/exports/pdf`, {
@@ -31,9 +21,7 @@ export async function exportPdf(params: ExportParams, signal: AbortSignal) {
   if (!response.ok) {
     const detail = await readDetail(response);
     throw new ExportRequestError(
-      (response.status === 409 || response.status === 413) && detail
-        ? detail
-        : 'Não foi possível gerar o PDF. Tente novamente.',
+      response.status === 409 && detail ? detail : 'Não foi possível gerar o PDF. Tente novamente.',
     );
   }
   const disposition = response.headers.get('Content-Disposition') ?? '';
