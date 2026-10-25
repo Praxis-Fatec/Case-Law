@@ -212,7 +212,7 @@ export default function IndicatorDocumentsDrawer({
               }}
             />
           ) : (
-            <>
+            <div className="indicator-drawer__list-view">
               <div className="indicator-drawer__total">
                 <strong>{total}</strong>
                 <span>
@@ -277,7 +277,7 @@ export default function IndicatorDocumentsDrawer({
                   onGo={go}
                 />
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

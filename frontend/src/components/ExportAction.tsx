@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { DownloadSimple } from '@phosphor-icons/react';
+import { CircleNotch, DownloadSimple } from '@phosphor-icons/react';
 import { downloadPdf, exportPdf, ExportRequestError, type ExportParams } from '../api/exports';
 
 type ExportState =
@@ -61,7 +61,11 @@ export default function ExportAction({
         aria-describedby={hintId}
         disabled={blocked || state.status === 'generating'}
       >
-        <DownloadSimple size={16} aria-hidden="true" />
+        {state.status === 'generating' ? (
+          <CircleNotch size={16} className="motion-spinner" aria-hidden="true" />
+        ) : (
+          <DownloadSimple size={16} aria-hidden="true" />
+        )}
         {state.status === 'generating'
           ? 'Gerando PDF...'
           : state.status === 'failed'

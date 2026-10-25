@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import {
+  CircleNotch,
   ArrowRight,
   FileMagnifyingGlass,
   MagnifyingGlass,
@@ -742,6 +743,7 @@ function HomePage() {
           </button>
 
           <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
+            {isLoading && <CircleNotch size={15} className="motion-spinner" aria-hidden="true" />}
             {isLoading ? 'Pesquisando...' : 'Pesquisar'}
           </button>
         </div>
