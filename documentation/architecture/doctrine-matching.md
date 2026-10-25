@@ -149,6 +149,25 @@ works, and would very likely have one among 20.597.
 **Any useful-suggestion rate measured now is a floor, and the threshold has to
 be re-tuned when the full collection is harvested.**
 
+### Where the next gain is
+
+Ranked by what was measured, not by what is interesting to build.
+
+1. **More of the collection.** 3,9% of it is the binding limit, and it needs no
+   new technique — only the BDJur answering `bdjur@stj.jus.br`, or more pages
+   saved by hand.
+2. **Meaning instead of stems.** Every wrong suggestion that survives is a word
+   match without a meaning match: `unic` ties *"valor único"* to *"Violência:
+   única opção?"*; `digital acess conteud` ties digital counterfeiting to money
+   laundering; `vontad brasil manifestaca` ties an electronic signature to
+   German civil law. A stemmer cannot tell these apart and no threshold over
+   its output can either. This is path (c) of the subtask — `pgvector` is
+   installed and has never been used — and the card says to reach for it when
+   (a) and (b) do not serve. (a) produced noise and (b) stops at 54%.
+3. **The reader with legal training.** 54% is one reader's judgement, and some
+   of the ratings are debatable: a thesis with five numbered items may be
+   legitimately matched on its third, which this reader counted as wrong.
+
 ---
 
 ## Acceptance: the rate still needs a reader with legal training
@@ -157,10 +176,42 @@ The subtask requires the sample to be evaluated by someone in Law, as subtask
 7.2 does for the thesis itself. That has not happened yet, and it is not
 something this document can settle.
 
-**A provisional read, by whoever wrote this and not by a lawyer**, over the
-thirty cases below: 13 clearly useful, 5 arguable, 12 wrong — around **43%**
-before the proximity condition, and the condition removed seven of the twelve
-without removing any of the thirteen.
+**A provisional read, by whoever wrote this and not by a lawyer**, over thirty
+decisions — read before the proximity condition was added, so not the same
+thirty listed below:
+
+| | Before proximity | Still suggested after |
+|---|---:|---:|
+| Clearly useful | 13 | **13** |
+| Arguable | 5 | 5 |
+| Wrong | 12 | **6** |
+| **Useful share** | **43%** | **54%** |
+
+The condition removed half the wrong suggestions and none of the useful ones.
+Twenty-four of the thirty decisions still receive something.
+
+**The scalar thresholds are exhausted.** Both remaining knobs were measured
+against those ratings, and both make it worse:
+
+```
+forte 4,5 -> 5,0    drops 8 of the 13 useful, and only 2 of the 6 wrong
+termos 2 -> 3       drops 4 of the useful, and none of the wrong
+```
+
+The wrong suggestions that survive have a *higher* mean strongest-term weight
+than the useful ones (5,54 against 5,31) and sit *closer* together (distance
+1,3 against 2,6).
+
+One more idea was tried and also fails, recorded here so it is not tried
+again: requiring the matched terms to form an expression **on the work's side
+too**, not only in the thesis. The intuition is sound — *"dignidade sexual"* is
+a phrase in the thesis but scattered across *"Regulação da Internet e novos
+desafios da proteção de direitos"*. The measurement says otherwise: mean
+distance on the work's side is 2,2 for the wrong suggestions and 2,8 for the
+useful ones, so the wrong ones are if anything tighter.
+
+There is no number left to turn. What the stems can tell apart, they already
+do.
 
 The sheet is ready to be filled in. Mark the `útil?` column `sim` or `não` for
 each suggestion, and the rate is the count over the total.
