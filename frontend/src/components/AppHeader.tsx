@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useMatch } from 'react-router-dom';
+import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
 import { Database } from '@phosphor-icons/react';
 
 import { COVERAGE_PATH, type CoverageEntry } from '../pages/CoveragePage';
@@ -22,16 +22,35 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
 
   return (
     <header className="app-header">
-      <div ref={searchSlotRef} className="app-header__search" />
-      <nav className="app-header__nav" aria-label="Informações do sistema">
-        <NavLink to={COVERAGE_PATH} state={state} replace={onCoverage} className="app-header__link">
-          <Database size={14} aria-hidden="true" className="app-header__icon" />
-          <span className="app-header__text">
-            <span className="app-header__title">Cobertura da base</span>
-            <span className="app-header__subtitle">Informações do sistema</span>
-          </span>
-        </NavLink>
-      </nav>
+      <div className="app-header__brand-row">
+        <Link to="/" className="app-header__brand" aria-label="Jusmap — início">
+          <img src="/jusmap-logo.png" alt="Jusmap" width="113" height="30" />
+        </Link>
+        <span className="app-header__section">Pesquisa jurisprudencial</span>
+        <nav className="app-header__nav" aria-label="Informações do sistema">
+          <NavLink
+            to={COVERAGE_PATH}
+            state={state}
+            replace={onCoverage}
+            className="app-header__link"
+          >
+            <Database size={14} aria-hidden="true" className="app-header__icon" />
+            <span className="app-header__text">
+              <span className="app-header__title">Cobertura da base</span>
+              <span className="app-header__subtitle">Informações do sistema</span>
+            </span>
+          </NavLink>
+        </nav>
+      </div>
+      {!onCoverage && (
+        <div className="app-header__search-row">
+          <div className="app-header__prompt">
+            <span>Pesquisa jurisprudencial</span>
+            <strong>O que você precisa entender?</strong>
+          </div>
+          <div ref={searchSlotRef} className="app-header__search" />
+        </div>
+      )}
     </header>
   );
 }
