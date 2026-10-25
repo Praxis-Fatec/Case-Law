@@ -1,7 +1,10 @@
 """Export collection agrees with the search without inheriting its page size."""
 
+import re
 from collections.abc import Iterator
 from datetime import date
+from io import BytesIO
+from time import perf_counter
 from typing import Any
 
 import psycopg
@@ -9,12 +12,98 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg import IsolationLevel
 from psycopg.rows import DictRow
+from pypdf import PdfReader
 
 from app.config import settings
 from app.export import ExportRefused, collect_export
 from tests.conftest import TEST_DATABASE_URL, needs_database
 
 pytestmark = needs_database
+
+
+@pytest.mark.parametrize("order", ["relevance", "date"])
+def test_downloaded_pdf_matches_actual_search_records_order_and_audited_links(
+    client: TestClient, collection: psycopg.Connection[DictRow], order: str
+) -> None:
+    # URLs deliberately cannot be derived from the public decision identifier.
+    collection.execute(
+        """UPDATE core.decisao SET url_fonte =
+        'https://oficial.test/acervo/' || md5(fonte_codigo || identificador_fonte)
+        || '?versao=original&formato=inteiro'"""
+    )
+    collection.execute(
+        "UPDATE core.decisao SET relator = NULL, resultado = NULL "
+        "WHERE identificador_fonte = '2'"
+    )
+    params: dict[str, Any] = {
+        "q": "dano moral",
+        "tribunal": ["STJ"],
+        "classe_cnj": [198],
+        "date_from": "2024-01-01",
+        "date_to": "2024-01-03",
+        "order": order,
+    }
+    expected = []
+    for page in range(1, 5):
+        response = client.get("/decisions", params={**params, "page": page})
+        assert response.status_code == 200
+        expected.extend(response.json()["results"])
+    assert len(expected) == response.json()["total"] == 19
+    urls = {
+        (row["fonte_codigo"], row["identificador_fonte"]): row["url_fonte"]
+        for row in collection.execute(
+            "SELECT fonte_codigo, identificador_fonte, url_fonte FROM core.decisao"
+        ).fetchall()
+    }
+    downloaded = client.post("/exports/pdf", json=params)
+    assert downloaded.status_code == 200, (
+        downloaded.text[:300] if downloaded.status_code != 200 else ""
+    )
+    pdf = PdfReader(BytesIO(downloaded.content))
+    text = "\n".join(page.extract_text() for page in pdf.pages)
+    # Read references in the real PDF, rather than trusting its printed total.
+    actual = re.findall(r"Fonte:\s*(\S+)\s+Identificação da decisão:\s*(\S+)", text)
+    identities = [(row["source"], row["identifier"]) for row in expected]
+    assert actual == identities
+    assert re.search(r"Relator:\s*Não informado", text)
+    assert re.search(r"Resultado:\s*Não informado", text)
+    links = [
+        annotation.get_object()["/A"]["/URI"]
+        for page in pdf.pages
+        for annotation in page.get("/Annots", [])
+        if annotation.get_object().get("/A", {}).get("/URI")
+    ]
+    assert links == [urls[identity] for identity in identities]
+
+
+@pytest.mark.parametrize(
+    ("query", "limit", "status", "code"),
+    [
+        ("termo inexistente", 1000, 409, "empty"),
+        ("dano moral", 18, 413, "limit_exceeded"),
+    ],
+)
+def test_actual_export_refusals_never_render_a_document(
+    client: TestClient,
+    collection: psycopg.Connection[DictRow],
+    monkeypatch: pytest.MonkeyPatch,
+    query: str,
+    limit: int,
+    status: int,
+    code: str,
+) -> None:
+    from app.api import exports
+
+    monkeypatch.setattr(settings, "export_max_decisions", limit)
+
+    def forbidden(*args: Any, **kwargs: Any) -> bytes:
+        pytest.fail("A refused cut must never reach the PDF renderer")
+
+    monkeypatch.setattr(exports, "render_export_pdf", forbidden)
+    response = client.post("/exports/pdf", json={"q": query})
+    assert response.status_code == status
+    assert response.json()["code"] == code
+    assert "content-disposition" not in response.headers
 
 
 @pytest.fixture
@@ -308,6 +397,20 @@ def test_one_thousand_is_complete_and_one_thousand_and_one_is_refused(
     assert {row["identificador_fonte"] for row in result.decisions} == {
         str(n) for n in range(1, 1001)
     }
+    from app.export_document import render_export_pdf
+
+    started = perf_counter()
+    document = render_export_pdf(result)
+    elapsed = perf_counter() - started
+    pdf = PdfReader(BytesIO(document))
+    text = "\n".join(page.extract_text() for page in pdf.pages)
+    entries = re.findall(r"Fonte:\s*(\S+)\s+Identificação da decisão:\s*(\S+)", text)
+    assert entries == [
+        (row["fonte_codigo"], row["identificador_fonte"]) for row in result.decisions
+    ]
+    # Measure the complete current template; do not impose the spike's timing
+    # on CI machines with different resources or silently count only collection.
+    print(f"1000 decisions: PDF generation {elapsed:.3f}s, {len(pdf.pages)} pages")
 
 
 def test_idle_connection_owns_a_read_only_snapshot(
