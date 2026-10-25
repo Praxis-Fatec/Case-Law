@@ -5,6 +5,14 @@ import type { Suggestion } from '../api/doctrine';
 import { commonGround, workKind } from '../components/doctrineFormat';
 import RelatedDoctrine from '../components/RelatedDoctrine';
 
+// O mesmo que `filterRequests` faz, e pelo mesmo motivo: `VITE_API_URL` vem do
+// `.env`, que não é versionado. Sem isto a suíte passa na máquina de quem tem
+// o arquivo e quebra no CI, que não tem.
+vi.mock('../api/client', () => ({
+  apiBaseUrl: 'http://localhost:8000',
+  assertApiConfiguration: () => undefined,
+}));
+
 /**
  * The doctrine block, and the promise it has to keep.
  *
