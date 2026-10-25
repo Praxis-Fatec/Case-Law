@@ -40,6 +40,15 @@ MODEL (
   `alterada_em` é o relógio do protocolo — quando o registro mudou — e é o
   cursor que o `from` do OAI-PMH compara na coleta incremental.
 
+  `busca` é por onde a doutrina casa com a decisão, e carrega título e assunto,
+  não resumo. O resumo existe em 31,8% dos registros e quando existe costuma
+  ser sumário ou nota de evento — "Palestra proferida na 6ª Reunião do Fórum
+  Permanente de História do Direito" não diz o que o texto sustenta, e indexar
+  isso traz obra errada com cara de certa. Título está em 100% e é descritivo
+  em Direito; assunto está em 54,8% e é palavra-chave escolhida por quem
+  catalogou. Os dois com peso A; o título traduzido com peso B, porque repete
+  o primeiro em outra língua.
+
   O link é normalizado para um resolvedor só. Um registro em 798 aponta para
   hdl.handle.net, o resolvedor canônico do Handle System, em vez do endereço do
   BDJur; é o mesmo handle e abre o mesmo registro. Uniformizar aqui deixa a
@@ -86,6 +95,14 @@ SELECT
     ARRAY[]::TEXT[])                                  AS conjuntos,
   a.arquivada_em                                      AS arquivada_em,
   a.alterada_em                                       AS alterada_em,
+  SETWEIGHT(TO_TSVECTOR('portugues_sem_acento', a.titulo), 'A') ||
+  SETWEIGHT(TO_TSVECTOR('portugues_sem_acento',
+    COALESCE((SELECT STRING_AGG(v, ' ')
+       FROM JSONB_ARRAY_ELEMENTS_TEXT(a.assuntos) AS t (v)), '')), 'A') ||
+  SETWEIGHT(TO_TSVECTOR('portugues_sem_acento',
+    COALESCE((SELECT STRING_AGG(v, ' ')
+       FROM JSONB_ARRAY_ELEMENTS_TEXT(a.titulos) WITH ORDINALITY AS t (v, i)
+      WHERE i > 1), '')), 'B')                        AS busca,
   NOW()                                               AS carregado_em
 FROM aberto AS a
 
@@ -93,5 +110,6 @@ FROM aberto AS a
 
 JINJA_STATEMENT_BEGIN;
 CREATE UNIQUE INDEX ON {{ this_model }} (repositorio, identificador_oai);
+CREATE INDEX ON {{ this_model }} USING gin (busca);
 CREATE INDEX ON {{ this_model }} (ano);
 JINJA_END;

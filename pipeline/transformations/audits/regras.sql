@@ -424,3 +424,114 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) > 500
    AND COUNT(*) FILTER (WHERE CARDINALITY(assuntos) > 0) < COUNT(*) * 0.30;
+
+AUDIT (
+  name termo_de_obra_existente,
+  dialect postgres
+);
+/* Termo sob identificador que não existe em core.doutrina fica órfão: não casa
+   com nada, não aparece em lugar nenhum, e some da conta sem avisar. */
+SELECT t.*
+FROM @this_model AS t
+LEFT JOIN core.doutrina AS d
+  ON d.repositorio = t.repositorio
+ AND d.identificador_oai = t.identificador_oai
+WHERE d.identificador_oai IS NULL;
+
+AUDIT (
+  name termo_acima_do_piso,
+  dialect postgres
+);
+/* O piso é o que faz a sugestão falar de assunto. Abaixo de 2,0 está a palavra
+   presente em mais de 13% das decisões — `prova`, `súmula`, `direito` —, que
+   casa qualquer tese com qualquer obra. Radical de três letras é acidente do
+   radicalizador: `via` liga "via adequada" a "terceira via". */
+SELECT *
+FROM @this_model
+WHERE peso < 2.0
+   OR LENGTH(termo) < 4;
+
+AUDIT (
+  name termo_com_cobertura,
+  dialect postgres
+);
+/* Se a construção do vetor de busca quebrar, esta tabela encolhe e a tela
+   passa a não sugerir doutrina nenhuma, com cara de acervo sem obra sobre o
+   tema. Hoje são 10.032 pares sobre 797 obras — 12,6 termos por obra, de 3.569
+   distintos. O piso é de 5 termos por obra, e só vale a partir de 100 obras,
+   para um ambiente de desenvolvimento com três registros não reprovar. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(DISTINCT identificador_oai) > 100
+   AND COUNT(*) < COUNT(DISTINCT identificador_oai) * 5;
+
+AUDIT (
+  name sugestao_de_decisao_com_tese,
+  dialect postgres
+);
+/* Sem tese não há do que casar. Sugestão para decisão sem tese significa que o
+   casamento passou a usar outro campo — a ementa inteira, por exemplo — e o
+   resultado fica mais grosseiro sem que nada falhe. */
+SELECT s.*
+FROM @this_model AS s
+LEFT JOIN core.decisao AS d
+  ON d.fonte_codigo = s.fonte_codigo
+ AND d.identificador_fonte = s.identificador_fonte
+WHERE d.identificador_fonte IS NULL
+   OR d.tese IS NULL;
+
+AUDIT (
+  name sugestao_de_obra_existente,
+  dialect postgres
+);
+/* Obra inexistente vira link quebrado na tela: a decisão diz que há doutrina
+   relacionada e o leitor clica em nada. */
+SELECT s.*
+FROM @this_model AS s
+LEFT JOIN core.doutrina AS d
+  ON d.repositorio = s.repositorio
+ AND d.identificador_oai = s.identificador_oai
+WHERE d.identificador_oai IS NULL;
+
+AUDIT (
+  name sugestao_acima_do_limite,
+  dialect postgres
+);
+/* A regra que protege o leitor, executável. O limite não é preferência de
+   apresentação: é o que separa sugestão de chute, e baixá-lo sem remedir a
+   taxa de acerto enche a tela de obra sobre outro assunto com aparência de
+   relacionada. Quem mexer nos números tem de mexer aqui também. */
+SELECT *
+FROM @this_model
+WHERE nota < 9.0
+   OR termos < 2
+   OR termo_mais_forte < 4.5
+   OR distancia IS NULL
+   OR distancia > 8;
+
+AUDIT (
+  name sugestao_com_termo_proprio,
+  dialect postgres
+);
+/* `casou_em` é o que a tela mostra para justificar a sugestão, e tem de conter
+   o termo que a sustenta. Lista vazia, ou com menos termos do que a contagem
+   diz, é sugestão sem como responder por si. */
+SELECT *
+FROM @this_model
+WHERE casou_em IS NULL
+   OR CARDINALITY(casou_em) <> termos;
+
+AUDIT (
+  name sugestao_com_cobertura,
+  dialect postgres
+);
+/* O limite cala quando não sabe, então esta tabela é pequena de propósito —
+   26,9% das 57.439 decisões com tese. Mas zero não é "limite rigoroso", é
+   casamento quebrado, e a diferença não aparece na tela: as duas mostram
+   "nenhuma doutrina relacionada". O piso é 5% das decisões com tese, e só vale
+   a partir de mil teses. */
+SELECT 1 AS falha
+FROM core.decisao
+HAVING COUNT(*) FILTER (WHERE tese IS NOT NULL) > 1000
+   AND (SELECT COUNT(DISTINCT identificador_fonte) FROM @this_model)
+       < COUNT(*) FILTER (WHERE tese IS NOT NULL) * 0.05;
