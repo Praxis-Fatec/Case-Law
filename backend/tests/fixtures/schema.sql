@@ -180,3 +180,13 @@ CREATE TABLE core.decisao_doutrina (
     carregado_em        TIMESTAMPTZ,
     PRIMARY KEY (fonte_codigo, identificador_fonte, repositorio, identificador_oai)
 );
+
+CREATE TABLE core.doutrina_termo (
+    repositorio       TEXT NOT NULL,
+    identificador_oai TEXT NOT NULL,
+    termo             TEXT NOT NULL,
+    decisoes          BIGINT NOT NULL,
+    peso              DOUBLE PRECISION NOT NULL,
+    carregado_em      TIMESTAMPTZ,
+    PRIMARY KEY (repositorio, identificador_oai, termo)
+);

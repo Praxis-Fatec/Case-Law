@@ -237,3 +237,60 @@ def test_o_instante_do_protocolo_fica_num_formato_so() -> None:
     assert doutrina._instante("2026-05-18T12:52:07Z") == "2026-05-18T12:52:07Z"
     assert doutrina._instante("") is None
     assert doutrina._instante(None) is None
+
+
+def test_a_colecao_restrita_nunca_e_colhida(tmp_path: Path) -> None:
+    """
+    O compromisso com o cliente, no extrator. Uma resposta contendo registros
+    de col_2011_9 — Acesso Restrito — não deixa nenhum deles entrar, por mais
+    que o conjunto aberto também esteja no mesmo cabeçalho.
+
+    O recurso filtra pelo conjunto pedido, e `CONJUNTOS` é a lista inteira do
+    que pode ser pedido. As duas afirmações juntas são a regra; o modelo
+    `core.doutrina` a repete na camada seguinte, de propósito.
+    """
+    restrita = RESPOSTA.replace(
+        "<setSpec>col_2011_8</setSpec>", "<setSpec>col_2011_9</setSpec>"
+    )
+    lidas = list(doutrina._do_xml(restrita))
+
+    assert lidas, "a leitura em si não filtra: quem filtra é a coleta"
+    for obra in lidas:
+        assert "col_2011_8" not in obra["conjuntos"]
+        assert obra["conjuntos"].count("col_2011_9") >= 1
+
+    # E col_2011_9 não está entre os conjuntos que a coleta pede.
+    assert "col_2011_9" not in doutrina.CONJUNTOS
+
+
+def test_a_obra_sem_resumo_entra_com_resumo_nulo() -> None:
+    """
+    68% dos registros não trazem `dc:description`. Descartá-los por isso
+    jogaria fora dois terços do acervo.
+    """
+    obras = _por_id(doutrina._do_xml(RESPOSTA))
+    sem_resumo = [o for o in obras.values() if o["resumo"] is None]
+
+    assert sem_resumo, "a amostra precisa de um registro sem resumo"
+    for obra in sem_resumo:
+        assert obra["titulo"]
+        assert obra["url_fonte"]
+
+
+def test_recolher_de_novo_nao_duplica() -> None:
+    """
+    A carga é `merge` sobre repositório mais identificador OAI, não `replace`
+    nem `append`. Com `append`, rodar a coleta duas vezes dobraria o acervo; com
+    `replace`, uma coleta incremental — que traz só o que mudou — apagaria o
+    resto.
+    """
+    hints = doutrina.doutrina._hints
+
+    assert hints["write_disposition"] == "merge"
+    assert tuple(hints["primary_key"]) == ("repositorio", "identificador_oai")
+
+    # E a chave é de fato única no que a leitura entrega.
+    lidas = list(doutrina._do_xml(RESPOSTA)) * 2
+    chaves = {(o["repositorio"], o["identificador_oai"]) for o in lidas}
+
+    assert len(chaves) == len(lidas) // 2
