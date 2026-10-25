@@ -337,3 +337,90 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING COUNT(*) > 100000
    AND COUNT(*) FILTER (WHERE tese IS NOT NULL) < COUNT(*) * 0.04;
+
+AUDIT (
+  name doutrina_de_acesso_aberto,
+  dialect postgres
+);
+/* O escopo da história, executável. A coleção é a garantia: o STJ separou
+   Acesso Aberto de Acesso Restrito, e só a primeira entra. Onde `dc:rights`
+   aparece — 5,8% dos registros — ele manda, e é lista de permissão: um
+   registro arquivado em Acesso Aberto declarou "Restricted access" no próprio
+   campo, 1 em 798 na amostra, e ficou de fora. Direitos desconhecido exclui a
+   obra em vez de incluí-la. */
+SELECT *
+FROM @this_model
+WHERE NOT ('col_2011_8' = ANY (conjuntos))
+   OR 'col_2011_9' = ANY (conjuntos)
+   OR (direitos IS NOT NULL AND direitos !~* 'acesso aberto|open access');
+
+AUDIT (
+  name doutrina_com_titulo,
+  dialect postgres
+);
+/* Obra sem título não é apontável: a tela mostraria uma linha em branco com
+   link. O recorte do bloco `oai_dc` é por expressão regular, então um título
+   vazio significa que o recorte pegou outra coisa, não que a biblioteca
+   catalogou sem título. */
+SELECT *
+FROM @this_model
+WHERE COALESCE(BTRIM(titulo), '') = ''
+   OR titulo !~ '[[:alpha:]]';
+
+AUDIT (
+  name doutrina_com_link_do_acervo,
+  dialect postgres
+);
+/* `dc:identifier` aparece duas, três ou quatro vezes no mesmo registro: a
+   referência bibliográfica, um ISSN e o link permanente dividem a mesma tag.
+   Pegar o primeiro valor põe a referência onde devia estar o link, e o erro
+   não aparece até alguém clicar. O handle do link tem de ser o mesmo número do
+   identificador OAI — 798 de 798 conferem hoje. */
+SELECT *
+FROM @this_model
+WHERE url_fonte NOT LIKE 'https://bdjur.stj.jus.br/handle/%'
+   OR url_fonte <> 'https://bdjur.stj.jus.br/handle/' || SPLIT_PART(identificador_oai, ':', 3);
+
+AUDIT (
+  name doutrina_sem_texto_integral,
+  dialect postgres
+);
+/* Metadado e link, nunca a obra. Acesso aberto é permissão de ler, não de
+   redistribuir, e é a diferença entre apontar doutrina e republicá-la. O teto
+   de 5.000 caracteres não julga resumo comprido: ele reprova o dia em que
+   alguém apontar o extrator para o texto da obra e gravá-lo aqui. O maior
+   `dc:description` da amostra tem 1.255 caracteres, a média 219. O link
+   também precisa levar ao registro, não ao arquivo. */
+SELECT *
+FROM @this_model
+WHERE LENGTH(resumo) > 5000
+   OR url_fonte ~* '\.(pdf|doc|docx|rtf|epub)$';
+
+AUDIT (
+  name doutrina_com_ano_plausivel,
+  dialect postgres
+);
+/* O primeiro `dc:date` de todos os 798 registros é a entrada no acervo, não a
+   publicação: uma obra de 1976 digitalizada em 2019 traz as duas datas na
+   mesma tag. Trocar uma pela outra não dá erro — enche a coluna de anos
+   recentes e ordena a lista pela data de digitalização. Ano fora da faixa é o
+   sintoma. Nulo não reprova: a biblioteca às vezes não registrou. */
+SELECT *
+FROM @this_model
+WHERE ano IS NOT NULL
+  AND (ano < 1900 OR ano > EXTRACT(YEAR FROM NOW()) + 1);
+
+AUDIT (
+  name doutrina_com_cobertura_de_assunto,
+  dialect postgres
+);
+/* Assunto é por onde a doutrina casa com a decisão, e `dc:subject` é
+   opcional: 54,8% dos registros o trazem. Se a extração quebrar, a coluna fica
+   vazia em silêncio e a tela passa a não achar doutrina nenhuma, com cara de
+   acervo sem obra sobre o tema. O piso é 30%, e só vale a partir de 500
+   linhas: num ambiente de desenvolvimento com dez registros a cobertura é
+   zero e isso é o esperado. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) > 500
+   AND COUNT(*) FILTER (WHERE CARDINALITY(assuntos) > 0) < COUNT(*) * 0.30;

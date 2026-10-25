@@ -22,6 +22,27 @@ This is the scope of the story and it does not depend on which source answers.
 The tool points at scholarship; it does not redistribute it. That holds even
 for open access, because open to read is not the same as open to redistribute.
 
+**Which of the two carries the weight, measured.** Over a sample of 798 records
+read on 25/10/2026, `dc:rights` is present in **5,8%**. Requiring it would leave
+94% of the open collection out, so the collection is the guarantee and the field
+is the exception — and where the two disagree, the field wins. One record filed
+in Acesso Aberto declares `Restricted access` in its own `dc:rights`, and it
+does not enter the core. The rule is an allow list: an unknown rights statement
+excludes the work rather than including it.
+
+What the same sample says about the fields, which is what decides how doctrine
+can be matched to a decision at all:
+
+| Field | Coverage |
+|---|---:|
+| title, author, date, type, identifier, format | 100% |
+| `dc:language` | 99,4% |
+| `dc:publisher` | 74,6% |
+| `dc:subject` | 54,8% |
+| `dc:description` — the abstract | 31,8% |
+| `dc:relation` | 16,9% |
+| `dc:rights` | 5,8% |
+
 ---
 
 ## BDJur — Biblioteca Digital do STJ
