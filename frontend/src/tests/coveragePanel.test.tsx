@@ -170,7 +170,7 @@ describe('the top bar', () => {
     const bar = within(topBar());
     expect(bar.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Cobertura da baseInformações do sistema',
-      'EquipeQuem tem acesso',
+      'UsuáriosQuem tem acesso',
     ]);
     expect(bar.getByRole('searchbox', { name: 'Pesquisar decisões' })).toBeInTheDocument();
     expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual([
@@ -187,7 +187,7 @@ describe('the top bar', () => {
 
     const bar = within(topBar());
 
-    expect(bar.queryByText('Equipe')).toBeNull();
+    expect(bar.queryByText('Usuários')).toBeNull();
     expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
   });
 

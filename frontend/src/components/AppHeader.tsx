@@ -37,14 +37,14 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
           </span>
         </NavLink>
 
-        {/* Only a manager has a team to run, so only a manager is offered the
-            way there. The API refuses the rest regardless; this keeps the bar
-            from showing a door that would close in their face. */}
+        {/* Only a manager administers, so only a manager is offered the way
+            there. The API refuses the rest regardless; this keeps the bar from
+            showing a door that would close in their face. */}
         {person?.role === 'gerente' && (
           <NavLink to={TEAM_PATH} replace={onTeam} className="app-header__link">
             <UsersThree size={14} aria-hidden="true" className="app-header__icon" />
             <span className="app-header__text">
-              <span className="app-header__title">Equipe</span>
+              <span className="app-header__title">Usuários</span>
               <span className="app-header__subtitle">Quem tem acesso</span>
             </span>
           </NavLink>

@@ -1,15 +1,14 @@
 """
-A manager running their company's access.
+A manager running the firm's access.
 
 Three things, and nothing more: add someone, see who is there, take the access
 away from someone who left. There is no screen for creating a manager — the
 owner does that on the server, so no request reaching this API from the
 internet can ever mint one.
 
-Every statement closes on `gerente_id`, which is what keeps one company out of
-another's list. A manager asking about an account that is not theirs gets the
-same answer as for an account that does not exist, so the API cannot be used to
-find out who else has a licence.
+One firm uses this system, with few people in it, so a manager sees all of
+them. The only account a manager cannot touch is their own: revoking yourself
+would leave the firm with nobody able to administer it.
 """
 
 from typing import Annotated, Any
@@ -26,7 +25,7 @@ from app.errors import DATABASE_RESPONSES, ErrorResponse
 
 router = APIRouter(tags=["accounts"])
 
-NOT_IN_YOUR_TEAM = "Não existe esse usuário na sua equipe."
+NO_SUCH_PERSON = "Não existe esse usuário, ou é a sua própria conta."
 EMAIL_TAKEN = "Já existe uma conta com esse e-mail."
 SHORT_PASSWORD = (
     f"A senha precisa de pelo menos {passwords.MIN_LENGTH} caracteres. "
@@ -65,9 +64,9 @@ class NewUser(BaseModel):
 class Team(BaseModel):
     users: list[Person] = Field(
         description=(
-            "The people this manager added, and the manager themselves. "
-            "Revoked accounts stay on the list, marked inactive: they ran "
-            "searches, and hiding them would hide that."
+            "Everyone with an account, managers first. Revoked accounts stay "
+            "on the list, marked inactive: they ran searches, and hiding them "
+            "would hide that."
         ),
     )
 
@@ -76,37 +75,32 @@ class Team(BaseModel):
 
 @router.get(
     "/users",
-    summary="The people under this manager",
+    summary="Everyone with an account",
     responses={**DATABASE_RESPONSES, **FORBIDDEN_RESPONSE},
 )
 def list_users(
-    manager: Annotated[dict[str, Any], Depends(sessions.manager)],
+    _: Annotated[dict[str, Any], Depends(sessions.manager)],
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
 ) -> Team:
     """
-    Everyone this manager is responsible for, active or revoked.
+    Everyone with an account, active or revoked.
 
     Managers appear first, then active people, then revoked ones, each group in
-    alphabetical order. No other company's accounts are reachable from here.
+    alphabetical order.
     """
-    return Team(
-        users=[person_of(row) for row in accounts.team_of(connection, manager["id"])]
-    )
+    return Team(users=[person_of(row) for row in accounts.everyone(connection)])
 
 
 @router.post(
     "/users",
-    summary="Add someone to this manager's team",
+    summary="Add someone to the firm",
     status_code=201,
     responses={
         **DATABASE_RESPONSES,
         **FORBIDDEN_RESPONSE,
         409: {
             "model": ErrorResponse,
-            "description": (
-                "The address already has an account anywhere in the system, "
-                "including another company's."
-            ),
+            "description": "The address already has an account.",
             "content": {"application/json": {"example": {"detail": EMAIL_TAKEN}}},
         },
     },
@@ -117,11 +111,12 @@ def add_user(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
 ) -> Person:
     """
-    Create a common account under this manager.
+    Create a common account.
 
     The role is not a parameter. A manager adds people who search; only the
     owner adds managers, on the server, so nothing reaching this API can raise
-    its own privileges.
+    its own privileges. The manager who created the account is recorded, which
+    is the answer to "who let this person in" when two managers share the job.
     """
     if passwords.too_short(new.password):
         raise HTTPException(status_code=422, detail=SHORT_PASSWORD)
@@ -151,11 +146,10 @@ def add_user(
         404: {
             "model": ErrorResponse,
             "description": (
-                "No such person under this manager. An account in another "
-                "company answers the same way, so this cannot be used to find "
-                "out who else exists."
+                "No account with this identifier, or it is the manager's own: "
+                "revoking yourself would leave nobody able to administer."
             ),
-            "content": {"application/json": {"example": {"detail": NOT_IN_YOUR_TEAM}}},
+            "content": {"application/json": {"example": {"detail": NO_SUCH_PERSON}}},
         },
     },
 )
@@ -165,7 +159,7 @@ def revoke_access(
     connection: Annotated[Connection[DictRow], Depends(get_connection)],
 ) -> Person:
     """
-    Take the access away from someone who left the company.
+    Take the access away from someone who left the firm.
 
     It takes effect on the next request they make, not when their token
     expires. The account is deactivated rather than deleted: it ran searches,
@@ -174,7 +168,7 @@ def revoke_access(
     revoked = accounts.revoke(connection, identifier=identifier, manager=manager["id"])
 
     if revoked is None:
-        raise HTTPException(status_code=404, detail=NOT_IN_YOUR_TEAM)
+        raise HTTPException(status_code=404, detail=NO_SUCH_PERSON)
 
     return person_of(revoked)
 
@@ -201,6 +195,6 @@ def restore_access(
     )
 
     if restored is None:
-        raise HTTPException(status_code=404, detail=NOT_IN_YOUR_TEAM)
+        raise HTTPException(status_code=404, detail=NO_SUCH_PERSON)
 
     return person_of(restored)

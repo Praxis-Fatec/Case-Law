@@ -12,7 +12,11 @@ import {
 import { useCurrentPerson } from '../session/sessionContext';
 
 /**
- * A manager running their office's access.
+ * A manager running the firm's access.
+ *
+ * One firm uses this system, with few people in it, so this list is everyone:
+ * a manager sees and administers all of them, including accounts another
+ * manager created.
  *
  * Revoked people stay on the list, marked. They ran searches, and hiding them
  * would hide that — and it would also hide the mistake when the wrong person
@@ -103,10 +107,11 @@ export default function TeamPage() {
   return (
     <main className="team">
       <header className="team__header">
-        <h1 className="team__title">Equipe do escritório</h1>
+        <h1 className="team__title">Usuários do sistema</h1>
         <p className="team__lead">
-          Você cadastra quem usa a ferramenta e tira o acesso de quem sai. Quem for cadastrado aqui
-          pesquisa decisões; administrar a equipe é só seu.
+          Todo mundo que tem acesso está nesta lista. Você cadastra quem entra e tira o acesso de
+          quem sai. Quem for cadastrado aqui pesquisa decisões; administrar os usuários é dos
+          gerentes.
         </p>
       </header>
 
@@ -212,8 +217,8 @@ export default function TeamPage() {
                   </p>
                 </div>
 
-                {/* A manager cannot revoke themselves: the office would be
-                    left with nobody able to administer it. */}
+                {/* The one account a manager cannot touch is their own: revoking
+                    yourself leaves the firm with nobody able to administer. */}
                 {row.id !== person?.id && (
                   <button type="button" className="team__change" onClick={() => void change(row)}>
                     {row.active ? (

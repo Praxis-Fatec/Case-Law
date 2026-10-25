@@ -1,13 +1,13 @@
 """
 Who exists, what they may do, and who answers for them.
 
-Two roles. A *gerente* runs a company's access: they add people, see the people
-they added, and revoke whoever leaves. A *usuario* searches and nothing else.
-The owner adds managers out of band — there is no screen for it, by design.
+Two roles. A *gerente* runs the firm's access: they add people, see everyone,
+and revoke whoever leaves. A *usuario* searches and nothing else. The owner
+adds managers out of band — there is no screen for it, by design.
 
-`gerente_id` is not bookkeeping: it is the boundary. A manager reaches exactly
-the rows that point at them, so one company's manager can never read, create
-for, or revoke another company's people. Every statement here closes on it.
+One firm uses this system, with few people in it, so a manager sees all of
+them. `gerente_id` stays as the record of who added whom — useful when two
+managers are asked later who let somebody in — and is not a permission.
 
 Revoking deactivates, never deletes. An account that ran searches has to stay
 readable afterwards, and a deleted row would take the trail with it.
@@ -39,12 +39,11 @@ FROM identidade.usuario
 WHERE id = %(id)s
 """
 
-# A manager sees the people they added, and themselves. Ordering closes on the
-# key so two people added in the same second never swap places between pages.
-TEAM_SQL = f"""
+# Everyone, managers first. Ordering closes on the key so two people added in
+# the same second never swap places between two readings of the list.
+EVERYONE_SQL = f"""
 SELECT {FIELDS}
 FROM identidade.usuario
-WHERE gerente_id = %(manager)s OR id = %(manager)s
 ORDER BY papel = 'gerente' DESC, ativo DESC, LOWER(nome), id
 """
 
@@ -54,21 +53,19 @@ VALUES (%(nome)s, %(telefone)s, %(email)s, %(senha)s, %(papel)s, %(gerente)s)
 RETURNING {FIELDS}
 """
 
-# The WHERE is the permission: a manager's revocation reaches only their own
-# people, and never themselves. An id outside that set updates nothing, which
-# the caller reads as "no such person" — the same answer either way, so a
-# manager cannot probe for accounts in another company.
+# A manager revokes anyone but themselves. Revoking yourself would lock the
+# firm out of its own administration, and only the owner could put it back.
 REVOKE_SQL = f"""
 UPDATE identidade.usuario
 SET ativo = FALSE, revogado_em = NOW()
-WHERE id = %(id)s AND gerente_id = %(manager)s AND ativo
+WHERE id = %(id)s AND id <> %(manager)s AND ativo
 RETURNING {FIELDS}
 """
 
 RESTORE_SQL = f"""
 UPDATE identidade.usuario
 SET ativo = TRUE, revogado_em = NULL
-WHERE id = %(id)s AND gerente_id = %(manager)s AND NOT ativo
+WHERE id = %(id)s AND id <> %(manager)s AND NOT ativo
 RETURNING {FIELDS}
 """
 
@@ -99,9 +96,9 @@ def by_id(db: Connection[DictRow], identifier: UUID | str) -> dict[str, Any] | N
         return _person(cursor.fetchone())
 
 
-def team_of(db: Connection[DictRow], manager: UUID | str) -> list[dict[str, Any]]:
+def everyone(db: Connection[DictRow]) -> list[dict[str, Any]]:
     with db.cursor() as cursor:
-        cursor.execute(TEAM_SQL, {"manager": str(manager)})
+        cursor.execute(EVERYONE_SQL)
         return [person for row in cursor.fetchall() if (person := _person(row))]
 
 

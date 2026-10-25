@@ -1,10 +1,13 @@
 """
-Accounts, roles, and the boundary between one company and another.
+Accounts, roles, and what each one may do.
 
 Three promises are tested here because breaking any of them is silent. The
-tool refuses everyone without an account. A manager reaches their own people
-and nobody else's. And revoking someone takes the tool away from them now —
-not when their token happens to expire.
+tool refuses everyone without an account. A manager sees and administers
+everyone, except their own account. And revoking someone takes the tool away
+from them now — not when their token happens to expire.
+
+One firm uses this system, with few people in it, so there is no tenancy to
+keep apart: a manager who can see one account can see all of them.
 """
 
 from typing import Any
@@ -219,40 +222,48 @@ class TestOQueCadaPapelPode:
         assert criado.json()["role"] == "usuario"
 
 
-class TestAFronteiraEntreEmpresas:
-    def test_o_gerente_so_ve_a_propria_equipe(
-        self, client: TestClient, db: psycopg.Connection[DictRow]
-    ) -> None:
-        nossa = manager(db)
-        member(db, nossa)
-        outra = manager(db, "carla@outraempresa.com.br")
-        member(db, outra, "diego@outraempresa.com.br")
-
-        lista = client.get("/users", headers=header(nossa)).json()["users"]
-        nomes = {pessoa["email"] for pessoa in lista}
-
-        assert nomes == {"ana@almeidacosta.com.br", "bruno@almeidacosta.com.br"}
-
-    def test_nao_revoga_quem_e_de_outra_empresa(
+class TestOQueOGerenteAlcanca:
+    def test_o_gerente_ve_todo_mundo(
         self, client: TestClient, db: psycopg.Connection[DictRow]
     ) -> None:
         """
-        E a recusa é a mesma de um id que não existe. Diferenciar as duas
-        deixaria um gerente descobrir quem são os clientes do concorrente,
-        tentando ids até a resposta mudar.
+        Uma empresa só, poucas pessoas: o gerente enxerga o sistema inteiro,
+        inclusive quem outro gerente cadastrou.
         """
-        nossa = manager(db)
-        alheio = member(db, manager(db, "carla@outraempresa.com.br"))
+        boss = manager(db)
+        member(db, boss)
+        outro = manager(db, "carla@almeidacosta.com.br")
+        member(db, outro, "diego@almeidacosta.com.br")
 
-        negado = client.delete(f"/users/{alheio['id']}/access", headers=header(nossa))
-        inexistente = client.delete(
-            "/users/0f9b9d1e-0000-4000-8000-000000000000/access",
-            headers=header(nossa),
-        )
+        lista = client.get("/users", headers=header(boss)).json()["users"]
 
-        assert negado.status_code == inexistente.status_code == 404
-        assert negado.json() == inexistente.json()
-        assert accounts.by_id(db, alheio["id"])["ativo"] is True  # type: ignore[index]
+        assert {pessoa["email"] for pessoa in lista} == {
+            "ana@almeidacosta.com.br",
+            "bruno@almeidacosta.com.br",
+            "carla@almeidacosta.com.br",
+            "diego@almeidacosta.com.br",
+        }
+
+    def test_os_gerentes_aparecem_primeiro(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db, "zelia@almeidacosta.com.br")
+        member(db, boss, "ana@almeidacosta.com.br")
+
+        lista = client.get("/users", headers=header(boss)).json()["users"]
+
+        assert [pessoa["role"] for pessoa in lista] == ["gerente", "usuario"]
+
+    def test_revoga_quem_outro_gerente_cadastrou(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+        alheio = member(db, manager(db, "carla@almeidacosta.com.br"), "diego@x.com")
+
+        resposta = client.delete(f"/users/{alheio['id']}/access", headers=header(boss))
+
+        assert resposta.status_code == 200
+        assert resposta.json()["active"] is False
 
     def test_o_gerente_nao_revoga_a_si_mesmo(
         self, client: TestClient, db: psycopg.Connection[DictRow]
@@ -265,15 +276,27 @@ class TestAFronteiraEntreEmpresas:
         assert resposta.status_code == 404
         assert accounts.by_id(db, boss["id"])["ativo"] is True  # type: ignore[index]
 
-    def test_o_email_e_unico_no_sistema_inteiro(
+    def test_conta_inexistente_e_404(
         self, client: TestClient, db: psycopg.Connection[DictRow]
     ) -> None:
-        nossa = manager(db)
-        member(db, manager(db, "carla@outraempresa.com.br"), "repetido@exemplo.com")
+        boss = manager(db)
+
+        resposta = client.delete(
+            "/users/0f9b9d1e-0000-4000-8000-000000000000/access",
+            headers=header(boss),
+        )
+
+        assert resposta.status_code == 404
+
+    def test_o_email_e_unico(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+        member(db, boss, "repetido@exemplo.com")
 
         resposta = client.post(
             "/users",
-            headers=header(nossa),
+            headers=header(boss),
             json={
                 "name": "Repetido",
                 "email": "REPETIDO@exemplo.com",
@@ -311,7 +334,7 @@ class TestRevogar:
     ) -> None:
         """
         A conta pesquisou, e apagar a linha apagaria o registro de que pesquisou.
-        Ela continua na lista do gerente, marcada.
+        Ela continua na lista, marcada.
         """
         boss = manager(db)
         pessoa = member(db, boss)
