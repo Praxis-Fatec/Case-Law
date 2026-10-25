@@ -156,9 +156,11 @@ afterEach(() => {
 });
 
 describe('the result tabs', () => {
-  it('are Documentos and Panorama, and nothing else', () => {
+  it('are Documentos and Panorama, and nothing else', async () => {
     installApi();
     renderApp();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Pesquisar' }));
 
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'Documentos',
@@ -174,6 +176,8 @@ describe('the result tabs', () => {
     installApi();
     const user = userEvent.setup();
     renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
 
     tab('Documentos').focus();
     await user.keyboard('{ArrowRight}');
@@ -388,16 +392,14 @@ describe('the interactive chart', () => {
 });
 
 describe('the panorama without counts to draw', () => {
-  it('asks for a search before there is one, and counts nothing', async () => {
+  it('asks for a search before there is one, and counts nothing', () => {
     const { volumes } = installApi();
-    const user = userEvent.setup();
-    renderApp();
-
-    await user.click(tab('Panorama'));
+    renderApp('/', [], false);
 
     expect(
-      panorama().getByText('Pesquise um tema para ver em quais tribunais ele aparece.'),
+      screen.getByRole('heading', { name: 'Comece pela questão jurídica que deseja investigar' }),
     ).toBeVisible();
+    expect(screen.queryByRole('tab', { name: 'Panorama' })).not.toBeInTheDocument();
     expect(volumes).toHaveLength(0);
     expect(document.querySelector('.volume-chart')).toBeNull();
   });
