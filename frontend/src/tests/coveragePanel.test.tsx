@@ -2,7 +2,7 @@ import { act, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { currentAddress, renderApp } from './renderApp';
+import { currentAddress, renderApp, SIGNED_IN } from './renderApp';
 
 // Only the address of the API is replaced: the request code under test is the
 // real one, so what is asked of the coverage endpoint is what the app sends.
@@ -160,18 +160,35 @@ afterEach(() => {
 });
 
 describe('the top bar', () => {
-  it('holds the search and the way to the coverage, and nothing else', () => {
+  it('holds the search, the two ways out and the account, and nothing else', () => {
+    // A barra ganhou a equipe e a conta quando a ferramenta passou a exigir
+    // login. Continua sendo uma lista fechada: o que entra aqui entra de
+    // propósito, e este teste é onde alguém percebe que acrescentou algo.
     installApi();
     renderApp();
 
     const bar = within(topBar());
-    expect(bar.getAllByRole('link')).toHaveLength(1);
+    expect(bar.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Cobertura da baseInformações do sistema',
+      'EquipeQuem tem acesso',
+    ]);
     expect(bar.getByRole('searchbox', { name: 'Pesquisar decisões' })).toBeInTheDocument();
     expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Filtros',
       'Pesquisar',
+      'Sair',
     ]);
-    expect(coverageLink()).toHaveTextContent('Informações do sistema');
+    expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
+  });
+
+  it('não oferece a equipe a quem não é gerente', () => {
+    installApi();
+    renderApp('/', [], { ...SIGNED_IN, role: 'usuario' });
+
+    const bar = within(topBar());
+
+    expect(bar.queryByText('Equipe')).toBeNull();
+    expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
   });
 
   it('on the coverage, holds only the way to it: there is no search there', () => {
@@ -179,9 +196,9 @@ describe('the top bar', () => {
     renderApp('/cobertura');
 
     const bar = within(topBar());
-    expect(bar.getAllByRole('link')).toHaveLength(1);
     expect(bar.queryByRole('searchbox')).toBeNull();
-    expect(bar.queryAllByRole('button')).toHaveLength(0);
+    // Só o botão de sair: nada da busca sobra numa tela que não é dela.
+    expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual(['Sair']);
   });
 
   it('reaches the coverage from the search screen', async () => {

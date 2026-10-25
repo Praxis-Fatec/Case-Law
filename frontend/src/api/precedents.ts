@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 import { cutUrl, type VolumeParams } from './indicators';
 import { readDetail, SearchRequestError } from './search';
 
@@ -179,9 +180,7 @@ export async function getAdherence(
 
   const response = await fetch(cutUrl('/indicators/adherence', params).toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 
@@ -205,9 +204,7 @@ export async function getMostCited(
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 

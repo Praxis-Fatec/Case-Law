@@ -1,0 +1,206 @@
+"""
+A manager running their company's access.
+
+Three things, and nothing more: add someone, see who is there, take the access
+away from someone who left. There is no screen for creating a manager — the
+owner does that on the server, so no request reaching this API from the
+internet can ever mint one.
+
+Every statement closes on `gerente_id`, which is what keeps one company out of
+another's list. A manager asking about an account that is not theirs gets the
+same answer as for an account that does not exist, so the API cannot be used to
+find out who else has a licence.
+"""
+
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Depends, HTTPException, Path
+from psycopg import Connection
+from psycopg.rows import DictRow
+from pydantic import BaseModel, EmailStr, Field
+
+from app import accounts, passwords, sessions
+from app.api.session import PERSON_EXAMPLE, Person, person_of
+from app.db import get_connection
+from app.errors import DATABASE_RESPONSES, ErrorResponse
+
+router = APIRouter(tags=["accounts"])
+
+NOT_IN_YOUR_TEAM = "Não existe esse usuário na sua equipe."
+EMAIL_TAKEN = "Já existe uma conta com esse e-mail."
+SHORT_PASSWORD = (
+    f"A senha precisa de pelo menos {passwords.MIN_LENGTH} caracteres. "
+    "Comprimento é o que a torna difícil de adivinhar — não misturar símbolos."
+)
+
+FORBIDDEN_RESPONSE: dict[int | str, dict[str, Any]] = {
+    403: {
+        "model": ErrorResponse,
+        "description": "A signed-in account that is not a manager.",
+        "content": {
+            "application/json": {"example": {"detail": sessions.NOT_A_MANAGER}}
+        },
+    }
+}
+
+
+class NewUser(BaseModel):
+    name: str = Field(min_length=2, max_length=120, examples=["Ana Almeida Costa"])
+    email: EmailStr = Field(examples=["ana@almeidacosta.com.br"])
+    phone: str | None = Field(
+        default=None,
+        max_length=40,
+        description="Optional.",
+        examples=["+55 12 99999-0000"],
+    )
+    password: str = Field(
+        min_length=1,
+        description=(
+            f"At least {passwords.MIN_LENGTH} characters. Stored hashed with "
+            "Argon2id and never readable again, by anyone."
+        ),
+    )
+
+
+class Team(BaseModel):
+    users: list[Person] = Field(
+        description=(
+            "The people this manager added, and the manager themselves. "
+            "Revoked accounts stay on the list, marked inactive: they ran "
+            "searches, and hiding them would hide that."
+        ),
+    )
+
+    model_config = {"json_schema_extra": {"example": {"users": [PERSON_EXAMPLE]}}}
+
+
+@router.get(
+    "/users",
+    summary="The people under this manager",
+    responses={**DATABASE_RESPONSES, **FORBIDDEN_RESPONSE},
+)
+def list_users(
+    manager: Annotated[dict[str, Any], Depends(sessions.manager)],
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> Team:
+    """
+    Everyone this manager is responsible for, active or revoked.
+
+    Managers appear first, then active people, then revoked ones, each group in
+    alphabetical order. No other company's accounts are reachable from here.
+    """
+    return Team(
+        users=[person_of(row) for row in accounts.team_of(connection, manager["id"])]
+    )
+
+
+@router.post(
+    "/users",
+    summary="Add someone to this manager's team",
+    status_code=201,
+    responses={
+        **DATABASE_RESPONSES,
+        **FORBIDDEN_RESPONSE,
+        409: {
+            "model": ErrorResponse,
+            "description": (
+                "The address already has an account anywhere in the system, "
+                "including another company's."
+            ),
+            "content": {"application/json": {"example": {"detail": EMAIL_TAKEN}}},
+        },
+    },
+)
+def add_user(
+    new: NewUser,
+    manager: Annotated[dict[str, Any], Depends(sessions.manager)],
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> Person:
+    """
+    Create a common account under this manager.
+
+    The role is not a parameter. A manager adds people who search; only the
+    owner adds managers, on the server, so nothing reaching this API can raise
+    its own privileges.
+    """
+    if passwords.too_short(new.password):
+        raise HTTPException(status_code=422, detail=SHORT_PASSWORD)
+
+    try:
+        created = accounts.create(
+            connection,
+            nome=new.name,
+            email=new.email,
+            senha=new.password,
+            telefone=new.phone,
+            papel="usuario",
+            gerente=manager["id"],
+        )
+    except accounts.EmailTaken:
+        raise HTTPException(status_code=409, detail=EMAIL_TAKEN) from None
+
+    return person_of(created)
+
+
+@router.delete(
+    "/users/{identifier}/access",
+    summary="Revoke someone's access",
+    responses={
+        **DATABASE_RESPONSES,
+        **FORBIDDEN_RESPONSE,
+        404: {
+            "model": ErrorResponse,
+            "description": (
+                "No such person under this manager. An account in another "
+                "company answers the same way, so this cannot be used to find "
+                "out who else exists."
+            ),
+            "content": {"application/json": {"example": {"detail": NOT_IN_YOUR_TEAM}}},
+        },
+    },
+)
+def revoke_access(
+    identifier: Annotated[str, Path(description="Identifier of the account.")],
+    manager: Annotated[dict[str, Any], Depends(sessions.manager)],
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> Person:
+    """
+    Take the access away from someone who left the company.
+
+    It takes effect on the next request they make, not when their token
+    expires. The account is deactivated rather than deleted: it ran searches,
+    and removing the row would remove the record that it did.
+    """
+    revoked = accounts.revoke(connection, identifier=identifier, manager=manager["id"])
+
+    if revoked is None:
+        raise HTTPException(status_code=404, detail=NOT_IN_YOUR_TEAM)
+
+    return person_of(revoked)
+
+
+@router.post(
+    "/users/{identifier}/access",
+    summary="Give the access back",
+    responses={**DATABASE_RESPONSES, **FORBIDDEN_RESPONSE},
+)
+def restore_access(
+    identifier: Annotated[str, Path(description="Identifier of the account.")],
+    manager: Annotated[dict[str, Any], Depends(sessions.manager)],
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> Person:
+    """
+    Undo a revocation.
+
+    Here because revoking the wrong person is an ordinary mistake, and without
+    this the only repair would be a second account — which would leave the
+    first one's searches orphaned from the person who ran them.
+    """
+    restored = accounts.restore(
+        connection, identifier=identifier, manager=manager["id"]
+    )
+
+    if restored is None:
+        raise HTTPException(status_code=404, detail=NOT_IN_YOUR_TEAM)
+
+    return person_of(restored)

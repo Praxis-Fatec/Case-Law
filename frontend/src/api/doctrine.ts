@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 import { readDetail, SearchRequestError } from './search';
 
 // The two doctrine endpoints: what was matched to one decision, and the
@@ -138,9 +139,7 @@ export async function getRelatedDoctrine(
 
   const response = await fetch(target.toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 
@@ -168,9 +167,7 @@ export async function searchDoctrine(
 
   const response = await fetch(target.toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 

@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 
 export type SearchDecisionMatch = {
   source: string;
@@ -137,9 +138,7 @@ export async function searchDecisions(
   const response = await fetch(url.toString(), {
     method: 'GET',
     signal: options.signal,
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
   });
 
   if (!response.ok) {

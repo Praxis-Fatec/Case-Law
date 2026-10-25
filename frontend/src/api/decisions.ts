@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 
 // The four sections of the national court council's shape, without the labels
 // the court wrote. `null` on the decision when the ementa is free prose.
@@ -72,9 +73,7 @@ export async function getDecision(
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 
