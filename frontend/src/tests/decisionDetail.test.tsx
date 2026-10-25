@@ -281,6 +281,23 @@ describe('the panel states', () => {
 
     expect(await screen.findByText('JOÃO EGMONT')).toBeInTheDocument();
   });
+
+  it('a doutrina fora do ar não impede ler a decisão', async () => {
+    // A regra de degradação, afirmada em vez de suposta. O resto deste
+    // arquivo já roda com a consulta de doutrina recusada pelo stub, então
+    // sem este teste a garantia ficaria sendo um efeito colateral.
+    await renderDetail(STRUCTURED);
+
+    expect(await screen.findByText(/Não foi possível consultar a doutrina/)).toBeInTheDocument();
+
+    // E tudo que é da decisão continua lá: metadados, ementa e link oficial.
+    expect(screen.getByText('JOÃO EGMONT')).toBeInTheDocument();
+    expect(screen.getByText(/Definir o termo inicial da suspensão/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /oficial/i })).toHaveAttribute(
+      'href',
+      STRUCTURED.source_url,
+    );
+  });
 });
 
 describe('choosing decisions from the results', () => {

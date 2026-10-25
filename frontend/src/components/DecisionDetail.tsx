@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
 import { readCitedPrecedents } from '../api/precedents';
 import CitedPrecedents from './CitedPrecedents';
+import RelatedDoctrine from './RelatedDoctrine';
 import {
   DELIBERATION_LABELS,
   deliberationStateOf,
@@ -206,6 +207,15 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
       <CitedPrecedents
         precedents={readCitedPrecedents(decision.precedents)}
         headingId={`${titleId}-precedentes`}
+      />
+
+      {/* Last of the three, because it is the furthest from the decision:
+          what it settled, what it cited, and what other people wrote. */}
+      <RelatedDoctrine
+        key={`${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        headingId={`${titleId}-doutrina`}
       />
 
       <OfficialSource decision={decision} />

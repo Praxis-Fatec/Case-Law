@@ -140,3 +140,53 @@ CREATE TABLE core.decisao_precedente (
     carregado_em        TIMESTAMPTZ,
     PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)
 );
+
+CREATE TABLE core.doutrina (
+    repositorio          TEXT NOT NULL,
+    identificador_oai    TEXT NOT NULL,
+    titulo               TEXT NOT NULL,
+    titulos_alternativos TEXT[] NOT NULL DEFAULT '{}',
+    autores              TEXT[] NOT NULL DEFAULT '{}',
+    assuntos             TEXT[] NOT NULL DEFAULT '{}',
+    tipo                 TEXT,
+    data                 TEXT,
+    ano                  BIGINT,
+    idioma               TEXT,
+    publicacao           TEXT,
+    resumo               TEXT,
+    referencia           TEXT,
+    url_fonte            TEXT NOT NULL,
+    direitos             TEXT,
+    conjuntos            TEXT[] NOT NULL DEFAULT '{}',
+    arquivada_em         TIMESTAMPTZ,
+    alterada_em          TIMESTAMPTZ,
+    busca                TSVECTOR,
+    carregado_em         TIMESTAMPTZ,
+    PRIMARY KEY (repositorio, identificador_oai)
+);
+
+CREATE INDEX ON core.doutrina USING gin (busca);
+
+CREATE TABLE core.decisao_doutrina (
+    fonte_codigo        TEXT NOT NULL,
+    identificador_fonte TEXT NOT NULL,
+    repositorio         TEXT NOT NULL,
+    identificador_oai   TEXT NOT NULL,
+    nota                DOUBLE PRECISION NOT NULL,
+    termos              BIGINT NOT NULL,
+    termo_mais_forte    DOUBLE PRECISION NOT NULL,
+    casou_em            TEXT[] NOT NULL,
+    distancia           INTEGER NOT NULL,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte, repositorio, identificador_oai)
+);
+
+CREATE TABLE core.doutrina_termo (
+    repositorio       TEXT NOT NULL,
+    identificador_oai TEXT NOT NULL,
+    termo             TEXT NOT NULL,
+    decisoes          BIGINT NOT NULL,
+    peso              DOUBLE PRECISION NOT NULL,
+    carregado_em      TIMESTAMPTZ,
+    PRIMARY KEY (repositorio, identificador_oai, termo)
+);
