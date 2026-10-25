@@ -12,6 +12,8 @@ import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
+import ExportAction from '../components/ExportAction';
+import { exportParams } from '../api/exports';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
@@ -818,6 +820,12 @@ function HomePage() {
                   )}
                 </h2>
                 <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
+                <ExportAction
+                  key={JSON.stringify(exportParams(requestFor(applied)))}
+                  params={exportParams(requestFor(applied))}
+                  total={totalResults}
+                  disabled={isLoading || Boolean(errorMessage)}
+                />
               </div>
             )}
 
