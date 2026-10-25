@@ -51,14 +51,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function api(answer: () => Response | Promise<Response> = () => pdf(), limit = 1000) {
+function api(answer: () => Response | Promise<Response> = () => pdf()) {
   const posts: RequestInit[] = [];
   const signals: AbortSignal[] = [];
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
-      if (url.pathname === '/exports/options') return json({ max_decisions: limit });
+      if (url.pathname === '/exports/options')
+        throw new Error('Export must not depend on a limit lookup');
       if (url.pathname === '/exports/pdf') {
         posts.push(init!);
         signals.push(init!.signal as AbortSignal);
@@ -110,7 +111,7 @@ it('shows ready, generating and complete; rapid double click makes one download'
   render(<ExportAction params={params} total={19} disabled={false} />);
   const button = await ready();
   expect(button).toHaveTextContent('19 decisões');
-  expect(screen.getByText(/Limite: 1.000/)).toBeVisible();
+  expect(screen.getByText(/O PDF inclui todas as decisões/)).toBeVisible();
   fireEvent.click(button);
   fireEvent.click(button);
   expect(screen.getByRole('button', { name: 'Gerando PDF...' })).toBeDisabled();
@@ -151,17 +152,27 @@ it.each([
   expect(URL.createObjectURL).not.toHaveBeenCalled();
 });
 
-it.each([0, 251])('disables an empty or oversized cut before requesting a PDF', async (total) => {
-  const { posts } = api(() => pdf(), 250);
-  render(<ExportAction params={params} total={total} disabled={false} />);
-  await screen.findByText(
-    total === 0 ? /Não há decisões/ : /O recorte tem 251 decisões. O limite é 250/,
-  );
+it('disables an empty cut before requesting a PDF', async () => {
+  const { posts } = api();
+  render(<ExportAction params={params} total={0} disabled={false} />);
+  await screen.findByText(/Não há decisões/);
   const button = screen.getByRole('button', { name: /Exportar recorte/ });
   expect(button).toBeDisabled();
   fireEvent.click(button);
   expect(posts).toEqual([]);
 });
+
+it.each([1001, 46967])(
+  'allows exporting all %i decisions without a limit lookup',
+  async (total) => {
+    const { posts } = api();
+    render(<ExportAction params={params} total={total} disabled={false} />);
+    fireEvent.click(await ready());
+    await screen.findByText('PDF gerado e enviado para download.');
+    expect(posts).toHaveLength(1);
+    expect(downloads).toHaveLength(1);
+  },
+);
 
 it('aborts on leaving and ignores a response that arrives after unmount', async () => {
   let resolve!: (response: Response) => void;

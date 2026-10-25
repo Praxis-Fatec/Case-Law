@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
 from app.api import exports
-from app.config import settings
 from app.db import get_connection
 from app.export import ExportDataset, ExportRefused
 from app.main import app
@@ -30,14 +29,10 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         app.dependency_overrides.clear()
 
 
-def test_options_reports_the_actual_deployment_limit(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "export_max_decisions", 250)
+def test_options_reports_unlimited_exports(client: TestClient) -> None:
     response = client.get("/exports/options")
     assert response.status_code == 200
-    assert response.json() == {"max_decisions": 250}
+    assert response.json() == {"max_decisions": None}
 
 
 def test_download_is_complete_named_and_contains_all_references(
@@ -59,18 +54,12 @@ def test_download_is_complete_named_and_contains_all_references(
         assert f"processo-{n:04d}" in text
 
 
-@pytest.mark.parametrize(
-    ("code", "total", "status"), [("empty", 0, 409), ("limit_exceeded", 1001, 413)]
-)
-def test_refused_cut_has_no_document_headers_or_renderer_call(
+def test_empty_cut_has_no_document_headers_or_renderer_call(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
-    code: Any,
-    total: int,
-    status: int,
 ) -> None:
     def refuse(*_: Any, **__: Any) -> Any:
-        raise ExportRefused(code, total, 1000)
+        raise ExportRefused()
 
     def must_not_render(*_: Any, **__: Any) -> Any:
         pytest.fail("a refused cut must never reach the renderer")
@@ -78,10 +67,9 @@ def test_refused_cut_has_no_document_headers_or_renderer_call(
     monkeypatch.setattr(exports, "collect_export", refuse)
     monkeypatch.setattr(exports, "render_export_pdf", must_not_render)
     response = client.post("/exports/pdf", json={"q": "dano moral"})
-    assert response.status_code == status
-    assert response.json()["code"] == code
-    assert response.json()["total"] == total
-    assert response.json()["limit"] == 1000
+    assert response.status_code == 409
+    assert response.json()["code"] == "empty"
+    assert response.json()["total"] == 0
     assert "content-disposition" not in response.headers
     assert response.headers["content-type"] == "application/json"
 
