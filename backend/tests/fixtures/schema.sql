@@ -192,26 +192,6 @@ CREATE TABLE core.doutrina_termo (
     PRIMARY KEY (repositorio, identificador_oai, termo)
 );
 
+-- Dropped here, created by `app/identidade.sql`: the accounts schema has one
+-- definition, and a copy of it here would be a copy that drifts.
 DROP SCHEMA IF EXISTS identidade CASCADE;
-CREATE SCHEMA identidade;
-
-CREATE TABLE identidade.usuario (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    nome        TEXT        NOT NULL,
-    telefone    TEXT,
-    email       TEXT        NOT NULL,
-    senha_hash  TEXT        NOT NULL,
-    papel       TEXT        NOT NULL,
-    gerente_id  UUID        REFERENCES identidade.usuario (id),
-    ativo       BOOLEAN     NOT NULL DEFAULT TRUE,
-    criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    revogado_em TIMESTAMPTZ,
-    CONSTRAINT papel_conhecido CHECK (papel IN ('usuario', 'gerente')),
-    CONSTRAINT usuario_pertence_a_um_gerente CHECK (
-        (papel = 'gerente' AND gerente_id IS NULL)
-        OR (papel = 'usuario' AND gerente_id IS NOT NULL)
-    ),
-    CONSTRAINT revogacao_tem_data CHECK (ativo OR revogado_em IS NOT NULL)
-);
-
-CREATE UNIQUE INDEX usuario_email ON identidade.usuario (LOWER(email));
