@@ -14,16 +14,23 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
   const location = useLocation();
   const onCoverage = useMatch(COVERAGE_PATH) !== null;
   const onTeam = useMatch(TEAM_PATH) !== null;
+  // The search and a decision read inside it are the same screen: the list
+  // stays mounted while the address changes.
+  const onSearch = !onCoverage && !onTeam;
   const session = useSession();
   const person = session.status === 'signed in' ? session.person : null;
 
-  // Opened from inside the app, the entry behind the page is where the reader
-  // was — the search, or a decision in it — so the way back is Back. Clicked
-  // again on the page itself, it replaces the entry and keeps that knowledge,
-  // so Back never lands on a second copy of the same page.
+  // Opened from the search, the entry behind the page is where the reader was
+  // — the list, or a decision in it — so the way back is Back. Clicked again
+  // on the page itself, it replaces the entry and keeps that knowledge, so
+  // Back never lands on a second copy of the same page.
+  //
+  // From any other screen it is not: going back from the coverage landed on
+  // the users list while the button said "voltar à pesquisa". What matters is
+  // whether the search is the entry behind, not whether the app opened it.
   const state: CoverageEntry = onCoverage
     ? (location.state as CoverageEntry | null)
-    : { fromApp: true };
+    : { fromApp: onSearch };
 
   return (
     <header className="app-header">

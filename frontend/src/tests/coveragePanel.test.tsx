@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { currentAddress, renderApp, SIGNED_IN } from './renderApp';
+import { TEAM_PATH } from '../pages/TeamPage';
 
 // Only the address of the API is replaced: the request code under test is the
 // real one, so what is asked of the coverage endpoint is what the app sends.
@@ -457,5 +458,46 @@ describe('going to the coverage and back', () => {
 
     expect(currentAddress()).toBe('/');
     expect(screen.getByLabelText('Pesquisar decisões')).toBeVisible();
+  });
+});
+
+describe('a volta para a pesquisa', () => {
+  it('da cobertura aberta pela pesquisa, volta para onde o leitor estava', async () => {
+    installApi();
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(coverageLink());
+    expect(currentAddress()).toBe('/cobertura');
+
+    await user.click(screen.getByRole('button', { name: /Voltar à pesquisa/ }));
+
+    expect(currentAddress()).toBe('/');
+  });
+
+  it('da cobertura aberta pela tela de usuários, volta para a pesquisa e não para ela', async () => {
+    // O defeito: a volta era um passo no histórico, e quando a tela de
+    // usuários passou a existir, "um passo atrás" deixou de ser a pesquisa.
+    // O botão dizia "voltar à pesquisa" e levava para os usuários.
+    installApi();
+    const user = userEvent.setup();
+    renderApp(TEAM_PATH);
+
+    await user.click(coverageLink());
+    expect(currentAddress()).toBe('/cobertura');
+
+    await user.click(screen.getByRole('button', { name: /Voltar à pesquisa/ }));
+
+    expect(currentAddress()).toBe('/');
+  });
+
+  it('a tela de usuários oferece a volta', async () => {
+    installApi();
+    const user = userEvent.setup();
+    renderApp(TEAM_PATH);
+
+    await user.click(screen.getByRole('button', { name: /Voltar à pesquisa/ }));
+
+    expect(currentAddress()).toBe('/');
   });
 });

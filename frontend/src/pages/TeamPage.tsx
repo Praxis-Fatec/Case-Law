@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { ArrowCounterClockwise, Prohibit, UserPlus } from '@phosphor-icons/react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowCounterClockwise, ArrowLeft, Prohibit, UserPlus } from '@phosphor-icons/react';
 
 import {
   AccountError,
@@ -38,6 +39,7 @@ type Feedback = { kind: 'done' | 'failed'; message: string } | null;
 const EMPTY = { name: '', email: '', phone: '', password: '' };
 
 export default function TeamPage() {
+  const navigate = useNavigate();
   const person = useCurrentPerson();
   const [team, setTeam] = useState<Person[] | null>(null);
   const [loadFailure, setLoadFailure] = useState<string | null>(null);
@@ -128,6 +130,13 @@ export default function TeamPage() {
   return (
     <main className="team">
       <header className="team__header">
+        {/* Forward to the search, never Back: this screen is reached from the
+            bar, and Back would land wherever the reader happened to be. */}
+        <button type="button" className="coverage-back" onClick={() => navigate('/')}>
+          <ArrowLeft size={13} aria-hidden="true" />
+          Voltar à pesquisa
+        </button>
+
         <h1 className="team__title">Usuários do sistema</h1>
         <p className="team__lead">
           Todo mundo que tem acesso está nesta lista. Você cadastra quem entra e tira o acesso de

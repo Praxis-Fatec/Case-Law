@@ -4174,3 +4174,9 @@ input:focus-visible {
 .official-source__warning strong {
   font-weight: 700;
 }
+
+/* The way back out of the users screen, above the title: the bar has no link
+   to the search, so without this there is no way back from here. */
+.team__header .coverage-back {
+  margin-bottom: 16px;
+}
