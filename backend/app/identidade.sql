@@ -14,8 +14,9 @@ CREATE TABLE IF NOT EXISTS identidade.usuario (
     email       TEXT        NOT NULL,
     senha_hash  TEXT        NOT NULL,
     papel       TEXT        NOT NULL,
-    -- Who added this account. It is also the boundary of what a manager sees:
-    -- a manager reaches the people they added, and nobody else's.
+    -- Who added this account, which is the answer to "who let this person
+    -- in" when two managers share the job. It bounds nothing: one firm
+    -- uses this system, and every manager sees every account.
     gerente_id  UUID        REFERENCES identidade.usuario (id),
     ativo       BOOLEAN     NOT NULL DEFAULT TRUE,
     criado_em   TIMESTAMPTZ NOT NULL DEFAULT NOW(),

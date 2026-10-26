@@ -22,7 +22,9 @@ from psycopg.rows import DictRow
 from app import accounts, passwords
 from app.db import connection, pool
 
-SCHEMA = Path(__file__).resolve().parents[2] / "infra" / "postgres" / "identidade.sql"
+# Beside the module, so it travels into the image with the code: this
+# command runs on the server, where the repository is not checked out.
+SCHEMA = Path(__file__).resolve().parent / "identidade.sql"
 
 MANAGERS_SQL = """
 SELECT nome, email, ativo, criado_em,
