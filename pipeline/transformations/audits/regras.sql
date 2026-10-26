@@ -535,3 +535,32 @@ FROM core.decisao
 HAVING COUNT(*) FILTER (WHERE tese IS NOT NULL) > 1000
    AND (SELECT COUNT(DISTINCT identificador_fonte) FROM @this_model)
        < COUNT(*) FILTER (WHERE tese IS NOT NULL) * 0.05;
+
+AUDIT (
+  name url_aponta_para_um_acordao,
+  dialect postgres
+);
+/* O link oficial tem de levar ao acórdão que o leitor estava lendo.
+
+   O número de registro do STJ identifica o processo, não o julgamento: o
+   acórdão original, os embargos de declaração e o agravo interno saem todos
+   sob o mesmo registro. Antes da data de publicação entrar no endereço,
+   107.128 decisões — 12,2% do STJ, até 27 no mesmo link — mandavam o leitor
+   para uma página de lista escolher qual era a sua. Numa ferramenta jurídica
+   citar o acórdão errado é grave, e era o contrário do que o projeto promete.
+
+   A auditoria da SCRUM-94 não pegava isso: ela confere que a URL carrega o
+   identificador, e carregava. O que faltava era conferir que o identificador
+   alcança um documento só.
+
+   O piso é 2% do acervo com link. Hoje são 0,87%, resto que a data de
+   publicação não resolve porque o STJ publicou dois julgamentos do mesmo
+   processo no mesmo diário. Esses a tela avisa, em vez de calar.
+
+   Só vale a partir de dez mil decisões: num ambiente de desenvolvimento com
+   três registros a porcentagem não diz nada. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING COUNT(*) FILTER (WHERE url_fonte IS NOT NULL) > 10000
+   AND COUNT(*) FILTER (WHERE url_compartilhada)
+       > COUNT(*) FILTER (WHERE url_fonte IS NOT NULL) * 0.02;

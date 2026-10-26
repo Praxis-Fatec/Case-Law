@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 
 export type SearchDecisionMatch = {
   source: string;
@@ -13,6 +14,7 @@ export type SearchDecisionMatch = {
   small_claims: string | null;
   source_url: string;
   source_url_reachable: boolean | null;
+  source_url_shared: boolean;
   // What the court itself settled. Empty on most of the collection, and an
   // API published before the field existed sends nothing at all.
   thesis?: string[];
@@ -137,9 +139,7 @@ export async function searchDecisions(
   const response = await fetch(url.toString(), {
     method: 'GET',
     signal: options.signal,
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
   });
 
   if (!response.ok) {

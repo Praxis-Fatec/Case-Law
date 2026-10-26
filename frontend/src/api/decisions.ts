@@ -1,4 +1,5 @@
 import { apiBaseUrl, assertApiConfiguration } from './client';
+import { apiHeaders } from './token';
 
 // The four sections of the national court council's shape, without the labels
 // the court wrote. `null` on the decision when the ementa is free prose.
@@ -22,6 +23,7 @@ export type Decision = {
   small_claims: boolean;
   source_url: string;
   source_url_reachable: boolean | null;
+  source_url_shared: boolean;
   // The national council's number for the class. The API sends no name.
   class_code: number | null;
   judged_on: string | null;
@@ -72,9 +74,7 @@ export async function getDecision(
 
   const response = await fetch(url.toString(), {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: apiHeaders(),
     signal: options.signal,
   });
 

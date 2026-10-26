@@ -14,6 +14,7 @@ MODEL (
     verdito_de_fonte_conhecida,
     tese_sem_secao_seguinte,
     tese_com_cobertura,
+    url_aponta_para_um_acordao,
     deliberacao_de_valor_conhecido,
     deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
@@ -276,7 +277,9 @@ julgamento AS (
         THEN 'provido'
     END AS resultado
   FROM dispositivo
-)
+),
+
+montado AS (
 
 SELECT
   b.fonte_codigo                                        AS fonte_codigo,
@@ -299,7 +302,30 @@ SELECT
   t.tese                                                AS tese,
   b.turma_recursal                                      AS turma_recursal,
   b.possui_inteiro_teor                                 AS possui_inteiro_teor,
-  REPLACE(f.url_documento_template, '{documento}', b.identificador_documento) AS url_fonte,
+  -- O número de registro identifica o PROCESSO, não o acórdão: um processo
+  -- tem o acórdão original, os embargos, o agravo, e todos saem sob o mesmo
+  -- registro. Sem a data de publicação, 12,2% das decisões do STJ dividiam a
+  -- URL — até 27 no mesmo link — e quem clicava caía numa lista para escolher
+  -- sozinho qual era a sua. Medido em 25/10/2026.
+  --
+  -- Com `dt_publicacao` o STJ devolve o PDF daquele acórdão em vez da lista:
+  -- conferido contra o endpoint, 51 KB de PDF contra 41 KB de página HTML.
+  -- Sobram 0,87%, que a tela avisa.
+  --
+  -- Sem data não dá para apontar, então o parâmetro inteiro sai do endereço:
+  -- deixá-lo vazio mandaria o STJ procurar por uma data em branco. A expressão
+  -- é genérica para valer em qualquer fonte que venha a usar um segundo token.
+  CASE
+    WHEN b.data_publicacao IS NULL
+      THEN REPLACE(
+        REGEXP_REPLACE(f.url_documento_template, '[?&][^?&=]+=\{publicacao\}', ''),
+        '{documento}', b.identificador_documento
+      )
+    ELSE REPLACE(
+      REPLACE(f.url_documento_template, '{documento}', b.identificador_documento),
+      '{publicacao}', TO_CHAR(b.data_publicacao, 'DD/MM/YYYY')
+    )
+  END                                                   AS url_fonte,
   v.valido                                              AS link_valido,
   b.carga_id                                            AS carga_id,
   NOW()                                                 AS carregado_em,
@@ -318,6 +344,17 @@ LEFT JOIN lida AS l
 LEFT JOIN julgamento AS j
   ON j.fonte_codigo = b.fonte_codigo
  AND j.identificador = b.identificador
+
+)
+
+SELECT
+  m.*,
+  -- Quando o link ainda alcança mais de uma decisão nossa, a tela precisa
+  -- dizer isso: o leitor cai numa lista e tem de reconhecer a dele pela data,
+  -- pelo órgão e pela classe. Calculado aqui porque é uma propriedade da
+  -- coleção inteira, que nenhuma linha sabe sozinha.
+  COUNT(*) OVER (PARTITION BY m.url_fonte) > 1           AS url_compartilhada
+FROM montado AS m
 
 ;
 

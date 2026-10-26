@@ -27,6 +27,7 @@ MATCH = {
     "small_claims",
     "source_url",
     "source_url_reachable",
+    "source_url_shared",
     "thesis",
     "deliberation",
     "snippet",

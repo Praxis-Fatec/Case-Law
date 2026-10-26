@@ -74,7 +74,7 @@ function AdherencePanel({ adherence, mostCited, onRetry }: AdherencePanelProps) 
     <section className="panorama" aria-labelledby="adherence-title">
       <header className="panorama__header">
         <div>
-          <p className="panorama__eyebrow">Indicador explicável · Sprint 2</p>
+          <p className="panorama__eyebrow">Indicador explicável</p>
           <h2 id="adherence-title" className="panorama__title">
             Esses acórdãos seguiram os precedentes que citam?
           </h2>

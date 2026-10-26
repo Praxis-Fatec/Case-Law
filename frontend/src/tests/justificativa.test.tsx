@@ -27,6 +27,7 @@ const MATCH: SearchDecisionMatch = {
   small_claims: null,
   source_url: 'https://jurisdf.tjdft.jus.br/detalhes/2044172',
   source_url_reachable: true,
+  source_url_shared: false,
   deliberation: 'unanime',
   snippet: 'Recurso conhecido e desprovido.',
   thesis: ['O prazo corre da ciência da primeira diligência infrutífera.'],

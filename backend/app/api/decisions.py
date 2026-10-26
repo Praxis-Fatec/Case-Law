@@ -265,6 +265,7 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
+    decisao.url_compartilhada,
     decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
@@ -299,7 +300,8 @@ SELECT
     turma_recursal,
     possui_inteiro_teor,
     url_fonte,
-    link_valido
+    link_valido,
+    url_compartilhada
 FROM core.decisao
 WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
 """
@@ -379,6 +381,18 @@ class DecisionBase(BaseModel):
         ),
         examples=[True],
     )
+    source_url_shared: bool = Field(
+        default=False,
+        description=(
+            "Whether this link also reaches another decision in the base. A "
+            "court's identifier can name the case rather than the judgement — "
+            "the STJ's `num_registro` covers the original acórdão, the embargos "
+            "and the agravo alike — and then the link opens a list. True means "
+            "the reader has to pick theirs out of it, by the date, the judging "
+            "body and the class shown beside it. 0,87% of the collection."
+        ),
+        examples=[False],
+    )
     deliberation: str | None = Field(
         description=(
             "How the panel voted, read from the operative part: `unanime` "
@@ -430,6 +444,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
     "small_claims": False,
     "source_url": "https://jurisdf.tjdft.jus.br/detalhes/2119440",
     "source_url_reachable": True,
+    "source_url_shared": False,
     "deliberation": "unanime",
     "class_code": 1116,
     "judged_on": "2026-06-11",
@@ -702,6 +717,7 @@ def _base_fields(row: DictRow) -> dict[str, Any]:
         "small_claims": row["turma_recursal"],
         "source_url": row["url_fonte"],
         "source_url_reachable": row["link_valido"],
+        "source_url_shared": bool(row.get("url_compartilhada")),
         "deliberation": row["deliberacao"],
     }
 
