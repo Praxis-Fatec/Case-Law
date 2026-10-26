@@ -22,7 +22,7 @@ from tests.conftest import needs_database
 
 pytestmark = needs_database
 
-SENHA = "uma senha bem longa"
+SENHA = "Uma senha bem longa 1"
 
 
 @pytest.fixture
@@ -420,3 +420,149 @@ class TestOBancoSegura:
                 senha=SENHA,
                 papel="admin",  # type: ignore[arg-type]
             )
+
+
+class TestAsRegrasDoCadastro:
+    """
+    A senha e o telefone, conferidos onde não dá para pular.
+
+    A tela ajuda quem digita, e não é guarda: nada impede uma requisição de
+    chegar sem passar por ela. Estes testes batem na API.
+    """
+
+    def test_a_senha_precisa_das_tres_coisas(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+
+        for fraca in ("Curta1", "semmaiuscula1", "SEMNUMEROAQUI", "1234567"):
+            resposta = client.post(
+                "/users",
+                headers=header(boss),
+                json={
+                    "name": "Alguem da Equipe",
+                    "email": f"{fraca}@exemplo.com",
+                    "password": fraca,
+                },
+            )
+
+            assert resposta.status_code == 422, fraca
+            assert "maiúscula" in resposta.json()["detail"]
+
+    def test_a_recusa_diz_as_tres_de_uma_vez(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        """
+        Uma de cada vez transformaria escolher senha em adivinhação: conserta o
+        tamanho, descobre a maiúscula; conserta a maiúscula, descobre o número.
+        """
+        boss = manager(db)
+
+        resposta = client.post(
+            "/users",
+            headers=header(boss),
+            json={
+                "name": "Alguem da Equipe",
+                "email": "x@exemplo.com",
+                "password": "curta",
+            },
+        )
+        detalhe = resposta.json()["detail"]
+
+        assert "8 caracteres" in detalhe
+        assert "maiúscula" in detalhe
+        assert "número" in detalhe
+
+    def test_a_senha_boa_passa(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+
+        resposta = client.post(
+            "/users",
+            headers=header(boss),
+            json={"name": "Boa", "email": "boa@exemplo.com", "password": "Senha123"},
+        )
+
+        assert resposta.status_code == 201
+
+    def test_o_telefone_recusa_letra_em_vez_de_apagar(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        """
+        O defeito que apareceu ao testar: descartar a letra em silêncio fazia
+        `1299999000a` virar um fixo de dez dígitos, com cara de certo e sem ser
+        o número de ninguém.
+        """
+        boss = manager(db)
+
+        resposta = client.post(
+            "/users",
+            headers=header(boss),
+            json={
+                "name": "Alguem da Equipe",
+                "email": "x@exemplo.com",
+                "password": "Senha123",
+                "phone": "3131231231aaaa23213",
+            },
+        )
+
+        assert resposta.status_code == 422
+        assert "algarismos" in resposta.json()["detail"]
+
+    def test_o_telefone_fica_num_formato_so(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+        escritos = ("12999990000", "(12) 99999-0000", "+55 12 99999 0000")
+
+        for n, escrito in enumerate(escritos):
+            criado = client.post(
+                "/users",
+                headers=header(boss),
+                json={
+                    "name": "Alguem da Equipe",
+                    "email": f"x{n}@exemplo.com",
+                    "password": "Senha123",
+                    "phone": escrito,
+                },
+            )
+
+            assert criado.status_code == 201, escrito
+            assert criado.json()["phone"] == "(12) 99999-0000", escrito
+
+    def test_o_telefone_continua_opcional(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+
+        criado = client.post(
+            "/users",
+            headers=header(boss),
+            json={
+                "name": "Sem telefone",
+                "email": "s@exemplo.com",
+                "password": "Senha123",
+            },
+        )
+
+        assert criado.status_code == 201
+        assert criado.json()["phone"] is None
+
+    def test_numero_curto_demais_nao_entra(
+        self, client: TestClient, db: psycopg.Connection[DictRow]
+    ) -> None:
+        boss = manager(db)
+
+        resposta = client.post(
+            "/users",
+            headers=header(boss),
+            json={
+                "name": "Alguem da Equipe",
+                "email": "x@exemplo.com",
+                "password": "Senha123",
+                "phone": "99999-0000",
+            },
+        )
+
+        assert resposta.status_code == 422

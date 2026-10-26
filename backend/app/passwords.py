@@ -13,14 +13,33 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 _hasher = PasswordHasher()
 
-# A floor, and no composition rules. Demanding a capital, a digit and a symbol
-# pushes people to "Senha123!" — predictable, and shorter in practice than what
-# they would have chosen on their own. Length is what buys resistance.
-MIN_LENGTH = 10
+MIN_LENGTH = 8
+
+RULES = (
+    f"pelo menos {MIN_LENGTH} caracteres",
+    "uma letra maiúscula",
+    "um número",
+)
+
+REFUSAL = "A senha precisa de " + ", ".join(RULES[:-1]) + " e " + RULES[-1] + "."
 
 
-def too_short(password: str) -> bool:
-    return len(password) < MIN_LENGTH
+def refuses(password: str) -> str | None:
+    """
+    Why this password is not accepted, or None when it is.
+
+    One sentence naming every rule at once. Answering them one at a time turns
+    choosing a password into a guessing game — the person fixes the length,
+    is told about the capital, fixes that, and is told about the digit.
+    """
+    if (
+        len(password) < MIN_LENGTH
+        or not any(letter.isupper() for letter in password)
+        or not any(letter.isdigit() for letter in password)
+    ):
+        return REFUSAL
+
+    return None
 
 
 def hash_password(password: str) -> str:

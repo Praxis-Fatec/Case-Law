@@ -52,8 +52,10 @@ def ask_password() -> str:
     while True:
         chosen = getpass.getpass("Senha do gerente: ")
 
-        if passwords.too_short(chosen):
-            print(f"  curta demais — mínimo de {passwords.MIN_LENGTH} caracteres.")
+        recusa = passwords.refuses(chosen)
+
+        if recusa:
+            print(f"  {recusa}")
             continue
 
         if chosen != getpass.getpass("Repita a senha: "):

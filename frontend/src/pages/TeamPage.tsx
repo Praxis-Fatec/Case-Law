@@ -10,6 +10,14 @@ import {
   type Person,
 } from '../api/accounts';
 import { useCurrentPerson } from '../session/sessionContext';
+import {
+  asPhone,
+  PASSWORD_HINT,
+  PASSWORD_MIN,
+  passwordIsStrong,
+  PHONE_HINT,
+  phoneIsComplete,
+} from '../components/accountFormat';
 
 /**
  * A manager running the firm's access.
@@ -58,8 +66,21 @@ export default function TeamPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setWorking(true);
     setFeedback(null);
+
+    // Caught here so the person is not made to wait for a round trip to be
+    // told something this screen already knew.
+    if (!passwordIsStrong(form.password)) {
+      setFeedback({ kind: 'failed', message: PASSWORD_HINT });
+      return;
+    }
+
+    if (!phoneIsComplete(form.phone)) {
+      setFeedback({ kind: 'failed', message: PHONE_HINT });
+      return;
+    }
+
+    setWorking(true);
 
     try {
       const created = await addPerson({
@@ -146,9 +167,15 @@ export default function TeamPage() {
               Telefone <em>opcional</em>
             </span>
             <input
+              // `inputMode` raises the number pad on a phone; the value is
+              // reformatted on every keystroke, so a letter never lands.
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder="(12) 99999-0000"
               value={form.phone}
-              onChange={(event) => setForm({ ...form, phone: event.target.value })}
+              onChange={(event) => setForm({ ...form, phone: asPhone(event.target.value) })}
             />
+            <small>{PHONE_HINT}</small>
           </label>
 
           <label className="team__field">
@@ -156,14 +183,14 @@ export default function TeamPage() {
             <input
               required
               type="password"
-              minLength={10}
+              minLength={PASSWORD_MIN}
               autoComplete="new-password"
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
             />
             {/* Said before the refusal, not after: a rule the person only
                 discovers by breaking it is a rule that wastes their time. */}
-            <small>Pelo menos 10 caracteres. Comprimento protege mais do que símbolos.</small>
+            <small>{PASSWORD_HINT}</small>
           </label>
 
           <button type="submit" className="team__submit" disabled={working}>

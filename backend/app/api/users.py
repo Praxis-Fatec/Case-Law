@@ -18,7 +18,7 @@ from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, EmailStr, Field
 
-from app import accounts, passwords, sessions
+from app import accounts, passwords, phones, sessions
 from app.api.session import PERSON_EXAMPLE, Person, person_of
 from app.db import get_connection
 from app.errors import DATABASE_RESPONSES, ErrorResponse
@@ -27,11 +27,6 @@ router = APIRouter(tags=["accounts"])
 
 NO_SUCH_PERSON = "Não existe esse usuário, ou é a sua própria conta."
 EMAIL_TAKEN = "Já existe uma conta com esse e-mail."
-SHORT_PASSWORD = (
-    f"A senha precisa de pelo menos {passwords.MIN_LENGTH} caracteres. "
-    "Comprimento é o que a torna difícil de adivinhar — não misturar símbolos."
-)
-
 FORBIDDEN_RESPONSE: dict[int | str, dict[str, Any]] = {
     403: {
         "model": ErrorResponse,
@@ -49,14 +44,18 @@ class NewUser(BaseModel):
     phone: str | None = Field(
         default=None,
         max_length=40,
-        description="Optional.",
-        examples=["+55 12 99999-0000"],
+        description=(
+            "Optional. The area code and the number, digits only: ten for a "
+            "landline, eleven for a mobile. Stored as `(12) 99999-0000`."
+        ),
+        examples=["(12) 99999-0000"],
     )
     password: str = Field(
         min_length=1,
         description=(
-            f"At least {passwords.MIN_LENGTH} characters. Stored hashed with "
-            "Argon2id and never readable again, by anyone."
+            f"At least {passwords.MIN_LENGTH} characters, with one capital "
+            "letter and one digit. Stored hashed and never readable again, "
+            "by anyone."
         ),
     )
 
@@ -118,8 +117,17 @@ def add_user(
     its own privileges. The manager who created the account is recorded, which
     is the answer to "who let this person in" when two managers share the job.
     """
-    if passwords.too_short(new.password):
-        raise HTTPException(status_code=422, detail=SHORT_PASSWORD)
+    # Checked here as well as on the screen: the screen is a convenience for
+    # the person typing, and nothing stops a request from skipping it.
+    recusa = passwords.refuses(new.password)
+
+    if recusa:
+        raise HTTPException(status_code=422, detail=recusa)
+
+    try:
+        telefone = phones.formatted(new.phone)
+    except ValueError as malformado:
+        raise HTTPException(status_code=422, detail=str(malformado)) from None
 
     try:
         created = accounts.create(
@@ -127,7 +135,7 @@ def add_user(
             nome=new.name,
             email=new.email,
             senha=new.password,
-            telefone=new.phone,
+            telefone=telefone,
             papel="usuario",
             gerente=manager["id"],
         )
