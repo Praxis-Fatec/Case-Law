@@ -4147,3 +4147,30 @@ input:focus-visible {
   border-color: var(--search-primary);
   color: var(--search-primary);
 }
+
+/* Said beside the link, not after it. The court's identifier names the case
+   rather than the judgement for part of the collection, so its page opens a
+   list — and once the reader is there, nothing on it says which line was the
+   decision they were reading. */
+.official-source__warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 9px 11px;
+  border: 1px solid #8c6a34;
+  border-radius: 7px;
+  color: #6f5327;
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.official-source__warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.official-source__warning strong {
+  font-weight: 700;
+}

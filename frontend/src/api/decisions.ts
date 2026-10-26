@@ -23,6 +23,7 @@ export type Decision = {
   small_claims: boolean;
   source_url: string;
   source_url_reachable: boolean | null;
+  source_url_shared: boolean;
   // The national council's number for the class. The API sends no name.
   class_code: number | null;
   judged_on: string | null;

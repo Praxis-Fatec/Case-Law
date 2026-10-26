@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, ArrowSquareOut } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowSquareOut, WarningCircle } from '@phosphor-icons/react';
 
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
 import { readCitedPrecedents } from '../api/precedents';
@@ -331,6 +331,23 @@ function Dispositive({ decision }: DispositiveProps) {
 
 type OfficialSourceProps = { decision: Decision };
 
+// What tells one judgement of a case from another on the court's list: when it
+// was judged, which panel judged it and under which class. Only what the
+// decision actually carries — a label with nothing after it helps nobody.
+function identifiers(decision: Decision): string {
+  return (
+    [
+      formatDate(decision.judged_on),
+      normalizeText(decision.judging_body),
+      decision.class_code !== null && Number.isFinite(decision.class_code)
+        ? `classe ${decision.class_code}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'pela data de julgamento'
+  );
+}
+
 // The same rule as the result card: only a real web address becomes a link,
 // and one the load found broken is shown as unavailable rather than followed.
 // Nothing here asks the court's site anything.
@@ -338,6 +355,11 @@ function OfficialSource({ decision }: OfficialSourceProps) {
   const officialUrl = normalizeOfficialUrl(decision.source_url);
   const available = officialUrl !== null && decision.source_url_reachable !== false;
   const court = normalizeText(decision.court);
+  // The identifier in the link names the case, not the judgement, for part of
+  // the collection — so the court's page opens a list and the reader has to
+  // recognise theirs. Said here, beside the link, because afterwards they are
+  // already on the court's site with no way to tell which line is this one.
+  const shared = available && decision.source_url_shared === true;
 
   return (
     <section className="official-source" aria-label="Fonte oficial">
@@ -348,6 +370,16 @@ function OfficialSource({ decision }: OfficialSourceProps) {
             ? `A decisão no site do ${court || 'tribunal'} prevalece sobre qualquer conteúdo desta página.`
             : 'Link indisponível no momento.'}
         </p>
+
+        {shared && (
+          <p className="official-source__warning">
+            <WarningCircle size={15} weight="fill" aria-hidden="true" />
+            <span>
+              Este processo teve mais de um julgamento, e o site do tribunal pode listar todos.
+              Identifique o seu por <strong>{identifiers(decision)}</strong>.
+            </span>
+          </p>
+        )}
       </div>
 
       {available ? (

@@ -31,6 +31,7 @@ CREATE TABLE core.decisao (
     possui_inteiro_teor  BOOLEAN NOT NULL,
     url_fonte            TEXT    NOT NULL,
     link_valido          BOOLEAN,
+    url_compartilhada    BOOLEAN NOT NULL DEFAULT FALSE,
     ementa_busca         TSVECTOR
 );
 
