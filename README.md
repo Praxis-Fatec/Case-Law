@@ -18,7 +18,7 @@
 
 **Project Status** 🚧 Sprint 1 delivered  
 **Documentation Folder** 📄 [documentation/](documentation/)  
-**Project Video** 📽️ [Sprint 1 increment](https://www.youtube.com/watch?v=82bR--xO6Fs)  
+**Project Video** 📽️ [Sprint 1 increment](https://www.youtube.com/watch?v=82bR--xO6Fs) · [Sprint 2 increment](https://youtu.be/WZ8Nv93Ph0s)
 
 ---
 
@@ -127,6 +127,9 @@ The profiles represent who receives value from the feature. They do not indicate
   <a href="https://github.com/Praxis-Fatec/Case-Law/blob/main/documentation/sprints/sprint-1/sprint-1-backlog.md">
     <img src="https://img.shields.io/badge/Backlog%20Sprint%201-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 1" />
   </a>
+  <a href="documentation/sprints/sprint-2/sprint-2-backlog.md">
+    <img src="https://img.shields.io/badge/Backlog%20Sprint%202-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 2" />
+  </a>
 </p>
 
 ## Sprint Schedule <a id="sprints"></a>
@@ -134,7 +137,7 @@ The profiles represent who receives value from the feature. They do not indicate
 | Sprint | Period | Goal | Documentation | Increment |
 |---|---|---|---|---|
 | **1** | 07/09/2026 – 27/09/2026 | Search decisions across courts, read them and check the reach of the base | [Backlog](documentation/sprints/sprint-1/sprint-1-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://www.youtube.com/watch?v=82bR--xO6Fs) |
-| **2** | to be defined | — | — | — |
+| **2** | 05/10/2026 – 25/10/2026 | Analyze the filtered scope through indicators, verify the underlying decisions and export the results with references | [Backlog](documentation/sprints/sprint-2/sprint-2-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://youtu.be/WZ8Nv93Ph0s) |
 | **3** | to be defined | — | — | — |
 
 ---
