@@ -88,6 +88,9 @@ function installApi(total: number, answer?: Answer) {
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
+      if (url.pathname === '/exports/options') {
+        return json({ max_decisions: 1000 });
+      }
       if (url.pathname === '/filters') {
         return json({ judging_bodies: [], reporting_judges: [], procedural_classes: [] });
       }

@@ -8,6 +8,7 @@ from app.api import (
     courts,
     decisions,
     doctrine,
+    exports,
     filters,
     health,
     indicators,
@@ -79,6 +80,7 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 errors.register(app)
@@ -88,6 +90,7 @@ app.include_router(decisions.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)
+app.include_router(exports.router)
 app.include_router(doctrine.router)
 app.include_router(session.router)
 app.include_router(users.router)

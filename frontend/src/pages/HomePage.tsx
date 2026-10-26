@@ -1,7 +1,13 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useMatch, useNavigate } from 'react-router-dom';
-import { MagnifyingGlass, SlidersHorizontal } from '@phosphor-icons/react';
+import {
+  CircleNotch,
+  ArrowRight,
+  FileMagnifyingGlass,
+  MagnifyingGlass,
+  SlidersHorizontal,
+} from '@phosphor-icons/react';
 import {
   DEFAULT_ORDER,
   SearchRequestError,
@@ -12,6 +18,8 @@ import DecisionDetail from '../components/DecisionDetail';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
+import ExportAction from '../components/ExportAction';
+import { exportParams } from '../api/exports';
 import CourtVolumePanel from '../components/CourtVolumePanel';
 import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
@@ -176,7 +184,7 @@ function HomePage() {
   // search session, above the routes: the list can unmount and still come back
   // as it was, with no new request. Only what belongs to this one render — the
   // form element — stays local.
-  const [value, setValue] = useSessionState('value', 'prescrição intercorrente em execução fiscal');
+  const [value, setValue] = useSessionState('value', '');
   // What the panel shows while it is being edited. A change here never starts a
   // search: only Pesquisar applies it.
   const [filterDraft, setFilterDraft] = useSessionState<SearchFilterValues>(
@@ -443,10 +451,11 @@ function HomePage() {
     }
   };
 
-  const handleSubmit = (event?: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event?: React.FormEvent<HTMLFormElement>, example?: string) => {
     event?.preventDefault();
 
-    const trimmedValue = value.trim();
+    const trimmedValue = (example ?? value).trim();
+    if (example) setValue(example);
 
     if (!trimmedValue) {
       setErrorMessage('Digite uma expressão para pesquisar.');
@@ -708,7 +717,7 @@ function HomePage() {
             type="search"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Pesquise um assunto, fundamento ou frase exata"
+            placeholder="Pesquise um assunto ou fundamento"
             autoComplete="off"
             disabled={isLoading}
           />
@@ -734,6 +743,7 @@ function HomePage() {
           </button>
 
           <button type="submit" className="search-button" disabled={isLoading || !value.trim()}>
+            {isLoading && <CircleNotch size={15} className="motion-spinner" aria-hidden="true" />}
             {isLoading ? 'Pesquisando...' : 'Pesquisar'}
           </button>
         </div>
@@ -770,7 +780,32 @@ function HomePage() {
     <main className="search-page">
       {searchSlot ? createPortal(searchForm, searchSlot) : searchForm}
 
-      <ResultsTabs value={view} onChange={setView} />
+      {!hasSearch && !chosenDecision && (
+        <section className="search-welcome" aria-labelledby="search-welcome-title">
+          <div className="search-welcome__content">
+            <span className="search-welcome__icon" aria-hidden="true">
+              <FileMagnifyingGlass size={28} />
+            </span>
+            <p className="search-welcome__eyebrow">Nenhuma pesquisa realizada</p>
+            <h1 id="search-welcome-title">Comece pela questão jurídica que deseja investigar</h1>
+            <p className="search-welcome__description">
+              Consulte decisões e explore o panorama a partir dos termos e filtros informados acima.
+            </p>
+            <button
+              type="button"
+              className="search-welcome__example"
+              onClick={() => handleSubmit(undefined, 'prescrição intercorrente em execução fiscal')}
+            >
+              <span>
+                <span className="search-welcome__example-label">Experimentar com um exemplo</span>
+                <strong>Prescrição intercorrente em execução fiscal</strong>
+              </span>
+              <ArrowRight size={20} aria-hidden="true" />
+            </button>
+          </div>
+        </section>
+      )}
+      {(hasSearch || chosenDecision) && <ResultsTabs value={view} onChange={setView} />}
       {activeTags.length > 0 && (
         <div className="filter-tags applied-filter-tags" aria-label="Filtros aplicados">
           {activeTags.map((tag) => (
@@ -790,7 +825,7 @@ function HomePage() {
 
       {/* The rest of the window. The page itself never scrolls: the list, the
           decision and the panorama each scroll inside their own box. */}
-      <div className="search-content">
+      <div className="search-content" hidden={!hasSearch && !chosenDecision}>
         {/* Always two columns, as in the reference: the list on the left, the
             decision on the right. Hidden rather than unmounted while the
             panorama is up, so the list, its page and the open decision are
@@ -818,6 +853,12 @@ function HomePage() {
                   )}
                 </h2>
                 <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
+                <ExportAction
+                  key={JSON.stringify(exportParams(requestFor(applied)))}
+                  params={exportParams(requestFor(applied))}
+                  total={totalResults}
+                  disabled={isLoading || Boolean(errorMessage)}
+                />
               </div>
             )}
 

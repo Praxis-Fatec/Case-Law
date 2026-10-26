@@ -161,30 +161,37 @@ afterEach(() => {
 });
 
 describe('the top bar', () => {
-  it('holds the search, the two ways out and the account, and nothing else', () => {
-    // A barra ganhou a equipe e a conta quando a ferramenta passou a exigir
-    // login. Continua sendo uma lista fechada: o que entra aqui entra de
-    // propósito, e este teste é onde alguém percebe que acrescentou algo.
+  it('holds the brand, the search, the two ways out and the account', () => {
+    // Lista fechada de propósito: o que entra na barra entra por decisão, e
+    // este teste é onde alguém percebe que acrescentou algo sem querer.
+
     installApi();
     renderApp();
 
     const bar = within(topBar());
+    // A marca é a volta para a pesquisa, e é por isso que não há um segundo
+    // link dizendo "Pesquisa" ao lado dela.
+    expect(bar.getByRole('link', { name: 'Jusmap — início' })).toHaveAttribute('href', '/');
+    expect(bar.getByRole('img', { name: 'Jusmap' })).toHaveAttribute('src', '/jusmap-logo.png');
     expect(bar.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      '',
       'Cobertura da baseInformações do sistema',
       'UsuáriosQuem tem acesso',
     ]);
     expect(bar.getByRole('searchbox', { name: 'Pesquisar decisões' })).toBeInTheDocument();
+    // "Sair" vem primeiro porque a conta fica na linha da marca, acima da
+    // linha da busca.
     expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Sair',
       'Filtros',
       'Pesquisar',
-      'Sair',
     ]);
     expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
   });
 
   it('não oferece a equipe a quem não é gerente', () => {
     installApi();
-    renderApp('/', [], { ...SIGNED_IN, role: 'usuario' });
+    renderApp('/', [], true, { ...SIGNED_IN, role: 'usuario' });
 
     const bar = within(topBar());
 
@@ -192,11 +199,12 @@ describe('the top bar', () => {
     expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
   });
 
-  it('on the coverage, holds only the way to it: there is no search there', () => {
+  it('on the coverage, keeps the brand and coverage link without a search', () => {
     installApi();
     renderApp('/cobertura');
 
     const bar = within(topBar());
+
     expect(bar.queryByRole('searchbox')).toBeNull();
     // Só o botão de sair: nada da busca sobra numa tela que não é dela.
     expect(bar.getAllByRole('button').map((button) => button.textContent)).toEqual(['Sair']);
@@ -491,27 +499,20 @@ describe('a volta para a pesquisa', () => {
     expect(currentAddress()).toBe('/');
   });
 
-  it('a barra leva à pesquisa de qualquer tela que não seja ela', async () => {
+  it('a marca leva à pesquisa de qualquer tela', async () => {
+    // É por ela que se volta, e é por isso que não existe um segundo link
+    // dizendo "Pesquisa" ao lado: dois caminhos para a mesma sala.
     installApi();
     const user = userEvent.setup();
 
     for (const partida of [TEAM_PATH, '/cobertura']) {
       const { unmount } = renderApp(partida);
 
-      await user.click(within(topBar()).getByRole('link', { name: /Pesquisa/ }));
+      await user.click(within(topBar()).getByRole('link', { name: 'Jusmap — início' }));
 
       expect(currentAddress()).toBe('/');
       unmount();
     }
-  });
-
-  it('na própria pesquisa a barra não oferece a pesquisa', () => {
-    // Um link para onde já se está é ruído, e faria a barra parecer um menu
-    // em vez de uma saída.
-    installApi();
-    renderApp();
-
-    expect(within(topBar()).queryByRole('link', { name: /Pesquisa/ })).toBeNull();
   });
 
   it('a tela de usuários oferece a volta', async () => {

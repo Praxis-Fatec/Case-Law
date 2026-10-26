@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import App, { Tool } from '../App';
@@ -29,8 +29,16 @@ function session(person: Person | null): Session {
 // The screen with its real routes, at any address — as when a link is opened
 // directly or the page is reloaded there. `before` are entries already in the
 // history behind it, for a test to tell where Back leads.
-export function renderApp(path = '/', before: string[] = [], person: Person | null = SIGNED_IN) {
-  return render(
+// `person` comes last on purpose: the suites that opt out of the prepared
+// expression pass the third argument positionally, and moving it would have
+// meant touching every one of them for a reason that is not theirs.
+export function renderApp(
+  path = '/',
+  before: string[] = [],
+  prefillSearch = true,
+  person: Person | null = SIGNED_IN,
+) {
+  const view = render(
     <MemoryRouter initialEntries={[...before, path]} initialIndex={before.length}>
       <SessionContext.Provider value={session(person)}>
         <Tool />
@@ -38,6 +46,13 @@ export function renderApp(path = '/', before: string[] = [], person: Person | nu
       <AddressProbe />
     </MemoryRouter>,
   );
+  // Existing search-flow tests start with a prepared expression. The real
+  // landing page starts empty; its own test opts out of this fixture.
+  const input = screen.queryByRole('searchbox', { name: 'Pesquisar decisões' });
+  if (prefillSearch && input && !(input as HTMLInputElement).value) {
+    fireEvent.change(input, { target: { value: 'prescrição intercorrente em execução fiscal' } });
+  }
+  return view;
 }
 
 /** The whole application, door included, for the tests that are about it. */
