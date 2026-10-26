@@ -23,6 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-caselaw}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-caselaw}
       ENVIRONMENT: production
+      SESSION_SECRET: ${SESSION_SECRET:?release.sh mints this into .env}
       ROOT_PATH: ${ROOT_PATH:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports:
