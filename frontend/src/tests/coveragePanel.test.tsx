@@ -491,6 +491,29 @@ describe('a volta para a pesquisa', () => {
     expect(currentAddress()).toBe('/');
   });
 
+  it('a barra leva à pesquisa de qualquer tela que não seja ela', async () => {
+    installApi();
+    const user = userEvent.setup();
+
+    for (const partida of [TEAM_PATH, '/cobertura']) {
+      const { unmount } = renderApp(partida);
+
+      await user.click(within(topBar()).getByRole('link', { name: /Pesquisa/ }));
+
+      expect(currentAddress()).toBe('/');
+      unmount();
+    }
+  });
+
+  it('na própria pesquisa a barra não oferece a pesquisa', () => {
+    // Um link para onde já se está é ruído, e faria a barra parecer um menu
+    // em vez de uma saída.
+    installApi();
+    renderApp();
+
+    expect(within(topBar()).queryByRole('link', { name: /Pesquisa/ })).toBeNull();
+  });
+
   it('a tela de usuários oferece a volta', async () => {
     installApi();
     const user = userEvent.setup();

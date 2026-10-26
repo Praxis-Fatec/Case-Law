@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useMatch } from 'react-router-dom';
-import { Database, SignOut, UsersThree } from '@phosphor-icons/react';
+import { Database, MagnifyingGlass, SignOut, UsersThree } from '@phosphor-icons/react';
 
 import { COVERAGE_PATH, type CoverageEntry } from '../pages/CoveragePage';
 import { TEAM_PATH } from '../pages/TeamPage';
@@ -36,6 +36,19 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
     <header className="app-header">
       <div ref={searchSlotRef} className="app-header__search" />
       <nav className="app-header__nav" aria-label="Informações do sistema">
+        {/* The way home, on every screen that is not the search. The search
+            box only exists on the search itself, so without this the bar
+            offers no way back to it — and each screen had to carry its own. */}
+        {!onSearch && (
+          <NavLink to="/" className="app-header__link">
+            <MagnifyingGlass size={14} aria-hidden="true" className="app-header__icon" />
+            <span className="app-header__text">
+              <span className="app-header__title">Pesquisa</span>
+              <span className="app-header__subtitle">Decisões dos tribunais</span>
+            </span>
+          </NavLink>
+        )}
+
         <NavLink to={COVERAGE_PATH} state={state} replace={onCoverage} className="app-header__link">
           <Database size={14} aria-hidden="true" className="app-header__icon" />
           <span className="app-header__text">
