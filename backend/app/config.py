@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     # start instead.
     session_secret: str = ""
     session_hours: int = 12
+    # Reads a thesis out of a decision the court wrote none for. Empty turns
+    # the feature off everywhere rather than failing per request: without a
+    # key there is nothing to ask, and the screen says so instead of offering
+    # a button that cannot work.
+    google_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     @field_validator("cors_origins", mode="before")
