@@ -78,6 +78,7 @@ describe('tese identificada sob demanda', () => {
 
   it('pede a leitura quando a pessoa aperta, e só então', async () => {
     identify.mockResolvedValue({
+      outcome: 'read',
       thesis: 'A pretensão de reexame de prova não enseja recurso especial.',
       passage: 'SÚMULA 7/STJ. MATÉRIA FÁTICO-PROBATÓRIA.',
       model: 'gemini-3.5-flash',
@@ -94,6 +95,7 @@ describe('tese identificada sob demanda', () => {
 
   it('diz que a tese é da ferramenta antes de mostrar a tese', async () => {
     identify.mockResolvedValue({
+      outcome: 'read',
       thesis: 'A pretensão de reexame de prova não enseja recurso especial.',
       passage: 'SÚMULA 7/STJ. MATÉRIA FÁTICO-PROBATÓRIA.',
       model: 'gemini-3.5-flash',
@@ -113,6 +115,7 @@ describe('tese identificada sob demanda', () => {
 
   it('mostra o trecho da ementa que sustenta a leitura', async () => {
     identify.mockResolvedValue({
+      outcome: 'read',
       thesis: 'A pretensão de reexame de prova não enseja recurso especial.',
       passage: 'SÚMULA 7/STJ. MATÉRIA FÁTICO-PROBATÓRIA.',
       model: 'gemini-3.5-flash',
@@ -125,14 +128,20 @@ describe('tese identificada sob demanda', () => {
     expect(await screen.findByText('SÚMULA 7/STJ. MATÉRIA FÁTICO-PROBATÓRIA.')).toBeVisible();
   });
 
-  it('diz que não identificou, em vez de ficar em silêncio', async () => {
-    identify.mockResolvedValue({ thesis: null, passage: null, model: null, cached: false });
+  it('diz que não conseguiu confirmar, em vez de ficar em silêncio', async () => {
+    identify.mockResolvedValue({
+      outcome: 'unverified',
+      thesis: null,
+      passage: null,
+      model: null,
+      cached: false,
+    });
     card();
     await openJustification();
 
     await userEvent.click(screen.getByRole('button', { name: /Identificar a tese com IA/ }));
 
-    expect(await screen.findByText(/não identificou uma tese/i)).toBeVisible();
+    expect(await screen.findByText(/não conseguiu apontá-la no texto da ementa/i)).toBeVisible();
   });
 
   it('repete o que o servidor disse quando a leitura falha', async () => {
@@ -155,6 +164,7 @@ describe('tese identificada sob demanda', () => {
     const mesmo =
       'Em eventos patrocinados pelo Poder Público, a administração responde pela omissão.';
     identify.mockResolvedValue({
+      outcome: 'read',
       thesis: mesmo,
       passage: mesmo,
       model: 'gemini-2.5-flash',
@@ -168,6 +178,26 @@ describe('tese identificada sob demanda', () => {
     expect(await screen.findAllByText(mesmo)).toHaveLength(1);
     expect(screen.queryByText(/Trecho da ementa que sustenta/)).toBeNull();
     expect(screen.getByText(/Copiado da ementa, palavra por palavra/)).toBeVisible();
+  });
+
+  it('separa "não há tese" de "não consegui confirmar"', async () => {
+    // Medido em 16 decisões reais: 3 não firmam tese de direito material e
+    // nenhuma teve trecho inventado. Tratar as duas como a mesma falha
+    // culparia a ferramenta por um fato da decisão.
+    identify.mockResolvedValue({
+      outcome: 'none',
+      thesis: null,
+      passage: null,
+      model: 'gemini-3.5-flash-lite',
+      cached: false,
+    });
+    card();
+    await openJustification();
+
+    await userEvent.click(screen.getByRole('button', { name: /Identificar a tese com IA/ }));
+
+    expect(await screen.findByText(/não firma tese de direito material/i)).toBeVisible();
+    expect(screen.queryByText(/não conseguiu apontá-la/i)).toBeNull();
   });
 
   it('não oferece o botão quando o tribunal escreveu a tese', async () => {

@@ -55,3 +55,21 @@ def test_legacy_export_limit_does_not_restrict_exports(
 ) -> None:
     monkeypatch.setenv("EXPORT_MAX_DECISIONS", "1000")
     assert "export_max_decisions" not in Settings.model_fields
+
+
+def test_a_blank_model_name_falls_back_to_the_default() -> None:
+    """
+    `${GEMINI_MODEL:-}` in a compose file passes an empty string, not nothing.
+    Without this it would override the default with a name no API accepts, and
+    the failure would surface as a model error on the first reading.
+    """
+    from app.config import DEFAULT_MODEL
+
+    assert configured(GEMINI_MODEL="").gemini_model == DEFAULT_MODEL
+    assert configured(GEMINI_MODEL="   ").gemini_model == DEFAULT_MODEL
+
+
+def test_a_model_name_that_was_given_is_kept() -> None:
+    assert (
+        configured(GEMINI_MODEL="gemini-2.5-flash").gemini_model == "gemini-2.5-flash"
+    )

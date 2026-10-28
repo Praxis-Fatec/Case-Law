@@ -13,7 +13,7 @@ against the ementa on the same screen.
 """
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from psycopg import Connection
@@ -40,7 +40,22 @@ WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
 """
 
 
+Outcome = Literal["read", "none", "unverified"]
+
+
 class ReadThesis(BaseModel):
+    outcome: Outcome = Field(
+        description=(
+            "What came of the asking. `read`: a thesis was identified and its "
+            "passage found in the ementa. `none`: the decision settles no "
+            "thesis of substantive law, the ordinary answer for one that "
+            "resolves only a procedural question. `unverified`: something came "
+            "back that could not be confirmed against the ementa, so it is not "
+            "shown. The two refusals are told apart because they mean opposite "
+            "things: one is a fact about the decision, the other about the "
+            "model."
+        ),
+    )
     thesis: str | None = Field(
         default=None,
         description=(
@@ -69,6 +84,7 @@ class ReadThesis(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
+                "outcome": "read",
                 "thesis": (
                     "A legitimidade ativa para pleitear dano moral por ricochete "
                     "alcança quem mantém vínculo de proximidade afetiva com o "
@@ -168,7 +184,7 @@ async def read_thesis(
     ementa = (decision["ementa"] or "").strip()
 
     if not ementa:
-        return ReadThesis(cached=False)
+        return ReadThesis(outcome="unverified", cached=False)
 
     kept = tese.guardada(
         connection, fonte=source, identificador=identifier, ementa=ementa
@@ -176,6 +192,7 @@ async def read_thesis(
 
     if kept is not None:
         return ReadThesis(
+            outcome="read",
             thesis=kept["tese"],
             passage=kept["trecho"],
             model=kept["modelo"],
@@ -198,11 +215,18 @@ async def read_thesis(
         logger.exception("the thesis could not be read for %s/%s", source, identifier)
         raise HTTPException(status_code=503, detail=UNAVAILABLE) from None
 
-    # Two ways to get here and one answer for both: the model identified no
-    # thesis, or it wrote one the ementa does not support. Neither is shown,
-    # and neither is kept — a refusal cached is a refusal that never improves.
+    # Two refusals that mean opposite things, and the screen says which. An
+    # empty answer is a fact about the decision: it settles no thesis, and
+    # the instruction asks for exactly that answer. A passage the ementa
+    # does not contain is a fact about the model, and the only one worth
+    # worrying about.
+    #
+    # Neither is kept — a refusal cached is a refusal that never improves.
+    if lida is not None and not lida.tese.strip() and not lida.trecho.strip():
+        return ReadThesis(outcome="none", cached=False)
+
     if lida is None or not tese.confere(ementa, lida):
-        return ReadThesis(cached=False)
+        return ReadThesis(outcome="unverified", cached=False)
 
     stored = tese.guardar(
         connection,
@@ -214,6 +238,7 @@ async def read_thesis(
     )
 
     return ReadThesis(
+        outcome="read",
         thesis=stored["tese"],
         passage=stored["trecho"],
         model=stored["modelo"],

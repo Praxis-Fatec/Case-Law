@@ -30,8 +30,13 @@ type State =
   | { kind: 'read'; reading: Reading }
   | { kind: 'failed'; message: string };
 
-const NOTHING_FOUND =
-  'A ferramenta não identificou uma tese que consiga sustentar com o texto da ementa.';
+// Two refusals, two sentences. Collapsing them would tell a reader that the
+// tool failed when in fact the decision has no thesis to find — which is
+// the ordinary case for one that resolves only a procedural question.
+const NO_THESIS =
+  'Esta decisão não firma tese de direito material. É o caso de quem resolve apenas uma questão processual.';
+const UNVERIFIED =
+  'A ferramenta leu uma tese, mas não conseguiu apontá-la no texto da ementa. Por isso não mostra.';
 const FAILED = 'Não foi possível ler a tese agora.';
 
 // Same comparison the server makes before it accepts a quote: what counts
@@ -83,7 +88,7 @@ export default function IdentifiedThesis({ source, identifier }: IdentifiedThesi
     );
   }
 
-  const { thesis, passage } = state.reading;
+  const { outcome, thesis, passage } = state.reading;
 
   // The instruction asks for the court's own words where they exist, so a good
   // reading often quotes the sentence it is drawn from — and the two fields
@@ -91,10 +96,10 @@ export default function IdentifiedThesis({ source, identifier }: IdentifiedThesi
   // make the tool look like it had found two things.
   const quotesItself = Boolean(passage) && comparable(thesis ?? '') === comparable(passage ?? '');
 
-  if (!thesis) {
+  if (outcome !== 'read' || !thesis) {
     return (
       <p className="decision-result-card__thesis-reading" role="status">
-        {NOTHING_FOUND}
+        {outcome === 'none' ? NO_THESIS : UNVERIFIED}
       </p>
     );
   }

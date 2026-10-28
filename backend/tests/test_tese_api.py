@@ -296,3 +296,41 @@ def test_what_is_kept_is_what_was_verified(
     assert kept["ementa_digest"] == tese.digest(
         f"CIVIL. Dano moral configurado. Decisão {DECISION}."
     )
+
+
+def test_a_decision_that_settles_no_thesis_says_so(
+    collection: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """
+    The instruction asks for two empty fields when the ementa settles nothing,
+    and three decisions in sixteen answer that way. Reporting it as a failure
+    to read would blame the tool for a fact about the decision.
+    """
+    answering(monkeypatch, Lida(tese="", trecho=""))
+
+    body = collection.post(ROUTE).json()
+
+    assert body["outcome"] == "none"
+    assert body["thesis"] is None
+
+
+def test_a_reading_the_ementa_does_not_support_is_marked_unverified(
+    collection: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answering(
+        monkeypatch,
+        Lida(tese="Inventada.", trecho="Passagem que não está em ementa nenhuma."),
+    )
+
+    body = collection.post(ROUTE).json()
+
+    assert body["outcome"] == "unverified"
+    assert body["thesis"] is None
+
+
+def test_a_verified_reading_is_marked_read(
+    collection: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    answering(monkeypatch, Lida(tese="O dano moral está configurado.", trecho=QUOTE))
+
+    assert collection.post(ROUTE).json()["outcome"] == "read"

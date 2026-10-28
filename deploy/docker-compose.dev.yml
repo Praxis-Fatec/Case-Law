@@ -26,6 +26,7 @@ services:
       ENVIRONMENT: development
       SESSION_SECRET: ${SESSION_SECRET:?release.sh mints this into .env}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
       ROOT_PATH: ${ROOT_PATH:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     ports:
