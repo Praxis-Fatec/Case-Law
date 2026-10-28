@@ -58,6 +58,10 @@ the data.
 Each part has its own instructions: [backend](backend/README.md) ·
 [frontend](frontend/README.md) · [pipeline](pipeline/README.md)
 
+To measure the code with SonarQube, see
+[docs/sonarqube.md](docs/sonarqube.md). It needs no database, and no
+published decisions, unless you want the coverage figure as well.
+
 ---
 
 ## Product Backlog <a id="backlog"></a>
