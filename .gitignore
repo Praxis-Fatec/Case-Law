@@ -13,6 +13,10 @@ venv/
 .ruff_cache/
 .mypy_cache/
 .coverage
+coverage.xml
+coverage/
+# Written by the Sonar scanner on every run.
+.scannerwork/
 htmlcov/
 
 # Node / frontend

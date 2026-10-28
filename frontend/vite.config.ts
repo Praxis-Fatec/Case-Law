@@ -19,5 +19,13 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/tests/setup.ts'],
     css: false,
+    coverage: {
+      provider: 'v8',
+      // lcov is what SonarQube reads; text keeps the summary in the
+      // terminal for whoever ran it.
+      reporter: ['text', 'lcov'],
+      include: ['src/**'],
+      exclude: ['src/tests/**', 'src/**/*.d.ts', 'src/main.tsx'],
+    },
   },
 });

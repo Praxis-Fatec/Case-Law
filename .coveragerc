@@ -1,0 +1,10 @@
+# Read by the coverage runs that feed SonarQube, which are driven from this
+# directory. Paths come out relative to it — `backend/app/accounts.py` — because
+# the scanner runs inside a container where this machine's absolute paths do
+# not exist, and an unresolvable path makes Sonar drop the coverage in silence.
+
+[run]
+relative_files = True
+omit =
+    */tests/*
+    */.venv/*
