@@ -29,7 +29,7 @@ class SemChave(RuntimeError):
     """No API key configured, so no reading can be made."""
 
 
-def _agente() -> Any:
+def montar() -> Any:
     # Imported here, not at module load: the API has to start and serve every
     # other route on a machine where the ADK is not installed or no key is set.
     from google.adk.agents import LlmAgent
@@ -98,7 +98,7 @@ async def ler(ementa: str) -> Lida | None:
     from google.adk.runners import InMemoryRunner
     from google.genai import types
 
-    executor = InMemoryRunner(_agente(), app_name=APP)
+    executor = InMemoryRunner(montar(), app_name=APP)
 
     try:
         sessao = await executor.session_service.create_session(
