@@ -130,9 +130,7 @@ def test_the_number_is_read_through_the_shapes_the_courts_write() -> None:
         assert cited(ementa) == {("STF", "sumula", 284)}, ementa
 
 
-pytestmark_db = needs_database
-
-
+@needs_database
 @pytest.mark.usefixtures("db_rolled_back")
 class TestResolution:
     """
