@@ -33,10 +33,30 @@ def _agente() -> Any:
     # Imported here, not at module load: the API has to start and serve every
     # other route on a machine where the ADK is not installed or no key is set.
     from google.adk.agents import LlmAgent
+    from google.adk.models import Gemini
+    from google.genai import types
 
     return LlmAgent(
         name=AGENTE,
-        model=settings.gemini_model,
+        # The key goes to the client, not through `GOOGLE_API_KEY` in the
+        # environment. Naming the model as a bare string makes the SDK look
+        # there instead, which fails on a server that keeps its secrets in a
+        # file — and fails with "No API key was provided" for a key that is
+        # perfectly well configured.
+        model=Gemini(
+            model=settings.gemini_model,
+            client_kwargs={"api_key": settings.google_api_key.strip()},
+            # The free tier answers "high demand" often enough that one
+            # attempt is not a fair test of whether a thesis can be read.
+            # Four tries over a few seconds, and the reader waits instead
+            # of being told to come back.
+            retry_options=types.HttpRetryOptions(
+                attempts=4,
+                initial_delay=1.0,
+                max_delay=8.0,
+                http_status_codes=[429, 500, 502, 503, 504],
+            ),
+        ),
         description="Identifica a tese jurídica firmada por um acórdão.",
         instruction=INSTRUCAO,
         output_schema=Lida,

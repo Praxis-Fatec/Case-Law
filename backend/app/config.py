@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     # key there is nothing to ask, and the screen says so instead of offering
     # a button that cannot work.
     google_api_key: str = ""
-    gemini_model: str = "gemini-3.5-flash"
+    # Not the newest: reading one sentence out of a short ementa does not
+    # need it, and the newest Flash is the one the free tier answers "high
+    # demand" for. A name, never an alias like `gemini-flash-latest` — an
+    # alias moves under the readings already stored against it.
+    gemini_model: str = "gemini-2.5-flash"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     @field_validator("cors_origins", mode="before")
