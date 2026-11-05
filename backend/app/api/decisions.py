@@ -259,6 +259,22 @@ BROAD_DEPTH = 1000
 # them has more than one node, and every one of them is already fast, because
 # the intersection of two common words is a small set. Measured on production:
 # `recurso` 765,840 matches and 95.3s, `dano moral` 29,783 and 0.6s.
+# `url_compartilhada` left `core.decisao` for a table of its own, so it is
+# joined rather than selected — and only where the table is there to join.
+# Until it is, a shared link reads as a link like any other, which is what the
+# screen said before the warning existed.
+SHARED_COLUMN = "COALESCE(compartilhada.url_compartilhada, FALSE)"
+SHARED_JOIN = """
+LEFT JOIN core.url_compartilhada AS compartilhada
+  ON compartilhada.fonte_codigo = decisao.fonte_codigo
+ AND compartilhada.identificador_fonte = decisao.identificador_fonte"""
+
+
+def _shared(published: bool) -> tuple[str, str]:
+    """The column and the join that read the shared-link table, or neither."""
+    return (SHARED_COLUMN, SHARED_JOIN) if published else ("FALSE", "")
+
+
 BROAD_TERM_SQL = f"""
 SELECT termo.lexema, termo.decisoes
 FROM (SELECT {QUERY} AS consulta) AS pesquisa
@@ -267,7 +283,10 @@ JOIN core.termo_frequente AS termo
  AND termo.lexema = BTRIM(pesquisa.consulta::text, '''')
 """
 
-BROAD_PAGE_SQL = f"""
+
+def _broad_page_sql(published: bool) -> str:
+    shared, join = _shared(published)
+    return f"""
 WITH pagina AS (
     SELECT rank, data_referencia, fonte_codigo, identificador_fonte
     FROM core.busca_ampla
@@ -286,7 +305,7 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
-    decisao.url_compartilhada,
+    {shared} AS url_compartilhada,
     decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
@@ -294,7 +313,7 @@ SELECT
 FROM pagina
 JOIN core.decisao AS decisao
   ON decisao.fonte_codigo = pagina.fonte_codigo
- AND decisao.identificador_fonte = pagina.identificador_fonte
+ AND decisao.identificador_fonte = pagina.identificador_fonte{join}
 ORDER BY
     pagina.rank DESC,
     pagina.data_referencia DESC,
@@ -303,27 +322,37 @@ ORDER BY
 """
 
 
-# Whether the base in front of this server carries the ranking yet.
+# Which of the tables the search reads are in front of this server yet.
 #
 # A deploy can land before the base that goes with it — it happened once this
-# sprint already. Without this check the first statement of every search would
-# name a table that does not exist, and a search would answer 500 instead of
-# answering slowly. Slowly is the right answer: the old path is still there and
-# still correct.
+# sprint already. Without this check a search would name a table that does not
+# exist and answer 500 instead of answering slowly, or without the warning
+# about a shared link. Both are right answers while the data is on its way; an
+# error page is not.
 #
-# Asked every time rather than remembered. The statement reads one catalog row
+# Two tables, one statement. They are published by the same run and can still
+# be absent one without the other, and asking twice would double a probe that
+# exists precisely because it is cheap.
+#
+# Asked every time rather than remembered. The statement reads two catalog rows
 # and costs a tenth of a millisecond against a page that costs thirty-six, and
-# a server that started before the base was published starts serving from the
-# ranking the moment it appears, with nobody having to restart it.
-RANKING_PUBLISHED_SQL = (
-    "SELECT TO_REGCLASS('core.busca_ampla') IS NOT NULL AS publicado"
-)
+# a server that started before the base was published starts using it the
+# moment it appears, with nobody having to restart anything.
+PUBLISHED_SQL = """
+SELECT TO_REGCLASS('core.busca_ampla') IS NOT NULL       AS ranking,
+       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada
+"""
 
 
-def _ranking_published(cursor: Any) -> bool:
-    cursor.execute(RANKING_PUBLISHED_SQL)
-    row = cursor.fetchone()
-    return bool(row and row["publicado"])
+class Published(NamedTuple):
+    ranking: bool
+    shared: bool
+
+
+def _published(cursor: Any) -> Published:
+    cursor.execute(PUBLISHED_SQL)
+    row = cursor.fetchone() or {}
+    return Published(bool(row.get("ranking")), bool(row.get("compartilhada")))
 
 
 def _broad_term(
@@ -333,6 +362,7 @@ def _broad_term(
     order: Order,
     offset: int,
     page_size: int,
+    ranking_published: bool,
 ) -> DictRow | None:
     """
     The pre-ranked term behind this search, when there is one.
@@ -349,15 +379,16 @@ def _broad_term(
     if filters or order != "relevance" or offset + page_size > BROAD_DEPTH:
         return None
 
-    if not _ranking_published(cursor):
+    if not ranking_published:
         return None
 
     cursor.execute(BROAD_TERM_SQL, parameters)
     return cursor.fetchone()
 
 
-def _page_sql(filters: str = "", ordering: str = "") -> str:
+def _page_sql(filters: str = "", ordering: str = "", published: bool = True) -> str:
     ordering = ordering or ORDERINGS[DEFAULT_ORDER]
+    shared, join = _shared(published)
     return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
@@ -377,13 +408,13 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
-    decisao.url_compartilhada,
+    {shared} AS url_compartilhada,
     decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
     {SNIPPET} AS snippet
 FROM pagina
-JOIN core.decisao USING (fonte_codigo, identificador_fonte)
+JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
 {ordering}
 """
 
@@ -393,30 +424,35 @@ JOIN core.decisao USING (fonte_codigo, identificador_fonte)
 COUNT_SQL = _count_sql()
 PAGE_SQL = _page_sql()
 
-DETAIL_SQL = """
+
+def _detail_sql(published: bool) -> str:
+    shared, join = _shared(published)
+    return f"""
 SELECT
-    fonte_codigo,
-    identificador_fonte,
-    tribunal_sigla,
-    processo,
-    orgao_julgador,
-    relator,
-    classe_cnj,
-    data_julgamento,
-    data_publicacao,
-    data_referencia,
-    ementa,
-    decisao_texto,
-    tese,
-    deliberacao,
-    turma_recursal,
-    possui_inteiro_teor,
-    url_fonte,
-    link_valido,
-    url_compartilhada
-FROM core.decisao
-WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.classe_cnj,
+    decisao.data_julgamento,
+    decisao.data_publicacao,
+    decisao.data_referencia,
+    decisao.ementa,
+    decisao.decisao_texto,
+    decisao.tese,
+    decisao.deliberacao,
+    decisao.turma_recursal,
+    decisao.possui_inteiro_teor,
+    decisao.url_fonte,
+    decisao.link_valido,
+    {shared} AS url_compartilhada
+FROM core.decisao AS decisao{join}
+WHERE decisao.fonte_codigo = %(source)s
+  AND decisao.identificador_fonte = %(identifier)s
 """
+
 
 HIGHLIGHT_SQL = f"""
 SELECT {FULL_HIGHLIGHT} AS highlighted
@@ -1226,21 +1262,30 @@ def search_decisions(
     rows: list[DictRow] = []
 
     with connection.cursor() as cursor:
-        broad = _broad_term(cursor, parameters, filters, order, offset, page_size)
+        publicado = _published(cursor)
+        broad = _broad_term(
+            cursor, parameters, filters, order, offset, page_size, publicado.ranking
+        )
 
         if broad is not None:
             # Both the page and the total are read, not computed. The total is
             # the exact number of decisions carrying the term, counted once
             # when the base was built.
             total = int(broad["decisoes"])
-            cursor.execute(BROAD_PAGE_SQL, {**parameters, "lexema": broad["lexema"]})
+            cursor.execute(
+                _broad_page_sql(publicado.shared),
+                {**parameters, "lexema": broad["lexema"]},
+            )
             rows = cursor.fetchall()
         else:
             cursor.execute(_count_sql(filters), parameters)
             total = int((cursor.fetchone() or {"total": 0})["total"])
 
             if offset < total:
-                cursor.execute(_page_sql(filters, ORDERINGS[order]), parameters)
+                cursor.execute(
+                    _page_sql(filters, ORDERINGS[order], publicado.shared),
+                    parameters,
+                )
                 rows = cursor.fetchall()
 
     return SearchResults(
@@ -1324,7 +1369,7 @@ def read_decision(
     parameters = {"source": source, "identifier": identifier}
 
     with connection.cursor() as cursor:
-        cursor.execute(DETAIL_SQL, parameters)
+        cursor.execute(_detail_sql(_published(cursor).shared), parameters)
         row = cursor.fetchone()
 
         if row is None:

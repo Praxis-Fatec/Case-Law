@@ -20,6 +20,7 @@ TABLES = (
     "classe_processual",
     "carga",
     "decisao",
+    "url_compartilhada",
     "termo_frequente",
     "busca_ampla",
     "precedente",
@@ -44,6 +45,10 @@ INDEXES = (
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (tribunal_sigla, relator)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (processo)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (classe_cnj)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.url_compartilhada "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The first page of a broad search is served from here and nowhere else, so
     # this index is the story: it carries every column the page asks for, in
     # the order it asks for them, which is what turns 95 seconds into a single

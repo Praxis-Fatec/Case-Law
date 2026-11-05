@@ -31,12 +31,23 @@ CREATE TABLE core.decisao (
     possui_inteiro_teor  BOOLEAN NOT NULL,
     url_fonte            TEXT    NOT NULL,
     link_valido          BOOLEAN,
-    url_compartilhada    BOOLEAN NOT NULL DEFAULT FALSE,
     ementa_busca         TSVECTOR
 );
 
 CREATE UNIQUE INDEX ON core.decisao (fonte_codigo, identificador_fonte);
 CREATE INDEX ON core.decisao USING gin (ementa_busca);
+
+-- Whether a decision's source link still reaches more than one decision of
+-- ours. Its own table because it is a property of the whole collection: the
+-- answer for a decision from 2019 changes when a 2026 one arrives sharing the
+-- link, which is what stopped `core.decisao` from being built by date range.
+CREATE TABLE core.url_compartilhada (
+    fonte_codigo         TEXT    NOT NULL,
+    identificador_fonte  TEXT    NOT NULL,
+    url_fonte            TEXT    NOT NULL,
+    url_compartilhada    BOOLEAN NOT NULL,
+    PRIMARY KEY (fonte_codigo, identificador_fonte)
+);
 
 CREATE TABLE core.termo_frequente (
     lexema       TEXT   NOT NULL,

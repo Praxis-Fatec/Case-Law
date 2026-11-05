@@ -14,7 +14,6 @@ MODEL (
     verdito_de_fonte_conhecida,
     tese_sem_secao_seguinte,
     tese_com_cobertura,
-    url_aponta_para_um_acordao,
     deliberacao_de_valor_conhecido,
     deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
@@ -277,9 +276,7 @@ julgamento AS (
         THEN 'provido'
     END AS resultado
   FROM dispositivo
-),
-
-montado AS (
+)
 
 SELECT
   b.fonte_codigo                                        AS fonte_codigo,
@@ -344,17 +341,6 @@ LEFT JOIN lida AS l
 LEFT JOIN julgamento AS j
   ON j.fonte_codigo = b.fonte_codigo
  AND j.identificador = b.identificador
-
-)
-
-SELECT
-  m.*,
-  -- Quando o link ainda alcança mais de uma decisão nossa, a tela precisa
-  -- dizer isso: o leitor cai numa lista e tem de reconhecer a dele pela data,
-  -- pelo órgão e pela classe. Calculado aqui porque é uma propriedade da
-  -- coleção inteira, que nenhuma linha sabe sozinha.
-  COUNT(*) OVER (PARTITION BY m.url_fonte) > 1           AS url_compartilhada
-FROM montado AS m
 
 ;
 

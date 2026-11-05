@@ -66,7 +66,13 @@ def test_nenhuma_auditoria_fica_sem_uso() -> None:
 
 
 def test_o_link_oficial_tem_auditoria() -> None:
-    """A regra da SCRUM-180, presa ao modelo que ela guarda."""
-    decisao = TRANSFORMACOES / "models" / "core_decisao.sql"
+    """
+    A regra da SCRUM-180, presa ao modelo que ela guarda.
 
-    assert "url_aponta_para_um_acordao" in citadas(decisao)
+    Mudou de modelo quando `url_compartilhada` saiu de `core.decisao`: é lá que
+    a coluna mora agora, e uma auditoria que ficasse para trás apontaria para
+    uma coluna que o modelo não tem mais.
+    """
+    modelo = TRANSFORMACOES / "models" / "core_url_compartilhada.sql"
+
+    assert "url_aponta_para_um_acordao" in citadas(modelo)
