@@ -18,24 +18,26 @@ contribution guide, `CONTRIBUTING.md`.
 
 | | | | |
 |---|---|---|---|
-| [RF01](#RF01) Search by term or exact phrase | [RF07](#RF07) Paging of the results | [RF13](#RF13) Unanimity or majority | [RF19](#RF19) Laws, articles and precedents cited |
-| [RF02](#RF02) Syllabus excerpt and official source | [RF08](#RF08) Coverage of the base | [RF14](#RF14) Export of the scope | [RF20](#RF20) Semantically close decisions |
-| [RF03](#RF03) Filters by court and period | [RF09](#RF09) Evolution of the volume over time | [RF15](#RF15) Comparison between courts | [RF21](#RF21) Report of an incorrect classification |
-| [RF04](#RF04) Decision detail | [RF10](#RF10) Proportion of appeal outcomes | [RF16](#RF16) Status of the sources and last collection | [RF22](#RF22) Divergences between panels |
-| [RF05](#RF05) Volume of decisions by court | [RF11](#RF11) Additional legal filters | [RF17](#RF17) Saved search | [RF23](#RF23) Decisions to the contrary |
-| [RF06](#RF06) Ordering by relevance or date | [RF12](#RF12) Documents behind the indicators | [RF18](#RF18) Concentration by judging body and reporting judge | |
+| [RF01](#rf01) Search by term or exact phrase | [RF07](#rf07) Paging of the results | [RF13](#rf13) Unanimity or majority | [RF19](#rf19) Laws, articles and precedents cited |
+| [RF02](#rf02) Syllabus excerpt and official source | [RF08](#rf08) Coverage of the base | [RF14](#rf14) Export of the scope | [RF20](#rf20) Semantically close decisions |
+| [RF03](#rf03) Filters by court and period | [RF09](#rf09) Evolution of the volume over time | [RF15](#rf15) Comparison between courts | [RF21](#rf21) Report of an incorrect classification |
+| [RF04](#rf04) Decision detail | [RF10](#rf10) Proportion of appeal outcomes | [RF16](#rf16) Status of the sources and last collection | [RF22](#rf22) Divergences between panels |
+| [RF05](#rf05) Volume of decisions by court | [RF11](#rf11) Additional legal filters | [RF17](#rf17) Saved search | [RF23](#rf23) Decisions to the contrary |
+| [RF06](#rf06) Ordering by relevance or date | [RF12](#rf12) Documents behind the indicators | [RF18](#rf18) Concentration by judging body and reporting judge | |
 
 | | | | |
 |---|---|---|---|
-| [RNF01](#RNF01) Traceability | [RNF04](#RNF04) Performance | [RNF07](#RNF07) Data quality | [RNF10](#RNF10) Maintainability |
-| [RNF02](#RNF02) Security | [RNF05](#RNF05) Scalability | [RNF08](#RNF08) Observability | |
-| [RNF03](#RNF03) Privacy | [RNF06](#RNF06) Availability | [RNF09](#RNF09) Accessibility | |
+| [RNF01](#rnf01) Traceability | [RNF04](#rnf04) Performance | [RNF07](#rnf07) Data quality | [RNF10](#rnf10) Maintainability |
+| [RNF02](#rnf02) Security | [RNF05](#rnf05) Scalability | [RNF08](#rnf08) Observability | |
+| [RNF03](#rnf03) Privacy | [RNF06](#rnf06) Availability | [RNF09](#rnf09) Accessibility | |
 
 ---
 
 ## Functional requirements
 
-### RF01 · Search by term or exact phrase <a id="RF01"></a>
+<a id="rf01"></a>
+
+### RF01 · Search by term or exact phrase
 
 **Objective.** Find decisions from the expression the user supplies.
 
@@ -46,7 +48,9 @@ error and guidance when there are no results.
 **Verification.** Compare term and exact-phrase searches against known documents
 and check the results.
 
-### RF02 · Syllabus excerpt and official source <a id="RF02"></a>
+<a id="rf02"></a>
+
+### RF02 · Syllabus excerpt and official source
 
 **Objective.** Assess a result and check its origin before citing it.
 
@@ -58,7 +62,9 @@ identified as invalid must state the reason for the unavailability.
 **Verification.** Check excerpts, highlights and the opening of the
 corresponding document at the official source.
 
-### RF03 · Filters by court and period <a id="RF03"></a>
+<a id="rf03"></a>
+
+### RF03 · Filters by court and period
 
 **Objective.** Narrow the search to the scope of interest.
 
@@ -71,7 +77,9 @@ the interface.
 **Verification.** Test filters in isolation and combined, the boundaries of the
 interval, and a search with no filters.
 
-### RF04 · Decision detail <a id="RF04"></a>
+<a id="rf04"></a>
+
+### RF04 · Decision detail
 
 **Objective.** Read the decision and assess its application to the case.
 
@@ -83,7 +91,9 @@ search.
 **Verification.** Open decisions with long syllabuses and incomplete metadata
 and compare the display with the source data.
 
-### RF05 · Volume of decisions by court <a id="RF05"></a>
+<a id="rf05"></a>
+
+### RF05 · Volume of decisions by court
 
 **Objective.** Identify how the documents are distributed between courts.
 
@@ -95,7 +105,9 @@ relevance.
 **Verification.** Check the totals per court and their sum against the same
 document query.
 
-### RF06 · Ordering by relevance or date <a id="RF06"></a>
+<a id="rf06"></a>
+
+### RF06 · Ordering by relevance or date
 
 **Objective.** Consult first the results most pertinent to the search, or the
 most recent.
@@ -107,7 +119,9 @@ tie-break. Search relevance does not represent legal importance.
 **Verification.** Check the order with results of known dates and scores,
 including ties.
 
-### RF07 · Paging of the results <a id="RF07"></a>
+<a id="rf07"></a>
+
+### RF07 · Paging of the results
 
 **Objective.** Go through an extensive set without losing the context.
 
@@ -118,7 +132,9 @@ navigating beyond the first or the last page.
 **Verification.** Go through several pages and return, checking position, scope
 and stability of the results.
 
-### RF08 · Coverage of the base <a id="RF08"></a>
+<a id="rf08"></a>
+
+### RF08 · Coverage of the base
 
 **Objective.** Know the reach of the available data before using it.
 
@@ -129,7 +145,9 @@ partial coverage or unavailable information.
 **Verification.** Compare counts and dates with the available records, including
 an empty base and partial coverage.
 
-### RF09 · Evolution of the volume over time <a id="RF09"></a>
+<a id="rf09"></a>
+
+### RF09 · Evolution of the volume over time
 
 **Objective.** Observe how the number of decisions varies over the period.
 
@@ -140,7 +158,9 @@ of each interval and treat records without a date explicitly.
 **Verification.** Compare each interval with its documents and check the sum of
 the groups considered.
 
-### RF10 · Proportion of appeal outcomes <a id="RF10"></a>
+<a id="rf10"></a>
+
+### RF10 · Proportion of appeal outcomes
 
 **Objective.** Observe the distribution between appeals granted, partially
 granted and denied.
@@ -153,7 +173,9 @@ each category.
 **Verification.** Check classifications, numerators and denominator against a
 sample and against the totals of the scope.
 
-### RF11 · Additional legal filters <a id="RF11"></a>
+<a id="rf11"></a>
+
+### RF11 · Additional legal filters
 
 **Objective.** Narrow the search by judging body, reporting judge and procedural
 class.
@@ -165,7 +187,9 @@ total.
 **Verification.** Apply each filter and their combinations and check that every
 document matches the scope.
 
-### RF12 · Documents behind the indicators <a id="RF12"></a>
+<a id="rf12"></a>
+
+### RF12 · Documents behind the indicators
 
 **Objective.** Check the evidence that supports each number.
 
@@ -176,7 +200,9 @@ estimates explicit where they exist.
 **Verification.** Compare the set opened with the rule of calculation and the
 total of the indicator.
 
-### RF13 · Unanimity or majority <a id="RF13"></a>
+<a id="rf13"></a>
+
+### RF13 · Unanimity or majority
 
 **Objective.** Know the form of deliberation recorded in the decision.
 
@@ -187,7 +213,9 @@ cases, without deducing unanimity from the absence of dissent.
 **Verification.** Check examples of unanimity, of majority and of absent
 information against the origin.
 
-### RF14 · Export of the scope <a id="RF14"></a>
+<a id="rf14"></a>
+
+### RF14 · Export of the scope
 
 **Objective.** Take the search to an external analysis with verifiable
 references.
@@ -200,7 +228,9 @@ criteria of the user story.
 **Verification.** Open the file generated and check scope, references, dates and
 the limits stated.
 
-### RF15 · Comparison between courts <a id="RF15"></a>
+<a id="rf15"></a>
+
+### RF15 · Comparison between courts
 
 **Objective.** Compare courts side by side on the same subject.
 
@@ -212,7 +242,9 @@ the source.
 **Verification.** Check each side against its equivalent search and test courts
 with distinct coverage.
 
-### RF16 · Status of the sources and last collection <a id="RF16"></a>
+<a id="rf16"></a>
+
+### RF16 · Status of the sources and last collection
 
 **Objective.** Know where the data comes from and when it was collected.
 
@@ -223,7 +255,9 @@ unavailable sources and do not replace unknown dates with estimated values.
 **Verification.** Compare the interface with the collection records in cases of
 success, of failure and of absence of collection.
 
-### RF17 · Saved search <a id="RF17"></a>
+<a id="rf17"></a>
+
+### RF17 · Saved search
 
 **Objective.** Resume a search with the filters already defined.
 
@@ -235,7 +269,9 @@ implementation.
 **Verification.** Save and reopen a search, checking the restoration of the
 expression and of the filters.
 
-### RF18 · Concentration by judging body and reporting judge <a id="RF18"></a>
+<a id="rf18"></a>
+
+### RF18 · Concentration by judging body and reporting judge
 
 **Objective.** Identify where the searched set is concentrated.
 
@@ -247,7 +283,9 @@ Other category.
 **Verification.** Check groups and totals against the documents of the scope,
 including records without metadata.
 
-### RF19 · Laws, articles and precedents cited <a id="RF19"></a>
+<a id="rf19"></a>
+
+### RF19 · Laws, articles and precedents cited
 
 **Objective.** Consult the grounds referenced in the decision.
 
@@ -259,7 +297,9 @@ reference as if it had been cited.
 **Verification.** Compare the references shown with the text of the decision and
 check the destinations of the links.
 
-### RF20 · Semantically close decisions <a id="RF20"></a>
+<a id="rf20"></a>
+
+### RF20 · Semantically close decisions
 
 **Objective.** Find other documents with content related to a decision.
 
@@ -271,7 +311,9 @@ understanding.
 **Verification.** Validate a sample of relations, their documents and the
 identification of the method used.
 
-### RF21 · Report of an incorrect classification <a id="RF21"></a>
+<a id="rf21"></a>
+
+### RF21 · Report of an incorrect classification
 
 **Objective.** Report errors found during the search.
 
@@ -282,7 +324,9 @@ report does not automatically change the classification published.
 **Verification.** Send a report and check its record and the preservation of the
 classification until review.
 
-### RF22 · Divergences between panels <a id="RF22"></a>
+<a id="rf22"></a>
+
+### RF22 · Divergences between panels
 
 **Objective.** Investigate differences of understanding within the same court.
 
@@ -294,7 +338,9 @@ difference in volume alone does not prove legal divergence.
 **Verification.** Check the cases identified against the decisions that support
 them and against the rule approved for the comparison.
 
-### RF23 · Decisions to the contrary <a id="RF23"></a>
+<a id="rf23"></a>
+
+### RF23 · Decisions to the contrary
 
 **Objective.** Find documents that may contradict the understanding searched
 for.
@@ -314,7 +360,9 @@ to the criteria defined in the user story.
 They apply to the features affected. Numeric targets not defined in the proposal
 must be agreed and recorded before being used as a condition of acceptance.
 
-### RNF01 · Traceability <a id="RNF01"></a>
+<a id="rnf01"></a>
+
+### RNF01 · Traceability
 
 **Objective.** Preserve the relation between results, indicators and source
 documents.
@@ -325,7 +373,9 @@ the documents and the scope used.
 **Verification.** Walk from a result and from an indicator to the origin and
 check filters and references.
 
-### RNF02 · Security <a id="RNF02"></a>
+<a id="rnf02"></a>
+
+### RNF02 · Security
 
 **Objective.** Protect data, access and credentials.
 
@@ -336,7 +386,9 @@ execution records.
 **Verification.** Review permissions, exposure of secrets and access to the
 protected operations.
 
-### RNF03 · Privacy <a id="RNF03"></a>
+<a id="rnf03"></a>
+
+### RNF03 · Privacy
 
 **Objective.** Treat judicial data according to the applicable rules.
 
@@ -346,7 +398,9 @@ pre-emptively, for review, records suspected of judicial secrecy.
 **Verification.** Test the block and check that restricted content does not
 appear in results, details or exports.
 
-### RNF04 · Performance <a id="RNF04"></a>
+<a id="rnf04"></a>
+
+### RNF04 · Performance
 
 **Objective.** Answer the queries in a time adequate to interactive use.
 
@@ -357,7 +411,9 @@ general numeric limit; specific targets belong to the corresponding user story.
 **Verification.** Run reproducible measurements and compare them with the target
 recorded for the feature.
 
-### RNF05 · Scalability <a id="RNF05"></a>
+<a id="rnf05"></a>
+
+### RNF05 · Scalability
 
 **Objective.** Support the growth of the volume searched.
 
@@ -367,7 +423,9 @@ recording the limits of capacity and the resources used.
 **Verification.** Run scenarios with growing volumes and record time,
 consumption and the limits found.
 
-### RNF06 · Availability <a id="RNF06"></a>
+<a id="rnf06"></a>
+
+### RNF06 · Availability
 
 **Objective.** Prevent the unavailability of one source from interrupting the
 whole application.
@@ -378,7 +436,9 @@ unavailability, keeping accessible the features and the data not affected.
 **Verification.** Simulate the failure of one source and check the continuity of
 the rest of the application.
 
-### RNF07 · Data quality <a id="RNF07"></a>
+<a id="rnf07"></a>
+
+### RNF07 · Data quality
 
 **Objective.** Monitor completeness, uniqueness, validity and currency.
 
@@ -389,7 +449,9 @@ to the user.
 **Verification.** Apply checks over samples and totals and review the records of
 the problems found.
 
-### RNF08 · Observability <a id="RNF08"></a>
+<a id="rnf08"></a>
+
+### RNF08 · Observability
 
 **Objective.** Record evidence of execution and of failure.
 
@@ -399,7 +461,9 @@ time, the outcome and the error, preserving credentials and restricted content.
 **Verification.** Locate a successful execution and a failure in the records and
 follow their diagnosis.
 
-### RNF09 · Accessibility <a id="RNF09"></a>
+<a id="rnf09"></a>
+
+### RNF09 · Accessibility
 
 **Objective.** Follow good practice in digital accessibility.
 
@@ -410,7 +474,9 @@ alone.
 **Verification.** Check the main flows by keyboard and run checks of labels, of
 contrast and of assistive reading.
 
-### RNF10 · Maintainability <a id="RNF10"></a>
+<a id="rnf10"></a>
+
+### RNF10 · Maintainability
 
 **Objective.** Keep the code tested, documented and organised.
 
