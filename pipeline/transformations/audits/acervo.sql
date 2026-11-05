@@ -68,6 +68,18 @@ HAVING COUNT(*) > 100000
    AND COUNT(classe_cnj) < COUNT(*) * 0.95;
 
 AUDIT (
+  name cobertura_de_aderencia_no_acervo,
+  standalone true,
+  dialect postgres
+);
+/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
+   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
+SELECT 1 AS falha
+FROM core.decisao_precedente
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
+
+AUDIT (
   name decisao_unica_no_acervo,
   standalone true,
   dialect postgres

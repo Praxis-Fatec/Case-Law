@@ -1,11 +1,15 @@
 MODEL (
   name core.decisao_precedente,
-  kind FULL,
+  kind INCREMENTAL_BY_TIME_RANGE (
+    time_column data_referencia,
+    batch_size 365
+  ),
+  start '1989-01-01',
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
   audits (
     not_null(columns := (
       fonte_codigo, identificador_fonte, corte, tipo, numero, trecho,
-      aderencia, corte_declarada
+      aderencia, corte_declarada, data_referencia
     )),
     unique_combination_of_columns(
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
@@ -16,8 +20,7 @@ MODEL (
     citacao_com_alcance,
     citacao_com_corte_do_texto,
     aderencia_de_valor_conhecido,
-    aderencia_sem_contradicao,
-    aderencia_com_cobertura
+    aderencia_sem_contradicao
   )
 );
 
@@ -27,9 +30,18 @@ WITH base AS (
   SELECT
     fonte_codigo,
     identificador_fonte,
+    data_referencia,
     UNACCENT(LOWER(REGEXP_REPLACE(ementa, '\s+', ' ', 'g'))) AS texto
   FROM core.decisao
   WHERE ementa ~* 'S[uú]mula|\mtema'
+    AND data_referencia BETWEEN @start_ds::DATE AND @end_ds::DATE
+),
+
+/* A data do acórdão citante, para o modelo poder ser incremental. A citação
+   não tem data própria: ela vale a do acórdão que a escreveu. */
+data_da_decisao AS (
+  SELECT fonte_codigo, identificador_fonte, data_referencia
+  FROM base
 ),
 
 citada AS (
@@ -142,9 +154,12 @@ SELECT
     WHEN r.texto ~ g.referencia  THEN 'mencionou'
     ELSE 'indeterminado'
   END                   AS aderencia,
+  d.data_referencia     AS data_referencia,
   NOW()                 AS carregado_em
 FROM recortada AS r
 CROSS JOIN sinal AS g
+JOIN data_da_decisao AS d
+  ON d.fonte_codigo = r.fonte_codigo AND d.identificador_fonte = r.identificador_fonte
 LEFT JOIN core.precedente AS p
   ON p.corte = r.corte AND p.tipo = r.tipo AND p.numero = r.numero
 LEFT JOIN unica AS u

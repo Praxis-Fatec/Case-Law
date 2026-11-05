@@ -212,17 +212,6 @@ WHERE aderencia IN ('seguiu', 'distinguiu')
   AND trecho ~ 'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)';
 
 AUDIT (
-  name aderencia_com_cobertura,
-  dialect postgres
-);
-/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
-   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
-
-AUDIT (
   name citacao_resolvida_com_precedente,
   dialect postgres
 );
