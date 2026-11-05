@@ -33,6 +33,9 @@ export type Coverage = {
   // When the most recent successful load finished, in UTC: the collection's
   // date, not a decision's.
   updated_at: string | null;
+  // When the doctrine vocabulary was last recalculated. It has a monthly
+  // schedule of its own, so being older than `updated_at` is expected.
+  vocabulary_updated_at: string | null;
 };
 
 // What `/indicators/volume-by-court` answers: the search's own cut, counted by
@@ -148,6 +151,7 @@ export function readCoverage(body: unknown): Coverage {
       : [],
     state: state && LOAD_STATES.includes(state) ? (state as LoadState) : null,
     updated_at: text(raw.updated_at),
+    vocabulary_updated_at: text(raw.vocabulary_updated_at),
   };
 }
 

@@ -1905,8 +1905,14 @@ input:focus-visible {
   padding: 1.1rem 1rem 1.1rem 1.1rem;
 }
 
-/* The line between the two rows, inset by the block's own padding. */
-.coverage-summary__field:nth-child(-n + 2) {
+/* The vocabulary has a schedule of its own and belongs under the rest, not
+   beside one of them: it takes the whole last row. */
+.coverage-summary__field:last-child {
+  grid-column: 1 / -1;
+}
+
+/* A line under every row but the last, inset by the block's own padding. */
+.coverage-summary__field:not(:last-child) {
   border-bottom: 1px solid #ece4e1;
 }
 

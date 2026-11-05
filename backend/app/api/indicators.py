@@ -724,6 +724,17 @@ GROUP BY d.tribunal_sigla, t.nome
 ORDER BY COUNT(*) DESC, d.tribunal_sigla
 """
 
+# The doctrine vocabulary is rebuilt on its own monthly schedule, not with
+# every ingestion: its weight is an IDF over the whole collection, which means
+# tokenising every ementa. So its age is not the collection's age, and a reader
+# comparing a suggestion against a decision from last week deserves to know
+# which of the two is older. Asked apart from `COVERAGE_SQL` because an
+# environment can hold decisions before any doctrine has been published to it.
+VOCABULARY_SQL = """
+SELECT MAX(carregado_em) AS recalculado_em
+FROM core.doutrina_termo
+"""
+
 
 class CourtCoverage(BaseModel):
     abbreviation: str = Field(description="The court's abbreviation.", examples=["STJ"])
@@ -776,6 +787,16 @@ class Coverage(BaseModel):
         ),
         examples=["2026-09-25T17:12:44Z"],
     )
+    vocabulary_updated_at: datetime | None = Field(
+        description=(
+            "When the doctrine vocabulary was last recalculated. It runs on a "
+            "monthly schedule of its own rather than with every ingestion, so "
+            "it is normally older than `updated_at`, and that is expected "
+            "rather than a fault. `null` when no doctrine has been published "
+            "to this environment."
+        ),
+        examples=["2026-09-01T03:14:09Z"],
+    )
 
 
 @router.get(
@@ -801,6 +822,8 @@ def read_coverage(
     with connection.cursor() as cursor:
         cursor.execute(COVERAGE_SQL)
         rows = cursor.fetchall()
+        cursor.execute(VOCABULARY_SQL)
+        vocabulary = (cursor.fetchone() or {}).get("recalculado_em")
 
     courts = [
         CourtCoverage(
@@ -824,6 +847,7 @@ def read_coverage(
         courts=courts,
         state=fresh.state,
         updated_at=fresh.updated_at,
+        vocabulary_updated_at=vocabulary,
     )
 
 
