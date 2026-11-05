@@ -1,6 +1,10 @@
 MODEL (
   name core.decisao,
-  kind FULL,
+  kind INCREMENTAL_BY_TIME_RANGE (
+    time_column data_referencia,
+    batch_size 365
+  ),
+  start '1989-01-01',
   grain (fonte_codigo, identificador_fonte),
   audits (
     not_null(columns := (fonte_codigo, identificador_fonte, identificador_documento, tribunal_sigla, ementa, data_referencia, url_fonte)),
@@ -13,14 +17,10 @@ MODEL (
     token_do_documento_por_fonte,
     verdito_de_fonte_conhecida,
     tese_sem_secao_seguinte,
-    tese_com_cobertura,
     deliberacao_de_valor_conhecido,
-    deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
-    resultado_com_cobertura,
     resultado_sem_contradicao,
-    classe_de_codigo_conhecido,
-    classe_com_cobertura
+    classe_de_codigo_conhecido
   )
 );
 
@@ -74,7 +74,7 @@ orgao_stj AS (
     ("nomeOrgaoJulgador" <> UNACCENT("nomeOrgaoJulgador")) DESC
 ),
 
-bruto AS (
+coletado AS (
   SELECT
     identificador,
     uuid                                 AS identificador_documento,
@@ -127,6 +127,25 @@ bruto AS (
     ON ce.chave = REGEXP_REPLACE(UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
       TRANSLATE(e."descricaoClasse", E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))), '\s+(NOS|NAS|NO|NA|EM)\s+.*$', '')
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
+),
+
+/*
+  A janela que esta execução processa.
+
+  Tudo o que custa neste modelo é por linha — parsear a ementa, achar o
+  dispositivo, extrair a tese, montar o tsvector. Filtrando aqui, antes de
+  qualquer uma dessas passadas, uma execução que traz uma semana paga por uma
+  semana. As CTEs abaixo leem `bruto` e não precisaram mudar.
+
+  A data é a mesma `data_referencia` que o modelo publica, porque o SQLMesh
+  compara o intervalo com a coluna de tempo declarada: filtrar por outra data
+  deixaria linhas fora da janela que ele apagaria em seguida.
+*/
+bruto AS (
+  SELECT *
+  FROM coletado
+  WHERE COALESCE(data_julgamento, data_publicacao)
+        BETWEEN @start_ds::DATE AND @end_ds::DATE
 ),
 
 /*

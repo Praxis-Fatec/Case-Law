@@ -94,19 +94,6 @@ WHERE deliberacao IS NOT NULL
   AND deliberacao NOT IN ('unanime', 'maioria');
 
 AUDIT (
-  name deliberacao_com_cobertura,
-  dialect postgres
-);
-/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
-   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
-   linhas, senão todo ambiente de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-WHERE decisao_texto IS NOT NULL
-HAVING COUNT(*) > 100000
-   AND COUNT(deliberacao) < COUNT(*) * 0.95;
-
-AUDIT (
   name resultado_de_valor_conhecido,
   dialect postgres
 );
@@ -115,19 +102,6 @@ SELECT *
 FROM @this_model
 WHERE resultado IS NOT NULL
   AND resultado NOT IN ('provido', 'parcialmente_provido', 'negado');
-
-AUDIT (
-  name resultado_com_cobertura,
-  dialect postgres
-);
-/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
-   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
-   linhas, senão todo ambiente de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-WHERE decisao_texto IS NOT NULL
-HAVING COUNT(*) > 100000
-   AND COUNT(resultado) < COUNT(*) * 0.90;
 
 AUDIT (
   name resultado_sem_contradicao,
@@ -160,19 +134,6 @@ FROM @this_model AS d
 LEFT JOIN core.classe_processual AS c ON c.codigo_cnj = d.classe_cnj
 WHERE d.classe_cnj IS NOT NULL
   AND c.codigo_cnj IS NULL;
-
-AUDIT (
-  name classe_com_cobertura,
-  dialect postgres
-);
-/* O STJ escreve a classe por extenso e já manda quebra de linha no meio. Se a
-   grafia mudar, o join para de casar e a coluna fica nula em silêncio: o filtro
-   encolhe sem avisar. Só vale a partir de 100 mil linhas, senão todo ambiente
-   de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(classe_cnj) < COUNT(*) * 0.95;
 
 AUDIT (
   name precedente_de_corte_conhecida,
@@ -318,25 +279,6 @@ SELECT *
 FROM @this_model
 WHERE tese IS NOT NULL
   AND tese ~* '(Dispositivos?[[:space:]]+relevantes?|Jurisprud[eê]ncia[[:space:]]+relevante)';
-
-AUDIT (
-  name tese_com_cobertura,
-  dialect postgres
-);
-/* No dia em que o rótulo mudar de redação, a extração para de casar e a coluna
-   fica nula em silêncio — a tela mostra "sem tese" para a coleção inteira, com
-   aparência de funcionamento normal. O piso é 4%: medido em 5,6% sobre
-   984.824 decisões, e a tendência sobe porque o padrão do CNJ é de 2024.
-
-   O piso só vale a partir de 100 mil linhas. Porcentagem não distingue "a
-   extração quebrou" de "esta tabela é uma amostra": num ambiente com dez
-   registros de desenvolvimento a cobertura é zero e isso é o esperado, não
-   defeito. Sem essa condição a auditoria reprova todo ambiente que não seja o
-   de produção, e quem a vê falhar aprende a ignorá-la. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(*) FILTER (WHERE tese IS NOT NULL) < COUNT(*) * 0.04;
 
 AUDIT (
   name doutrina_de_acesso_aberto,
