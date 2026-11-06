@@ -7,7 +7,7 @@ takes the collection past 1.6 million.
 This note is the measurement that came before the change and the measurement
 that came after it, with the three decisions in between. Everything here was
 measured on the development machine against the collection as it stood on
-2026-11-05: 991,163 decisions, 876,996 from the TJDFT and 114,167 from the STJ.
+2026-11-05: 991,163 decisions, 876,996 from the STJ and 114,167 from the TJDFT.
 
 ## What it cost, model by model
 
@@ -161,6 +161,57 @@ ending they were written to prevent.
 They are now standalone audits, in `audits/acervo.sql`, reading the published
 table whole. The floor means what it meant, and the rules run every day instead
 of only on a full rebuild.
+
+### The window filter cost six hours before it saved any
+
+The first full rebuild after the conversion ran for **six hours at 100% of a
+core and wrote nothing**. The measurement that justified the change — 199.7 s
+for the whole collection — had been taken by rendering the model's query and
+running it by hand. The plan ran the same query and did not finish.
+
+The cause is that the window filters an **expression**, not a column:
+
+```sql
+COALESCE(TO_DATE(NULLIF("dataDecisao", ''), 'YYYYMMDD'),
+         TO_DATE((REGEXP_MATCH("dataPublicacao", '(\d{2}/\d{2}/\d{4})'))[1], 'DD/MM/YYYY'))
+  BETWEEN @start_ds::DATE AND @end_ds::DATE
+```
+
+Postgres keeps no statistics for an expression, so it falls back to a default
+selectivity. For the whole collection it estimated **4,366 rows where there
+were 876,996** — out by 200x. On that estimate the planner replaced the hash
+join against the STJ's judging bodies with a nested loop whose predicate is
+`o.chave = UPPER(UNACCENT(e."nomeOrgaoJulgador"))`: 8.8 million `UNACCENT`
+calls over 877 thousand rows of text, which is the six hours.
+
+While the model was `FULL` the problem could not arise, because with no date
+filter the estimate came from the table's own statistics. The conversion
+introduced it.
+
+The fix is to declare the expression, in pre-statements on `core.decisao`, so
+`ANALYZE` collects a histogram for it:
+
+```sql
+CREATE STATISTICS IF NOT EXISTS raw_espelho_stj_data_referencia ON (<the expression>) FROM raw.espelho_stj;
+ANALYZE raw.espelho_stj;
+```
+
+The raw tables arrive through dlt with `write_disposition` `merge`, so they are
+not recreated and the statistics object survives each load.
+
+| | before | after |
+|---|---:|---:|
+| nested loops in the plan | 1 | **0** |
+| estimated rows, STJ side | 4,366 | 872,043 (actual 876,996) |
+| the query over the whole window | 6 h, nothing written | **150 s** |
+| the full plan, all 14 models | never finished | **652 s** |
+
+Two things follow from this that are worth keeping. A measurement taken by
+running a query by hand does not predict what the planner will do inside a
+plan, because the statistics it sees are not the same. And a model that reads a
+freshly written table plans against no statistics at all, which is why
+`core.decisao` now runs `ANALYZE` on itself in its post-statements: four models
+read it in the same execution, immediately after it is written.
 
 One audit was added rather than moved. `INCREMENTAL_BY_TIME_RANGE` deletes a
 range before rewriting it, so a decision whose date changes between two runs —
