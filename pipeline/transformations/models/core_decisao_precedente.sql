@@ -1,11 +1,31 @@
 MODEL (
   name core.decisao_precedente,
-  kind FULL,
+  kind INCREMENTAL_BY_TIME_RANGE (
+    time_column data_referencia,
+    -- Sem `batch_size`: todos os intervalos pendentes numa passada só.
+    --
+    -- Com lotes, os índices declarados abaixo são criados no primeiro e
+    -- mantidos pelos outros — e manter um GIN sobre tsvector enquanto 991 mil
+    -- linhas entram em 38 lotes custa mais do que construí-lo uma vez no fim.
+    -- Medido: com `batch_size 365` os lotes iam de 40 s a 124 s e subindo,
+    -- contra 199,7 s para a coleção inteira de uma vez.
+    --
+    -- A reconstrução volta a ser uma passada, como era quando o modelo era
+    -- FULL, e a carga semanal continua pagando só pela semana: o que define o
+    -- trabalho é a janela de datas, não o tamanho do lote.
+    --
+    -- `batch_concurrency 1` fica como guarda para os casos que ainda geram
+    -- vários lotes, como uma restatement de faixa: CREATE INDEX trava a tabela
+    -- inteira mesmo sem criar nada, e dois lotes pedindo índices diferentes da
+    -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
+    batch_concurrency 1
+  ),
+  start '1989-01-01',
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
   audits (
     not_null(columns := (
       fonte_codigo, identificador_fonte, corte, tipo, numero, trecho,
-      aderencia, corte_declarada
+      aderencia, corte_declarada, data_referencia
     )),
     unique_combination_of_columns(
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
@@ -16,8 +36,7 @@ MODEL (
     citacao_com_alcance,
     citacao_com_corte_do_texto,
     aderencia_de_valor_conhecido,
-    aderencia_sem_contradicao,
-    aderencia_com_cobertura
+    aderencia_sem_contradicao
   )
 );
 
@@ -27,9 +46,18 @@ WITH base AS (
   SELECT
     fonte_codigo,
     identificador_fonte,
+    data_referencia,
     UNACCENT(LOWER(REGEXP_REPLACE(ementa, '\s+', ' ', 'g'))) AS texto
   FROM core.decisao
   WHERE ementa ~* 'S[uú]mula|\mtema'
+    AND data_referencia BETWEEN @start_ds::DATE AND @end_ds::DATE
+),
+
+/* A data do acórdão citante, para o modelo poder ser incremental. A citação
+   não tem data própria: ela vale a do acórdão que a escreveu. */
+data_da_decisao AS (
+  SELECT fonte_codigo, identificador_fonte, data_referencia
+  FROM base
 ),
 
 citada AS (
@@ -142,9 +170,12 @@ SELECT
     WHEN r.texto ~ g.referencia  THEN 'mencionou'
     ELSE 'indeterminado'
   END                   AS aderencia,
+  d.data_referencia     AS data_referencia,
   NOW()                 AS carregado_em
 FROM recortada AS r
 CROSS JOIN sinal AS g
+JOIN data_da_decisao AS d
+  ON d.fonte_codigo = r.fonte_codigo AND d.identificador_fonte = r.identificador_fonte
 LEFT JOIN core.precedente AS p
   ON p.corte = r.corte AND p.tipo = r.tipo AND p.numero = r.numero
 LEFT JOIN unica AS u
@@ -153,7 +184,10 @@ LEFT JOIN unica AS u
 ;
 
 JINJA_STATEMENT_BEGIN;
-CREATE UNIQUE INDEX ON {{ this_model }} (fonte_codigo, identificador_fonte, corte, tipo, numero);
-CREATE INDEX ON {{ this_model }} (corte, tipo, numero);
-CREATE INDEX ON {{ this_model }} (resolvida);
+/* Nome derivado da tabela física, pela razão explicada em core_decisao.sql:
+   sem nome, cada lote cria uma cópia nova em vez de reconhecer a existente. */
+{% set tabela = this_model.split('.')[-1] | replace('"', '') %}
+CREATE UNIQUE INDEX IF NOT EXISTS "{{ tabela }}_chave" ON {{ this_model }} (fonte_codigo, identificador_fonte, corte, tipo, numero);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_precedente" ON {{ this_model }} (corte, tipo, numero);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_resolvida" ON {{ this_model }} (resolvida);
 JINJA_END;
