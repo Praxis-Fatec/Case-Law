@@ -3,7 +3,8 @@
 Single source for the definition of the 23 functional and 10 quality
 requirements of the September 2026 solution proposal. The IDs are permanent and
 the titles allow direct links. Acceptance criteria and evidence live in the Jira
-user stories; delivery stages live in the Roadmap.
+user stories; delivery stages live in the Roadmap. Implementation links are
+recorded under each requirement below.
 
 The IDs keep the Portuguese prefixes **RF** (*requisito funcional*) and **RNF**
 (*requisito não funcional*). They are not translated: they are the identifiers
@@ -33,6 +34,25 @@ contribution guide, `CONTRIBUTING.md`.
 
 ---
 
+## Delivery traceability
+
+Reviewed against `dev` at
+[`189c0b7`](https://github.com/Praxis-Fatec/Case-Law/commit/189c0b72ed3281a1049ee29a6d899639c92be7ee)
+on **2026-11-05**. Each requirement below lists its implementation and verification
+deliverables as clickable pull requests. PRs are preferred to individual commits
+because they group the change and expose its constituent commits and diff.
+
+- Only PRs whose merge commits are reachable from this snapshot are listed.
+  Environment-promotion and branch-synchronisation PRs are omitted.
+- A PR can contribute to more than one requirement; each link states its scope.
+- A merged delivery is not a declaration of complete acceptance, successful
+  deployment or passing checks. Acceptance evidence remains in the Jira story.
+- Coverage notes identify partial evidence and limits. “Not identified” means
+  absent from this review, not proof that no work exists on other branches or PRs.
+- Keep these lists updated when a delivery is integrated. Add a direct commit
+  link only when the change has no corresponding PR; do not duplicate every
+  commit already contained in a linked PR.
+
 ## Functional requirements
 
 <a id="rf01"></a>
@@ -48,6 +68,14 @@ error and guidance when there are no results.
 **Verification.** Compare term and exact-phrase searches against known documents
 and check the results.
 
+**Deliverables.**
+
+- [PR #15](https://github.com/Praxis-Fatec/Case-Law/pull/15) — Search endpoint.
+- [PR #20](https://github.com/Praxis-Fatec/Case-Law/pull/20) — Term and exact-phrase search behaviour.
+- [PR #27](https://github.com/Praxis-Fatec/Case-Law/pull/27) — Search screen and response states.
+- [PR #31](https://github.com/Praxis-Fatec/Case-Law/pull/31) — Search contract regression tests.
+- [PR #125](https://github.com/Praxis-Fatec/Case-Law/pull/125) — Optimised frequent single-lexeme searches while preserving the existing search path for other queries.
+
 <a id="rf02"></a>
 
 ### RF02 · Syllabus excerpt and official source
@@ -61,6 +89,17 @@ identified as invalid must state the reason for the unavailability.
 
 **Verification.** Check excerpts, highlights and the opening of the
 corresponding document at the official source.
+
+**Deliverables.**
+
+- [PR #36](https://github.com/Praxis-Fatec/Case-Law/pull/36) — Contextual syllabus snippets and highlights.
+- [PR #37](https://github.com/Praxis-Fatec/Case-Law/pull/37) — Official-document URL construction.
+- [PR #38](https://github.com/Praxis-Fatec/Case-Law/pull/38) — Link validity and unavailability information.
+- [PR #44](https://github.com/Praxis-Fatec/Case-Law/pull/44) — Result cards with metadata, excerpt and source link.
+- [PR #48](https://github.com/Praxis-Fatec/Case-Law/pull/48) — Highlight and link regression tests.
+- [PR #66](https://github.com/Praxis-Fatec/Case-Law/pull/66) — Correct TJDFT document destination.
+- [PR #69](https://github.com/Praxis-Fatec/Case-Law/pull/69) — Source-specific link verification.
+- [PR #110](https://github.com/Praxis-Fatec/Case-Law/pull/110) — Evidence excerpts for classification-based indicator navigation.
 
 <a id="rf03"></a>
 
@@ -77,6 +116,13 @@ the interface.
 **Verification.** Test filters in isolation and combined, the boundaries of the
 interval, and a search with no filters.
 
+**Deliverables.**
+
+- [PR #50](https://github.com/Praxis-Fatec/Case-Law/pull/50) — Court and date parameters in the search endpoint.
+- [PR #56](https://github.com/Praxis-Fatec/Case-Law/pull/56) — Available courts read from the database.
+- [PR #57](https://github.com/Praxis-Fatec/Case-Law/pull/57) — Court/date filter panel and active-filter interactions.
+- [PR #75](https://github.com/Praxis-Fatec/Case-Law/pull/75) — Combined filters and boundary regression tests.
+
 <a id="rf04"></a>
 
 ### RF04 · Decision detail
@@ -90,6 +136,15 @@ search.
 
 **Verification.** Open decisions with long syllabuses and incomplete metadata
 and compare the display with the source data.
+
+**Deliverables.**
+
+- [PR #41](https://github.com/Praxis-Fatec/Case-Law/pull/41) — Decision detail endpoint with the complete syllabus and metadata.
+- [PR #46](https://github.com/Praxis-Fatec/Case-Law/pull/46) — Structured syllabus sections.
+- [PR #58](https://github.com/Praxis-Fatec/Case-Law/pull/58) — Detail reading interface.
+- [PR #64](https://github.com/Praxis-Fatec/Case-Law/pull/64) — Navigation between results and detail.
+- [PR #76](https://github.com/Praxis-Fatec/Case-Law/pull/76) — Detail endpoint regression tests.
+- [PR #110](https://github.com/Praxis-Fatec/Case-Law/pull/110) — The court's thesis and its supporting passage in the detail.
 
 <a id="rf05"></a>
 
@@ -105,6 +160,13 @@ relevance.
 **Verification.** Check the totals per court and their sum against the same
 document query.
 
+**Deliverables.**
+
+- [PR #70](https://github.com/Praxis-Fatec/Case-Law/pull/70) — Volume-by-court endpoint over the searched scope.
+- [PR #82](https://github.com/Praxis-Fatec/Case-Law/pull/82) — Court-volume interface.
+- [PR #83](https://github.com/Praxis-Fatec/Case-Law/pull/83) — Agreement tests between chart counts and search results.
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Open the documents behind each court total.
+
 <a id="rf06"></a>
 
 ### RF06 · Ordering by relevance or date
@@ -119,6 +181,13 @@ tie-break. Search relevance does not represent legal importance.
 **Verification.** Check the order with results of known dates and scores,
 including ties.
 
+**Deliverables.**
+
+- [PR #55](https://github.com/Praxis-Fatec/Case-Law/pull/55) — Relevance/date ordering in the search endpoint.
+- [PR #62](https://github.com/Praxis-Fatec/Case-Law/pull/62) — Ordering selector.
+- [PR #77](https://github.com/Praxis-Fatec/Case-Law/pull/77) — Ordering with filters regression tests.
+- [PR #125](https://github.com/Praxis-Fatec/Case-Law/pull/125) — Stored ranking for eligible broad searches, with equivalence tests.
+
 <a id="rf07"></a>
 
 ### RF07 · Paging of the results
@@ -131,6 +200,13 @@ navigating beyond the first or the last page.
 
 **Verification.** Go through several pages and return, checking position, scope
 and stability of the results.
+
+**Deliverables.**
+
+- [PR #67](https://github.com/Praxis-Fatec/Case-Law/pull/67) — Stable backend pagination.
+- [PR #74](https://github.com/Praxis-Fatec/Case-Law/pull/74) — Results pagination controls.
+- [PR #78](https://github.com/Praxis-Fatec/Case-Law/pull/78) — Preservation of the results position.
+- [PR #79](https://github.com/Praxis-Fatec/Case-Law/pull/79) — Pagination boundary and traversal tests.
 
 <a id="rf08"></a>
 
@@ -145,6 +221,12 @@ partial coverage or unavailable information.
 **Verification.** Compare counts and dates with the available records, including
 an empty base and partial coverage.
 
+**Deliverables.**
+
+- [PR #71](https://github.com/Praxis-Fatec/Case-Law/pull/71) — Coverage endpoint with document, court and date information.
+- [PR #80](https://github.com/Praxis-Fatec/Case-Law/pull/80) — Database coverage interface.
+- [PR #81](https://github.com/Praxis-Fatec/Case-Law/pull/81) — Coverage totals and exclusion of sealed records tests.
+
 <a id="rf09"></a>
 
 ### RF09 · Evolution of the volume over time
@@ -157,6 +239,11 @@ of each interval and treat records without a date explicitly.
 
 **Verification.** Compare each interval with its documents and check the sum of
 the groups considered.
+
+**Deliverables.**
+
+- [PR #105](https://github.com/Praxis-Fatec/Case-Law/pull/105) — Time-series aggregation, chart and tests.
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Navigation from a time interval to its documents.
 
 <a id="rf10"></a>
 
@@ -173,6 +260,11 @@ each category.
 **Verification.** Check classifications, numerators and denominator against a
 sample and against the totals of the scope.
 
+**Deliverables.**
+
+- [PR #101](https://github.com/Praxis-Fatec/Case-Law/pull/101) — Outcome classification, explicit calculation base, unclassified records, API, interface and tests.
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Navigation from an outcome category to its documents.
+
 <a id="rf11"></a>
 
 ### RF11 · Additional legal filters
@@ -187,6 +279,10 @@ total.
 **Verification.** Apply each filter and their combinations and check that every
 document matches the scope.
 
+**Deliverables.**
+
+- [PR #104](https://github.com/Praxis-Fatec/Case-Law/pull/104) — Data-driven judging-body, reporting-judge and procedural-class filters across API, interface and tests.
+
 <a id="rf12"></a>
 
 ### RF12 · Documents behind the indicators
@@ -200,6 +296,11 @@ estimates explicit where they exist.
 **Verification.** Compare the set opened with the rule of calculation and the
 total of the indicator.
 
+**Deliverables.**
+
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Indicator document drawer, scope preservation, return navigation and count-agreement tests.
+- [PR #110](https://github.com/Praxis-Fatec/Case-Law/pull/110) — Supporting excerpts explaining classification-based indicator results.
+
 <a id="rf13"></a>
 
 ### RF13 · Unanimity or majority
@@ -212,6 +313,10 @@ cases, without deducing unanimity from the absence of dissent.
 
 **Verification.** Check examples of unanimity, of majority and of absent
 information against the origin.
+
+**Deliverables.**
+
+- [PR #97](https://github.com/Praxis-Fatec/Case-Law/pull/97) — Deliberation extraction, audits, API fields, interface labels and tests, including missing information.
 
 <a id="rf14"></a>
 
@@ -228,6 +333,13 @@ criteria of the user story.
 **Verification.** Open the file generated and check scope, references, dates and
 the limits stated.
 
+**Deliverables.**
+
+- [PR #112](https://github.com/Praxis-Fatec/Case-Law/pull/112) — PDF export of the scope, filters, references, indicators, download states and tests.
+- [PR #114](https://github.com/Praxis-Fatec/Case-Law/pull/114) — Removal of the configured decision-count limit from PDF exports.
+
+**Coverage note.** PR #114 changes the earlier export limit; the accepted limit and operational constraints must reflect the current implementation.
+
 <a id="rf15"></a>
 
 ### RF15 · Comparison between courts
@@ -242,6 +354,10 @@ the source.
 **Verification.** Check each side against its equivalent search and test courts
 with distinct coverage.
 
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** Court totals (RF05) are not evidence of the complete side-by-side comparison, common scope and source-unavailability behaviour required here.
+
 <a id="rf16"></a>
 
 ### RF16 · Status of the sources and last collection
@@ -254,6 +370,13 @@ unavailable sources and do not replace unknown dates with estimated values.
 
 **Verification.** Compare the interface with the collection records in cases of
 success, of failure and of absence of collection.
+
+**Deliverables.**
+
+- [PR #43](https://github.com/Praxis-Fatec/Case-Law/pull/43) — Last successful load endpoint, with distinct never-loaded and all-loads-failed states.
+- [PR #80](https://github.com/Praxis-Fatec/Case-Law/pull/80) — Coverage interface with dataset update information.
+
+**Coverage note.** Partial: the inspected endpoint reads the environment-wide load record. This does not establish individual source status and last collection for every source.
 
 <a id="rf17"></a>
 
@@ -269,6 +392,10 @@ implementation.
 **Verification.** Save and reopen a search, checking the restoration of the
 expression and of the filters.
 
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** Preserving the current search during navigation is not a persisted saved-search feature with defined ownership and sharing.
+
 <a id="rf18"></a>
 
 ### RF18 · Concentration by judging body and reporting judge
@@ -282,6 +409,10 @@ Other category.
 
 **Verification.** Check groups and totals against the documents of the scope,
 including records without metadata.
+
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** PR #104 provides filters by judging body and reporting judge, not the grouped concentration indicator and its document navigation.
 
 <a id="rf19"></a>
 
@@ -297,6 +428,12 @@ reference as if it had been cited.
 **Verification.** Compare the references shown with the text of the decision and
 check the destinations of the links.
 
+**Deliverables.**
+
+- [PR #109](https://github.com/Praxis-Fatec/Case-Law/pull/109) — Precedent catalogue, extraction of cited precedents, document links, context, interface and tests.
+
+**Coverage note.** Partial: this delivery covers cited precedents. A complete implementation for cited laws and articles was not identified.
+
 <a id="rf20"></a>
 
 ### RF20 · Semantically close decisions
@@ -311,6 +448,10 @@ understanding.
 **Verification.** Validate a sample of relations, their documents and the
 identification of the method used.
 
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** PR #111 links decisions to related legal scholarship. It does not deliver semantically close decisions and is therefore not counted as an implementation of RF20.
+
 <a id="rf21"></a>
 
 ### RF21 · Report of an incorrect classification
@@ -323,6 +464,10 @@ report does not automatically change the classification published.
 
 **Verification.** Send a report and check its record and the preservation of the
 classification until review.
+
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** No report submission, receipt confirmation and review-preserving classification workflow was identified.
 
 <a id="rf22"></a>
 
@@ -338,6 +483,10 @@ difference in volume alone does not prove legal divergence.
 **Verification.** Check the cases identified against the decisions that support
 them and against the rule approved for the comparison.
 
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** Volume or outcome differences alone are not an implementation of legal divergence between panels. No matching comparison workflow was identified.
+
 <a id="rf23"></a>
 
 ### RF23 · Decisions to the contrary
@@ -352,6 +501,10 @@ conclusion.
 
 **Verification.** Validate a sample of results and their justification according
 to the criteria defined in the user story.
+
+**Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
+
+**Coverage note.** Precedent adherence in PR #109 does not establish the contrary-decision retrieval and explanation required here.
 
 ---
 
@@ -373,6 +526,16 @@ the documents and the scope used.
 **Verification.** Walk from a result and from an indicator to the origin and
 check filters and references.
 
+**Deliverables.**
+
+- [PR #37](https://github.com/Praxis-Fatec/Case-Law/pull/37) — Source-based official-document references.
+- [PR #66](https://github.com/Praxis-Fatec/Case-Law/pull/66) — Correct document-level TJDFT links.
+- [PR #69](https://github.com/Praxis-Fatec/Case-Law/pull/69) — Source-aware link verification.
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Traceability from indicators to their underlying documents and scope.
+- [PR #112](https://github.com/Praxis-Fatec/Case-Law/pull/112) — Exported document references and search context.
+
+**Coverage note.** This requirement concerns product-to-source traceability. The requirement catalogue in PRs #123 and #126 supports development traceability, but does not by itself satisfy this requirement.
+
 <a id="rnf02"></a>
 
 ### RNF02 · Security
@@ -386,6 +549,13 @@ execution records.
 **Verification.** Review permissions, exposure of secrets and access to the
 protected operations.
 
+**Deliverables.**
+
+- [PR #117](https://github.com/Praxis-Fatec/Case-Law/pull/117) — Accounts, authentication, access levels and protected operations with tests.
+- [PR #119](https://github.com/Praxis-Fatec/Case-Law/pull/119) — Deployment correction for account administration and separate session secrets per environment.
+
+**Coverage note.** Security-related deliveries; these links are not a comprehensive security assessment or proof that every credential exposure and permission path has been audited.
+
 <a id="rnf03"></a>
 
 ### RNF03 · Privacy
@@ -397,6 +567,16 @@ pre-emptively, for review, records suspected of judicial secrecy.
 
 **Verification.** Test the block and check that restricted content does not
 appear in results, details or exports.
+
+**Deliverables.**
+
+- [PR #11](https://github.com/Praxis-Fatec/Case-Law/pull/11) — Core transformation layer with judicial-secrecy filtering.
+- [PR #30](https://github.com/Praxis-Fatec/Case-Law/pull/30) — Tests of the model's secrecy filter.
+- [PR #32](https://github.com/Praxis-Fatec/Case-Law/pull/32) — Regression for a decision sealed after publication.
+- [PR #76](https://github.com/Praxis-Fatec/Case-Law/pull/76) — Tests preventing direct detail access to sealed decisions.
+- [PR #81](https://github.com/Praxis-Fatec/Case-Law/pull/81) — Tests excluding sealed decisions from coverage totals.
+
+**Coverage note.** Evidence covers secrecy flags and exclusion from the published base. Preventive review of suspected secrecy and a dedicated export privacy verification were not established by this review.
 
 <a id="rnf04"></a>
 
@@ -411,6 +591,12 @@ general numeric limit; specific targets belong to the corresponding user story.
 **Verification.** Run reproducible measurements and compare them with the target
 recorded for the feature.
 
+**Deliverables.**
+
+- [PR #125](https://github.com/Praxis-Fatec/Case-Law/pull/125) — Broad-search diagnosis, stored ranking, equivalence tests and reproducible measurements.
+
+**Coverage note.** The documented improvement applies to eligible unfiltered, single-lexeme searches ordered by relevance within the stored depth. The after-change timings were measured locally using a restored production dataset; they are not a production-wide latency guarantee.
+
 <a id="rnf05"></a>
 
 ### RNF05 · Scalability
@@ -422,6 +608,14 @@ recording the limits of capacity and the resources used.
 
 **Verification.** Run scenarios with growing volumes and record time,
 consumption and the limits found.
+
+**Deliverables.**
+
+- [PR #16](https://github.com/Praxis-Fatec/Case-Law/pull/16) — Windowed, reloadable TJDFT ingestion.
+- [PR #65](https://github.com/Praxis-Fatec/Case-Law/pull/65) — Integration of the STJ as another source.
+- [PR #125](https://github.com/Praxis-Fatec/Case-Law/pull/125) — Recorded dataset size, ranking storage cost and build/query measurements.
+
+**Coverage note.** Supporting work only: a capacity study with progressively growing volumes and measured resource limits was not identified. These PRs do not establish acceptance of RNF05.
 
 <a id="rnf06"></a>
 
@@ -436,6 +630,13 @@ unavailability, keeping accessible the features and the data not affected.
 **Verification.** Simulate the failure of one source and check the continuity of
 the rest of the application.
 
+**Deliverables.**
+
+- [PR #22](https://github.com/Praxis-Fatec/Case-Law/pull/22) — Separate publication of treated data and handling of unavailable database states.
+- [PR #69](https://github.com/Praxis-Fatec/Case-Law/pull/69) — Source-aware link checks that distinguish unavailable sources from invalid documents.
+
+**Coverage note.** Supporting work only: continued access to published data reduces dependence on live portals, but a complete source-failure isolation simulation was not identified.
+
 <a id="rnf07"></a>
 
 ### RNF07 · Data quality
@@ -449,6 +650,19 @@ to the user.
 **Verification.** Apply checks over samples and totals and review the records of
 the problems found.
 
+**Deliverables.**
+
+- [PR #11](https://github.com/Praxis-Fatec/Case-Law/pull/11) — Core data model and initial data audits.
+- [PR #16](https://github.com/Praxis-Fatec/Case-Law/pull/16) — Reloadable ingestion using source identifiers.
+- [PR #38](https://github.com/Praxis-Fatec/Case-Law/pull/38) — Official-link validity checks.
+- [PR #65](https://github.com/Praxis-Fatec/Case-Law/pull/65) — STJ integration and source-specific audits.
+- [PR #97](https://github.com/Praxis-Fatec/Case-Law/pull/97) — Deliberation validity and coverage audits.
+- [PR #101](https://github.com/Praxis-Fatec/Case-Law/pull/101) — Appeal-outcome classification audits.
+- [PR #109](https://github.com/Praxis-Fatec/Case-Law/pull/109) — Precedent extraction and relation audits.
+- [PR #108](https://github.com/Praxis-Fatec/Case-Law/pull/108) — Data dictionary documenting fields and completeness.
+
+**Coverage note.** These deliveries cover specific quality checks. They do not establish that every field, source and collection-freshness rule has been validated.
+
 <a id="rnf08"></a>
 
 ### RNF08 · Observability
@@ -460,6 +674,14 @@ time, the outcome and the error, preserving credentials and restricted content.
 
 **Verification.** Locate a successful execution and a failure in the records and
 follow their diagnosis.
+
+**Deliverables.**
+
+- [PR #16](https://github.com/Praxis-Fatec/Case-Law/pull/16) — Collection-window progress, failure reporting and retry information.
+- [PR #43](https://github.com/Praxis-Fatec/Case-Law/pull/43) — Observable load outcomes and last successful publication information.
+- [PR #112](https://github.com/Praxis-Fatec/Case-Law/pull/112) — PDF-rendering error logging and failed-download handling.
+
+**Coverage note.** Partial: end-to-end correlation, retention and a review of logs for credentials/restricted content were not established by the inspected deliveries.
 
 <a id="rnf09"></a>
 
@@ -474,6 +696,14 @@ alone.
 **Verification.** Check the main flows by keyboard and run checks of labels, of
 contrast and of assistive reading.
 
+**Deliverables.**
+
+- [PR #57](https://github.com/Praxis-Fatec/Case-Law/pull/57) — Labelled filter controls and visible focus styles.
+- [PR #106](https://github.com/Praxis-Fatec/Case-Law/pull/106) — Indicator document navigation with focus handling, labelled controls and textual context.
+- [PR #116](https://github.com/Praxis-Fatec/Case-Law/pull/116) — Motion behaviours respecting reduced-motion preferences.
+
+**Coverage note.** Partial accessibility evidence only. A complete keyboard, contrast and assistive-reading audit was not identified.
+
 <a id="rnf10"></a>
 
 ### RNF10 · Maintainability
@@ -486,6 +716,18 @@ code review.
 
 **Verification.** Run the checks of the project and review the documentation and
 the review of the change.
+
+**Deliverables.**
+
+- [PR #5](https://github.com/Praxis-Fatec/Case-Law/pull/5) — Continuous-integration workflow.
+- [PR #6](https://github.com/Praxis-Fatec/Case-Law/pull/6) — Reproducible development environment.
+- [PR #13](https://github.com/Praxis-Fatec/Case-Law/pull/13) — Code-quality tooling.
+- [PR #18](https://github.com/Praxis-Fatec/Case-Law/pull/18) — PostgreSQL-backed CI test infrastructure.
+- [PR #107](https://github.com/Praxis-Fatec/Case-Law/pull/107) — ETL architecture documentation.
+- [PR #108](https://github.com/Praxis-Fatec/Case-Law/pull/108) — Data dictionary.
+- [PR #125](https://github.com/Praxis-Fatec/Case-Law/pull/125) — Performance regression tests and explanation of the search design.
+
+**Coverage note.** Links identify concrete maintainability work. Merge history alone does not prove that each PR received reviewer approval or that its checks remain green.
 
 ---
 
