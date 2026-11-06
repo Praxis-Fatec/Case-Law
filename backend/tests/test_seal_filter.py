@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import psycopg
@@ -36,7 +37,11 @@ def transformation() -> str:
     removed the real one.
     """
     text = MODEL.read_text(encoding="utf-8")
-    body = text.split("JINJA_STATEMENT_BEGIN", 1)[0]
+    # Every Jinja block goes, not everything after the first one: the model
+    # carries them on both sides of the SELECT now — statistics for the date
+    # window before it, indexes after it — and cutting at the first left the
+    # query empty.
+    body = re.sub(r"JINJA_STATEMENT_BEGIN;.*?JINJA_END;", "", text, flags=re.DOTALL)
     body = body.split("\n);\n", 1)[1]
     for macro, literal in WIDE_OPEN.items():
         body = body.replace(macro, literal)
