@@ -2,7 +2,23 @@ MODEL (
   name core.decisao,
   kind INCREMENTAL_BY_TIME_RANGE (
     time_column data_referencia,
-    batch_size 365
+    -- Sem `batch_size`: todos os intervalos pendentes numa passada só.
+    --
+    -- Com lotes, os índices declarados abaixo são criados no primeiro e
+    -- mantidos pelos outros — e manter um GIN sobre tsvector enquanto 991 mil
+    -- linhas entram em 38 lotes custa mais do que construí-lo uma vez no fim.
+    -- Medido: com `batch_size 365` os lotes iam de 40 s a 124 s e subindo,
+    -- contra 199,7 s para a coleção inteira de uma vez.
+    --
+    -- A reconstrução volta a ser uma passada, como era quando o modelo era
+    -- FULL, e a carga semanal continua pagando só pela semana: o que define o
+    -- trabalho é a janela de datas, não o tamanho do lote.
+    --
+    -- `batch_concurrency 1` fica como guarda para os casos que ainda geram
+    -- vários lotes, como uma restatement de faixa: CREATE INDEX trava a tabela
+    -- inteira mesmo sem criar nada, e dois lotes pedindo índices diferentes da
+    -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
+    batch_concurrency 1
   ),
   start '1989-01-01',
   grain (fonte_codigo, identificador_fonte),
@@ -23,6 +39,37 @@ MODEL (
     classe_de_codigo_conhecido
   )
 );
+
+JINJA_STATEMENT_BEGIN;
+/* A janela de datas filtra uma EXPRESSÃO, não uma coluna, e para expressão o
+   Postgres não tem estatística: ele chuta a seletividade padrão. Medido, para
+   a coleção inteira: estimava 4.366 linhas onde havia 876.996, erro de 200x.
+
+   Com essa estimativa o planner trocava o hash join dos órgãos julgadores do
+   STJ por um nested loop cujo predicado é `o.chave = UPPER(UNACCENT(...))` —
+   8,8 milhões de chamadas de UNACCENT sobre 877 mil linhas de texto. Medido:
+   6 horas a 100% de CPU sem gravar uma única linha, contra 150 s depois.
+
+   Enquanto o modelo era FULL o problema não existia, porque sem filtro de data
+   a estimativa saía da estatística da própria tabela.
+
+   Declarar a expressão faz o ANALYZE coletar histograma para ela. As tabelas
+   raw entram por dlt com write_disposition `merge`, então não são recriadas e
+   o objeto sobrevive às cargas; o IF NOT EXISTS cobre o banco novo. */
+CREATE STATISTICS IF NOT EXISTS raw_acordao_tjdft_data_referencia
+  ON (COALESCE("dataJulgamento"::DATE, "dataPublicacao"::DATE))
+  FROM raw.acordao_tjdft;
+
+CREATE STATISTICS IF NOT EXISTS raw_espelho_stj_data_referencia
+  ON (COALESCE(TO_DATE(NULLIF("dataDecisao", ''), 'YYYYMMDD'),
+               TO_DATE((REGEXP_MATCH("dataPublicacao", '(\d{2}/\d{2}/\d{4})'))[1], 'DD/MM/YYYY')))
+  FROM raw.espelho_stj;
+
+/* Sem isto a estatística declarada acima fica vazia até o próximo autovacuum,
+   e a primeira execução paga o plano ruim. Custa 1,1 s nas duas tabelas. */
+ANALYZE raw.acordao_tjdft;
+ANALYZE raw.espelho_stj;
+JINJA_END;
 
 /*
   Um acórdão, pronto para consulta.
@@ -365,18 +412,38 @@ LEFT JOIN julgamento AS j
 
 JINJA_STATEMENT_BEGIN;
 /*
-  Sem nome fixo de propósito. O SQLMesh cria uma tabela física nova a cada
-  mudança do modelo, e no Postgres o nome do índice é único por SCHEMA, não por
-  tabela: com nome fixo, o IF NOT EXISTS encontrava o índice preso à tabela
-  anterior e pulava a criação, deixando a tabela em uso sem índice nenhum.
-  Sem nome, o Postgres gera um por tabela e a colisão deixa de existir.
+  O nome do índice sai do nome da tabela física, e com IF NOT EXISTS.
+
+  No Postgres o nome do índice é único por SCHEMA, não por tabela. Um nome
+  fixo com IF NOT EXISTS encontrava o índice preso à tabela ANTERIOR e pulava
+  a criação, deixando a tabela em uso sem índice nenhum — por isso estes
+  índices nasceram sem nome, deixando o Postgres gerar um.
+
+  Sem nome deixou de servir quando o modelo passou a ser construído por faixa
+  de data: estes comandos rodam depois de CADA lote, e sem nome o Postgres
+  gera um novo a cada rodada em vez de reconhecer o que já existe. Medido numa
+  tentativa de reconstrução: 32 índices depois de quatro lotes, quatro deles
+  GIN sobre o mesmo tsvector, e os lotes seguintes serializados esperando o
+  ACCESS EXCLUSIVE de cada CREATE INDEX. Trinta e oito lotes dariam 304.
+
+  O nome da tabela física já carrega a versão do modelo
+  (`core__decisao__902209874`), então derivá-lo dele resolve as duas coisas de
+  uma vez: muda quando o modelo muda, e não muda entre os lotes de uma mesma
+  construção. IF NOT EXISTS volta a significar "já criei este".
 */
-CREATE UNIQUE INDEX ON {{ this_model }} (fonte_codigo, identificador_fonte);
-CREATE INDEX ON {{ this_model }} USING gin (ementa_busca);
-CREATE INDEX ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, orgao_julgador);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, relator);
-CREATE INDEX ON {{ this_model }} (processo);
-CREATE INDEX ON {{ this_model }} (classe_cnj);
+{% set tabela = this_model.split('.')[-1] | replace('"', '') %}
+CREATE UNIQUE INDEX IF NOT EXISTS "{{ tabela }}_chave" ON {{ this_model }} (fonte_codigo, identificador_fonte);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_busca" ON {{ this_model }} USING gin (ementa_busca);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_data" ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_data" ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_orgao" ON {{ this_model }} (tribunal_sigla, orgao_julgador);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_relator" ON {{ this_model }} (tribunal_sigla, relator);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_processo" ON {{ this_model }} (processo);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_classe" ON {{ this_model }} (classe_cnj);
+
+/* Tabela recém-escrita não tem estatística até o autovacuum passar, e quatro
+   modelos leem esta aqui logo em seguida, na mesma execução. Sem isto eles
+   planejam contra a estimativa padrão — o mesmo erro que custou 6 horas na
+   leitura das tabelas raw. */
+ANALYZE {{ this_model }};
 JINJA_END;
