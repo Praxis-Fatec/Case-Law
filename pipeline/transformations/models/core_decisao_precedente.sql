@@ -2,7 +2,23 @@ MODEL (
   name core.decisao_precedente,
   kind INCREMENTAL_BY_TIME_RANGE (
     time_column data_referencia,
-    batch_size 365
+    -- Sem `batch_size`: todos os intervalos pendentes numa passada só.
+    --
+    -- Com lotes, os índices declarados abaixo são criados no primeiro e
+    -- mantidos pelos outros — e manter um GIN sobre tsvector enquanto 991 mil
+    -- linhas entram em 38 lotes custa mais do que construí-lo uma vez no fim.
+    -- Medido: com `batch_size 365` os lotes iam de 40 s a 124 s e subindo,
+    -- contra 199,7 s para a coleção inteira de uma vez.
+    --
+    -- A reconstrução volta a ser uma passada, como era quando o modelo era
+    -- FULL, e a carga semanal continua pagando só pela semana: o que define o
+    -- trabalho é a janela de datas, não o tamanho do lote.
+    --
+    -- `batch_concurrency 1` fica como guarda para os casos que ainda geram
+    -- vários lotes, como uma restatement de faixa: CREATE INDEX trava a tabela
+    -- inteira mesmo sem criar nada, e dois lotes pedindo índices diferentes da
+    -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
+    batch_concurrency 1
   ),
   start '1989-01-01',
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
@@ -168,7 +184,10 @@ LEFT JOIN unica AS u
 ;
 
 JINJA_STATEMENT_BEGIN;
-CREATE UNIQUE INDEX ON {{ this_model }} (fonte_codigo, identificador_fonte, corte, tipo, numero);
-CREATE INDEX ON {{ this_model }} (corte, tipo, numero);
-CREATE INDEX ON {{ this_model }} (resolvida);
+/* Nome derivado da tabela física, pela razão explicada em core_decisao.sql:
+   sem nome, cada lote cria uma cópia nova em vez de reconhecer a existente. */
+{% set tabela = this_model.split('.')[-1] | replace('"', '') %}
+CREATE UNIQUE INDEX IF NOT EXISTS "{{ tabela }}_chave" ON {{ this_model }} (fonte_codigo, identificador_fonte, corte, tipo, numero);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_precedente" ON {{ this_model }} (corte, tipo, numero);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_resolvida" ON {{ this_model }} (resolvida);
 JINJA_END;
