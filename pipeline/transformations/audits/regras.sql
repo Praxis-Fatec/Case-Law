@@ -577,3 +577,15 @@ SELECT 1 AS falha
 FROM @this_model
 HAVING (SELECT COUNT(*) FROM core.decisao) > 100000
    AND COUNT(*) < (SELECT COUNT(*) FROM core.decisao) / 10;
+
+AUDIT (
+  name norma_positiva,
+  dialect postgres
+);
+/* Norma zero ou negativa quebraria o cosseno — a primeira por divisão por
+   zero, a segunda invertendo a ordem das sugestões sem erro nenhum. Nenhuma
+   das duas é possível pela fórmula, que soma quadrados: esta regra existe
+   para que, se alguém mudar a fórmula, a mudança apareça aqui e não na tela. */
+SELECT *
+FROM @this_model
+WHERE norma <= 0;

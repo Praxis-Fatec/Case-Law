@@ -22,6 +22,8 @@ TABLES = (
     "decisao",
     "url_compartilhada",
     "termo_frequente",
+    "termo_judicial",
+    "decisao_norma",
     "busca_ampla",
     "precedente",
     "decisao_precedente",
@@ -63,6 +65,14 @@ INDEXES = (
         "(lexema, fonte_codigo, identificador_fonte)"
     ),
     f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_frequente (lexema)",
+    # O vocabulário é lido por termo, uma vez por termo da decisão aberta;
+    # a norma, uma vez por candidato. Sem estes dois a sugestão de decisões
+    # próximas varre as duas tabelas inteiras a cada leitura.
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_judicial (termo)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_norma "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The copy is a plain SELECT, so no index comes with it. These mirror what
     # the models declare: without them the detail screen reads 28 thousand
     # suggestions sequentially on every decision opened.
