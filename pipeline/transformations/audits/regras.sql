@@ -548,3 +548,32 @@ JOIN core.decisao AS d
  AND d.identificador_fonte = b.identificador_fonte
 WHERE b.posicao = 1
   AND b.rank IS DISTINCT FROM TS_RANK(d.ementa_busca, QUOTE_LITERAL(b.lexema)::TSQUERY)::REAL;
+
+AUDIT (
+  name termo_judicial_acima_do_piso,
+  dialect postgres
+);
+/* Os mesmos dois cortes do vocabulário da doutrina, pelas mesmas razões: peso
+   abaixo de 2,0 é palavra que aparece em mais de 134.133 decisões e não
+   distingue uma da outra; radical de três letras é acidente do radicalizador,
+   e `via` ligaria "via adequada" a "terceira via". */
+SELECT *
+FROM @this_model
+WHERE peso < 2.0
+   OR LENGTH(termo) < 4;
+
+AUDIT (
+  name termo_judicial_com_cobertura,
+  dialect postgres
+);
+/* Esta tabela nasce de `ementa_busca`. Se a construção daquele tsvector
+   quebrar, ela encolhe em silêncio e a tela deixa de sugerir decisões
+   próximas, com cara de acervo sem nada parecido. Medido em 11/11/2026:
+   540.103 termos para 991.163 decisões. O piso é de um décimo de termo por
+   decisão — longe do medido, porque o que ele precisa pegar é o colapso, não
+   a variação — e só vale a partir de 100 mil decisões, para não reprovar um
+   ambiente de desenvolvimento com uma amostra. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING (SELECT COUNT(*) FROM core.decisao) > 100000
+   AND COUNT(*) < (SELECT COUNT(*) FROM core.decisao) / 10;
