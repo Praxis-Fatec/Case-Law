@@ -12,6 +12,7 @@ from app.api import (
     filters,
     health,
     indicators,
+    related,
     session,
     thesis,
     users,
@@ -96,3 +97,4 @@ app.include_router(doctrine.router)
 app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)
+app.include_router(related.router)
