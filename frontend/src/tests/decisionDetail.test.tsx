@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Decision } from '../api/decisions';
@@ -96,7 +97,11 @@ const byIdentifier =
 
 function renderDetail(decision: Decision) {
   installApi(() => json(decision));
-  render(<DecisionDetail id="detail" source={decision.source} identifier={decision.identifier} />);
+  render(
+    <MemoryRouter>
+      <DecisionDetail id="detail" source={decision.source} identifier={decision.identifier} />
+    </MemoryRouter>,
+  );
   return screen.findByRole('heading', { level: 2 });
 }
 
@@ -133,7 +138,11 @@ describe('the metadata', () => {
 
   it('asks the endpoint by collection and identifier, not by case number', async () => {
     const api = installApi(() => json(STRUCTURED));
-    render(<DecisionDetail id="d" source="tjdft-jurisdf" identifier="2119440" />);
+    render(
+      <MemoryRouter>
+        <DecisionDetail id="d" source="tjdft-jurisdf" identifier="2119440" />
+      </MemoryRouter>,
+    );
 
     await screen.findByRole('heading', { level: 2 });
     expect(api.details()[0].pathname).toBe('/decisions/tjdft-jurisdf/2119440');
@@ -255,7 +264,11 @@ describe('the panel states', () => {
   it('says it is loading, with nothing from any decision yet', async () => {
     const pending = deferred<Response>();
     installApi(() => pending.promise);
-    render(<DecisionDetail id="d" source="s" identifier="1" />);
+    render(
+      <MemoryRouter>
+        <DecisionDetail id="d" source="s" identifier="1" />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByRole('status')).toHaveTextContent('Carregando decisão');
     expect(screen.queryByRole('term')).toBeNull();
@@ -266,7 +279,11 @@ describe('the panel states', () => {
 
   it('says a missing decision was not found', async () => {
     installApi(() => json({ detail: 'Decision not found.' }, 404));
-    render(<DecisionDetail id="d" source="s" identifier="0" />);
+    render(
+      <MemoryRouter>
+        <DecisionDetail id="d" source="s" identifier="0" />
+      </MemoryRouter>,
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Decisão não encontrada');
     expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
@@ -276,7 +293,11 @@ describe('the panel states', () => {
     let calls = 0;
     installApi(() => (++calls === 1 ? json({ detail: 'down' }, 503) : json(STRUCTURED)));
     const user = userEvent.setup();
-    render(<DecisionDetail id="d" source="s" identifier="1" />);
+    render(
+      <MemoryRouter>
+        <DecisionDetail id="d" source="s" identifier="1" />
+      </MemoryRouter>,
+    );
 
     await user.click(await screen.findByRole('button', { name: 'Tentar novamente' }));
 

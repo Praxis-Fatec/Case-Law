@@ -1,29 +1,14 @@
 import type { Suggestion } from '../api/doctrine';
+import { carries, strip, WORDS } from './stems';
 
 /**
  * Turning a match into something a reader can judge.
  *
  * The API answers stems, because stems are what actually matched and the
  * record of that belongs in the data. `litiganc` on a screen means nothing;
- * "Litigância de má-fé" means everything. The translation back is presentation
- * work, and it lives here.
+ * "Litigância de má-fé" means everything. Which word a stem came from is
+ * `stems.ts`; which of a work's words to show is here.
  */
-
-const strip = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-const WORDS = /[^\p{L}\p{N}-]+/u;
-
-function words(value: string): string[] {
-  return strip(value).split(WORDS).filter(Boolean);
-}
-
-// The stemmer truncates, so a stem is a prefix of the word it came from once
-// the accents are gone: `litiganc` of *litigância*, `constituica` of
-// *constituição*, `ma-f` of *má-fé*.
-function carries(text: string, stems: string[]): boolean {
-  const parts = words(text);
-  return stems.some((stem) => parts.some((word) => word.startsWith(stem)));
-}
 
 export type CommonGround =
   { kind: 'subjects'; items: string[] } | { kind: 'words'; items: string[] } | { kind: 'none' };

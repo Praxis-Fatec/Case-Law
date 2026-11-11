@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowSquareOut, WarningCircle } from '@phosphor-icons/react'
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
 import { readCitedPrecedents } from '../api/precedents';
 import CitedPrecedents from './CitedPrecedents';
+import RelatedDecisions from './RelatedDecisions';
 import RelatedDoctrine from './RelatedDoctrine';
 import {
   DELIBERATION_LABELS,
@@ -209,8 +210,20 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         headingId={`${titleId}-precedentes`}
       />
 
-      {/* Last of the three, because it is the furthest from the decision:
-          what it settled, what it cited, and what other people wrote. */}
+      {/* Right after the precedents, which is where the distinction `RF20`
+          asks for becomes visible: above are the relations the court itself
+          made, here the ones this tool computed. */}
+      <RelatedDecisions
+        key={`proximas:${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        ementa={decision.summary}
+        headingId={`${titleId}-proximas`}
+      />
+
+      {/* Last of the four, because it is the furthest from the decision: what
+          it settled, what it cited, what reads like it, and what other people
+          wrote. */}
       <RelatedDoctrine
         key={`${decision.source}:${decision.identifier}`}
         source={decision.source}

@@ -3896,6 +3896,111 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
+/* Decisions this tool found to be about the same subject. Computed, not
+   official — the cards deliberately do not borrow the precedent card's left
+   rule, which on this screen means "the court said so". */
+.neighbours {
+  margin-top: 28px;
+}
+
+.neighbours__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* The method is the one word of this line `RF20` requires to be there. */
+.neighbours__lead strong {
+  color: var(--search-text);
+  font-weight: 600;
+}
+
+.neighbours__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.neighbours__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.neighbours__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.neighbour {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.neighbour:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.neighbour__case {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.neighbour__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.neighbour__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.neighbour__link:hover,
+.neighbour__link:focus-visible {
+  text-decoration: underline;
+}
+
+.neighbour__byline {
+  margin: 4px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Why it is here. Without this the reader has to open every suggestion to
+   find out whether it has anything to do with theirs. */
+.neighbour__ground {
+  margin: 7px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.neighbour__ground-label {
+  color: var(--search-muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 @media (max-width: 640px) {
   .denominators__item {
     flex-basis: 100%;
@@ -4624,6 +4729,7 @@ input:focus-visible {
   .coverage-summary[aria-busy='false'] .coverage-summary__total,
   .court-coverage[aria-busy='false'] tbody,
   .doctrine__list,
+  .neighbours__list,
   .decision-result-card__thesis[open] > :not(summary) {
     animation: panel-reveal 180ms ease-out both;
   }
@@ -4631,6 +4737,7 @@ input:focus-visible {
   .search-state--error,
   .search-state--empty,
   .doctrine__state--failed,
+  .neighbours__state--failed,
   .date-group__error,
   .filters-pending,
   .export-action > :is([role='status'], [role='alert']) {
