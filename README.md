@@ -1,4 +1,4 @@
-# 5th Semester API - Database
+﻿# 5th Semester API - Database
 
 <h2 align="center">Praxis | Case Law</h2>
 
@@ -109,13 +109,13 @@ The profiles represent who receives value from the feature. They do not indicate
 | 12 | Medium | As a legal analyst, I want to open the list of documents that make up each indicator, to verify the number at the source. | 5 | 2 |
 | 13 | Medium | As a lawyer, I want to know if the decision was unanimous or by majority, to evaluate the degree of consensus on the topic. | 3 | 2 |
 | 14 | Medium | As a legal analyst, I want to export the scope with the applied filters and references, to use it in a report. | 5 | 2 |
-| 15 | Medium | As a legal manager, I want to compare courts side-by-side, to identify differences in rulings on the same topic. |  | 3 |
-| 16 | Medium | As a magistrate, I want to see the status of each source and the date of the last collection, to evaluate the scope's reliability. |  | 3 |
-| 17 | Medium | As a legal analyst, I want to save a search, to resume the investigation without reapplying filters. |  | 3 |
-| 18 | Medium | As a legal manager, I want to see the concentration by judging body and rapporteur, to understand where and by whom the topic is decided. |  | 3 |
-| 19 | Low | As a lawyer, I want to see the laws, articles, and precedents cited in the decision, to access its legal foundation. |  | 3 |
-| 20 | Low | As a lawyer, I want to see decisions semantically close to the one I am reading, to expand the search. |  | 3 |
-| 21 | Low | As a legal analyst, I want to report an incorrect classification, to contribute to the database's quality. |  | 3 |
+| 15 | Medium | As a legal manager, I want to compare courts side-by-side, to identify differences in rulings on the same topic. | 8 | 3 |
+| 16 | Medium | As a magistrate, I want to see the status of each source and the date of the last collection, to evaluate the scope's reliability. | 5 | 3 |
+| 17 | Medium | As a legal analyst, I want to save a search, to resume the investigation without reapplying filters. | 5 | 3 |
+| 18 | Medium | As a legal manager, I want to see the concentration by judging body and rapporteur, to understand where and by whom the topic is decided. | 5 | 3 |
+| 19 | Low | As a lawyer, I want to see the laws, articles, and precedents cited in the decision, to access its legal foundation. | 8 | 3 |
+| 20 | Low | As a lawyer, I want to see decisions semantically close to the one I am reading, to expand the search. | 13 | 3 |
+| 21 | Low | As a legal analyst, I want to report an incorrect classification, to contribute to the database's quality. | 3 | 3 |
 | 22 | Low | As a lawyer, I want to identify divergences between panels of the same court, to evaluate how distribution might influence a judgment. |  | TBD |
 | 23 | Low | As a lawyer, I want to locate decisions contrary to the one I am reading, to anticipate the opposing party's arguments. |  | TBD |
 
@@ -130,6 +130,9 @@ The profiles represent who receives value from the feature. They do not indicate
   <a href="documentation/sprints/sprint-2/sprint-2-backlog.md">
     <img src="https://img.shields.io/badge/Backlog%20Sprint%202-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 2" />
   </a>
+  <a href="documentation/sprints/sprint-3/sprint-3-backlog.md">
+    <img src="https://img.shields.io/badge/Backlog%20Sprint%203-5B2C2B?style=for-the-badge&logo=github&logoColor=white" alt="Backlog da Sprint 3" />
+  </a>
 </p>
 
 ## Sprint Schedule <a id="sprints"></a>
@@ -138,7 +141,7 @@ The profiles represent who receives value from the feature. They do not indicate
 |---|---|---|---|---|
 | **1** | 07/09/2026 – 27/09/2026 | Search decisions across courts, read them and check the reach of the base | [Backlog](documentation/sprints/sprint-1/sprint-1-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://www.youtube.com/watch?v=82bR--xO6Fs) |
 | **2** | 05/10/2026 – 25/10/2026 | Analyze the filtered scope through indicators, verify the underlying decisions and export the results with references | [Backlog](documentation/sprints/sprint-2/sprint-2-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | [Watch](https://youtu.be/WZ8Nv93Ph0s) |
-| **3** | to be defined | — | — | — |
+| **3** | to be defined | Compare courts and concentration within the scope, assess source status and resume searches | [Backlog](documentation/sprints/sprint-3/sprint-3-backlog.md) · [DoR and DoD](documentation/sprints/Artefatos.md) | — |
 
 ---
 
