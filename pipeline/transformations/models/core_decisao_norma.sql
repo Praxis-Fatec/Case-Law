@@ -29,9 +29,9 @@ MODEL (
 
   Era isso, e só isso, que tornava a consulta cara. Com a norma calculada na
   hora, o pior caso media 1.027 ms; com ela aqui, 411 ms. O caso típico caiu
-  de 282 ms para 131 ms. A tabela custa 95 MB e 13 s de construção, e poupa
-  ler o vetor de cada um dos candidatos — que são 703 por decisão, na mediana
-  da amostra medida.
+  de 282 ms para 131 ms. A tabela custa 71 MB de dados e 66 MB de índice, e
+  poupa ler o vetor de cada um dos candidatos — que são 703 por decisão, na
+  mediana da amostra medida.
 
   Por faixa de data, e não mensal como o vocabulário de que depende. Uma
   decisão sem norma não aparece como sugestão, então uma tabela mensal
