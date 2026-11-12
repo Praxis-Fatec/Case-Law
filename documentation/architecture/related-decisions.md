@@ -150,28 +150,58 @@ averages away. A legal-domain model is a different experiment; this was not it.
 
 ## Making it affordable
 
-The method above is a product over two sparse vectors. Written naïvely it is
-also unusable.
+The method above is a product over two sparse vectors, and the expensive half
+is the candidate's: scoring one means reading its whole vector.
 
-**The rarity floor does the retrieval, not only the filtering.** `doctrine-
-matching.md` uses `forte >= 4,5` to discard a match after the fact. Using the
-same number to choose *which terms to search on* bounds the candidate set by
-construction: a term that rare sits in at most eleven thousand decisions.
+Measured against the collection with the indexes `publish.py` creates, asking
+for five suggestions, over **40 decisions drawn at random** — 15 for the two
+comparisons, which are slow enough to measure on fewer:
 
-| Searching on | Typical | Worst measured |
-|---|---:|---:|
-| the twelve rarest terms, whatever their weight | 282 ms | 10,3 – 12,3 s |
-| the twelve rarest terms **above 4,5** | 131 ms | 411 ms |
+| Query | Median | p90 | Worst |
+|---|---:|---:|---:|
+| **what is shipped** | **674 ms** | **1.973 ms** | **4.684 ms** |
+| without the precomputed norm | 4.763 ms | 13.978 ms | 23.369 ms |
+| without the rarity floor on retrieval | 1.420 ms | 3.675 ms | 10.076 ms |
 
-The worst case before the floor is a decision whose twelfth-rarest term still
-sits in 130.000 decisions. What the floor costs is **1,7% of the collection**,
-which has no term that rare and so receives nothing, and **0,002 of
-precision@10**.
+Both decisions earn their place, and the norm earns more than the floor. The
+cosine divides by the length of both vectors, and the candidate's length is a
+second pass over the vector that was just read — which is why
+`core.decisao_norma` exists.
 
-**The norms are computed once.** The cosine divides by the length of both
-vectors, and the candidate's length requires reading its whole vector — 703
-candidates per decision at the median of the sample. Precomputing it took the
-worst case from 1.027 ms to 411 ms and the typical case from 282 ms to 131 ms.
+**The floor does the retrieval, not only the filtering.** `doctrine-matching.md`
+uses `forte >= 4,5` to discard a match after the fact; the same number deciding
+*which terms to search on* is what keeps the candidate set from being most of
+the collection.
+
+**It bounds the work per term, not per query.** A term at that weight sits in at
+most 11.011 decisions, but up to twelve of them are searched with `OR`. For the
+slowest decision in the sample that is **72.811 candidates**, of which 41.262
+share two terms or more — and that is the p90 and the worst case above, not an
+outlier of the measurement.
+
+What the floor costs is **16.370 decisions — 1,65% of the base** — which carry
+no term that rare and so receive nothing, and **0,002 of precision@10** over
+the 3.000-decision sample.
+
+**A candidate budget cuts the body of the distribution and not the tail.**
+Taking the terms rarest-first until their document frequencies add up to a
+budget, instead of twelve regardless of how many decisions they reach:
+
+| Budget | Median | p90 | Worst | Suggestions kept |
+|---|---:|---:|---:|---|
+| 20.000 | 636 ms | 1.078 ms | 4.334 ms | 196 of 200; 2 of 40 lists changed |
+| 10.000 | 435 ms | 717 ms | 3.024 ms | 187 of 200; 6 of 40 lists changed |
+
+Measured and **not done**: it changes which terms are searched, so it belongs
+to a story with a target of its own, and `RNF04` leaves that target to the
+story rather than fixing a number for the whole product.
+
+**Two explanations of the cost were tested and are wrong**, recorded so they
+are not tried again. The ordered `ARRAY_AGG` that builds the matched-term list
+is not the cost — removing the ordering moves the median from 685 ms to
+659 ms — and neither is aggregating every shared term instead of only the rare
+ones, at 690 ms. The cost is unnesting each candidate's vector, and only a
+stored inverted index avoids that.
 
 **Enrichment, never the critical path.** The decision detail endpoint does not
 call this one; the screen asks for it separately, and a failure becomes a line

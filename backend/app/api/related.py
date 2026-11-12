@@ -58,14 +58,19 @@ SELECT TO_REGCLASS('core.termo_judicial') IS NOT NULL AS vocabulario,
 # `doctrine-matching.md` arrived at by reading thirty suggestions one by one —
 # a match needs at least one term that is rare in judicial prose — and using it
 # to retrieve, rather than only to filter afterwards, is what makes the query
-# affordable: a term at this weight sits in at most eleven thousand decisions,
-# which bounds the candidate set by construction.
+# affordable: without it the candidate set is most of the collection.
 #
-# Measured: searching on the twelve rarest terms regardless of weight took
-# 10,3 to 12,3 seconds for a decision whose twelfth term sits in 130 thousand
-# decisions. With the floor, the same decisions answer in 21 to 411 ms. It
-# costs 1,7% of the collection, which has no term this rare and so receives
-# nothing, and 0,002 of precision at ten.
+# It bounds the work per term and not per query. A term at this weight sits in
+# at most 11.011 decisions, and up to twelve of them are searched with `OR`.
+# Measured over 40 decisions drawn at random, asking for five: 674 ms at the
+# median, 1,97 s at the ninetieth percentile, 4,68 s for the worst — whose
+# candidate set is 72.811 decisions. Without the floor the same sample gives
+# 1,42 s, 3,68 s and 10,08 s.
+#
+# The floor costs 16.370 decisions — 1,65% of the base — which carry no term
+# this rare and so receive nothing, and 0,002 of precision at ten.
+# `related-decisions.md` holds the rest, including the candidate budget that
+# would halve the ninetieth percentile and was measured but not adopted.
 RARITY_FLOOR = 4.5
 SEARCH_TERMS = 12
 

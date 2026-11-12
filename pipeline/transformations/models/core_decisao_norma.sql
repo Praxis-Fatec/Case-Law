@@ -27,11 +27,11 @@ MODEL (
   0,529. O cosseno vale os 0,044 — mas ele divide pelo comprimento dos dois
   vetores, e o do candidato só sai lendo o vetor inteiro dele.
 
-  Era isso, e só isso, que tornava a consulta cara. Com a norma calculada na
-  hora, o pior caso media 1.027 ms; com ela aqui, 411 ms. O caso típico caiu
-  de 282 ms para 131 ms. A tabela custa 71 MB de dados e 66 MB de índice, e
-  poupa ler o vetor de cada um dos candidatos — que são 703 por decisão, na
-  mediana da amostra medida.
+  É isso que torna a consulta cara, e esta tabela é o que paga. Medido em 15
+  decisões sorteadas, pedindo cinco sugestões: com a norma pronta, 706 ms de
+  mediana e 4,6 s no pior caso; calculada na hora, 4,8 s de mediana e 23,4 s
+  no pior. A tabela custa 71 MB de dados e 66 MB de índice, e poupa ler o
+  vetor de cada candidato — que chegam a 72.811 numa decisão do sorteio.
 
   Por faixa de data, e não mensal como o vocabulário de que depende. Uma
   decisão sem norma não aparece como sugestão, então uma tabela mensal
