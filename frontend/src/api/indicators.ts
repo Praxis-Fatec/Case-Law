@@ -38,6 +38,103 @@ export type Coverage = {
   vocabulary_updated_at: string | null;
 };
 
+// What `/indicators/sources` answers: one entry per source in the catalogue,
+// whatever it has delivered. Asked apart from the coverage so the two fail
+// apart — an environment serving an older publication can still report its
+// scope while this list cannot be read.
+export type SourcePrecision = 'dia' | 'ano' | 'nenhuma';
+
+export type SourceAvailability = 'ativa' | 'bloqueada';
+
+export type SourceStatus = {
+  code: string;
+  name: string | null;
+  // `decisao`, `precedente` or `doutrina`. The period counts items of this
+  // kind, so the two are read together.
+  content: string | null;
+  // Whether collection is possible at all. `bloqueada` is the source's
+  // decision, not a fault of ours, and it keeps what it already delivered.
+  availability: SourceAvailability | null;
+  state: LoadState | null;
+  // When the last collection that finished for this source finished, in UTC.
+  // Never borrowed from another source or from an attempt that failed.
+  last_collection: string | null;
+  // The most recent attempt, whatever its outcome. Later than
+  // `last_collection` when that attempt failed.
+  last_attempt: string | null;
+  last_attempt_failed: boolean;
+  items: number | null;
+  // How many of them carry no date. The period is computed over the dated
+  // ones, so a collection half undated would otherwise look complete.
+  undated_items: number | null;
+  first: string | null;
+  last: string | null;
+  // The granularity the source's own data supports. `ano` means the day in
+  // `first` and `last` is padding and must not be shown.
+  precision: SourcePrecision | null;
+};
+
+const PRECISIONS: readonly string[] = ['dia', 'ano', 'nenhuma'];
+
+const AVAILABILITIES: readonly string[] = ['ativa', 'bloqueada'];
+
+function readSource(value: unknown): SourceStatus | null {
+  const source = (value ?? {}) as Record<string, unknown>;
+  const code = text(source.code);
+
+  // An entry with no source to name is no entry at all.
+  if (!code) {
+    return null;
+  }
+
+  const state = text(source.state);
+  const availability = text(source.availability);
+  const precision = text(source.precision);
+
+  return {
+    code,
+    name: text(source.name),
+    content: text(source.content),
+    availability:
+      availability && AVAILABILITIES.includes(availability)
+        ? (availability as SourceAvailability)
+        : null,
+    state: state && LOAD_STATES.includes(state) ? (state as LoadState) : null,
+    last_collection: text(source.last_collection),
+    last_attempt: text(source.last_attempt),
+    last_attempt_failed: source.last_attempt_failed === true,
+    items: count(source.items),
+    undated_items: count(source.undated_items),
+    first: text(source.first),
+    last: text(source.last),
+    precision: precision && PRECISIONS.includes(precision) ? (precision as SourcePrecision) : null,
+  };
+}
+
+export function readSources(body: unknown): SourceStatus[] {
+  return Array.isArray(body)
+    ? body.map(readSource).filter((source): source is SourceStatus => source !== null)
+    : [];
+}
+
+export async function getSources(options: { signal?: AbortSignal } = {}): Promise<SourceStatus[]> {
+  assertApiConfiguration();
+
+  const url = new URL(`${apiBaseUrl}/indicators/sources`, window.location.origin);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: apiHeaders(),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new IndicatorRequestError('Sources', response.status);
+  }
+
+  return readSources(await response.json());
+}
+
 // What `/indicators/volume-by-court` answers: the search's own cut, counted by
 // court. It takes the search's expression and filters, never its order or
 // page, and narrows through the same builder, so the total is the list's.
