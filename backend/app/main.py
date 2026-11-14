@@ -12,6 +12,7 @@ from app.api import (
     filters,
     health,
     indicators,
+    legislation,
     session,
     thesis,
     users,
@@ -34,6 +35,13 @@ TAGS = [
         "description": (
             "Legal scholarship that treats what a decision settled. "
             "Enrichment: a decision opens whether this answers or not."
+        ),
+    },
+    {
+        "name": "legislation",
+        "description": (
+            "The laws and articles a decision applied, parsed from the fixed "
+            "format the court publishes them in."
         ),
     },
     {
@@ -93,6 +101,7 @@ app.include_router(filters.router)
 app.include_router(indicators.router)
 app.include_router(exports.router)
 app.include_router(doctrine.router)
+app.include_router(legislation.router)
 app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)
