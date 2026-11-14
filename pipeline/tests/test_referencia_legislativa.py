@@ -170,3 +170,76 @@ def test_paragrafo_unico_e_lido_sem_acento_tambem(
 ) -> None:
     """`ÚNICO` 29.666 vezes e `UNICO` 8.042: a mesma coisa, escrita de dois jeitos."""
     assert referencias[("stj-002", 1, 1)]["paragrafos"] == ["único"]
+
+
+LIMITE = "referencia_reconhecida_no_limite"
+
+
+def _auditoria(contexto: Context, nome: str) -> str:
+    """The rule as the project declares it, not a copy of it written here."""
+    return contexto.standalone_audits[nome].query.sql(dialect="postgres")
+
+
+@pytest.fixture
+def taxa(acervo: psycopg.Connection, contexto: Context) -> Any:
+    """
+    A table of a size the rule actually looks at, whose rate the test sets.
+
+    The fixture collection has eight references, and a rule about a proportion
+    says nothing about eight rows — which is why the rule itself carries a
+    floor of a hundred thousand. Proving it needs a table above that floor, so
+    this builds one and each test below chooses how much of it the parser
+    failed to read.
+    """
+    acervo.execute("DROP TABLE IF EXISTS core.referencia_legislativa")
+    acervo.execute(
+        "CREATE TABLE core.referencia_legislativa AS"
+        " SELECT i AS ordem, TRUE AS reconhecida"
+        " FROM GENERATE_SERIES(1, 150000) AS i"
+    )
+
+    def estragar(uma_em: int) -> list[tuple[Any, ...]]:
+        acervo.execute("UPDATE core.referencia_legislativa SET reconhecida = TRUE")
+        if uma_em:
+            acervo.execute(
+                "UPDATE core.referencia_legislativa SET reconhecida = FALSE"
+                f" WHERE ordem % {uma_em} = 0"
+            )
+        return acervo.execute(_auditoria(contexto, LIMITE)).fetchall()
+
+    return estragar
+
+
+def test_o_limite_passa_na_taxa_medida_hoje(taxa: Any) -> None:
+    """0,606% — uma em 165 — que é o que a coleção real traz."""
+    assert taxa(165) == []
+
+
+def test_o_limite_reprova_acima_de_um_por_cento(taxa: Any) -> None:
+    """
+    A prova de que a regra morde: 2% das linhas sem esfera ou sem tipo de ato, o
+    que é o que se veria se o tribunal parasse de escrever o código do ato.
+    """
+    assert taxa(50) != []
+
+
+def test_o_limite_nao_reprova_por_arredondamento(taxa: Any) -> None:
+    """Uma em 101 é 0,99%: abaixo do limite, e tem que continuar passando."""
+    assert taxa(101) == []
+
+
+def test_o_limite_ignora_tabela_de_amostra(
+    acervo: psycopg.Connection, contexto: Context
+) -> None:
+    """
+    Abaixo de cem mil linhas a regra não opina. Sem esse piso, todo ambiente de
+    amostra reprovaria a carga por uma proporção que não mede nada.
+    """
+    acervo.execute("DROP TABLE IF EXISTS core.referencia_legislativa")
+    acervo.execute(
+        "CREATE TABLE core.referencia_legislativa AS"
+        " SELECT i AS ordem, FALSE AS reconhecida"
+        " FROM GENERATE_SERIES(1, 50000) AS i"
+    )
+
+    assert acervo.execute(_auditoria(contexto, LIMITE)).fetchall() == []

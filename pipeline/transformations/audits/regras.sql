@@ -306,6 +306,35 @@ FROM @this_model
 WHERE texto_bruto ~ '[A-Z]ART:';
 
 AUDIT (
+  name referencia_reconhecida_no_limite,
+  standalone true,
+  dialect postgres
+);
+/* O limite da história: acima de 1% de referências não reconhecidas, a carga
+   reprova. Medido em 0,6074% sobre 1.591.067 linhas em 14/11/2026, com as
+   contas em documentation/architecture/legislative-references.md.
+
+   1% dá 65% de folga sobre hoje — nenhuma semana de coleta nova derruba a regra
+   por volume — e é apertado o bastante para não esconder mudança de formato no
+   tribunal: as famílias que desviam hoje têm de 267 a 3.823 linhas, e perder o
+   código de ato de verdade moveria a taxa em pontos inteiros de uma vez.
+
+   `standalone` porque a taxa não é uniforme no tempo: 2003 fecha em 7,2329% e
+   2002 em 5,4594%, contra 0,02% nos anos recentes. Presa ao modelo, a regra
+   leria só a janela recém-escrita e reprovaria uma reconstrução de 2003 por
+   algo que já está medido e documentado. Fora dele lê a tabela inteira, que é
+   onde 1% quer dizer alguma coisa.
+
+   A taxa, e não a contagem: a coleção cresce toda semana, e um teto em número
+   de linhas teria que ser levantado à mão a cada carga — que é como uma guarda
+   deixa de guardar. O piso de cem mil linhas é para o ambiente de amostra, onde
+   proporção nenhuma significa nada. */
+SELECT 1 AS falha
+FROM core.referencia_legislativa
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE NOT reconhecida) > COUNT(*) * 0.01;
+
+AUDIT (
   name tese_sem_secao_seguinte,
   dialect postgres
 );
