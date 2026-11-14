@@ -5,6 +5,7 @@ from typing import Any
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import sql
 from psycopg.rows import DictRow
 
 from tests.conftest import needs_database
@@ -206,3 +207,173 @@ def test_filters_match_each_equivalent_search(
         assert searched.status_code == 200, searched.text
         assert court["total"] == searched.json()["total"]
     assert body["total"] == sum(court["total"] for court in body["courts"])
+
+
+@pytest.mark.parametrize(
+    "params, rejected",
+    [
+        pytest.param(
+            {"q": '"dano moral"'}, {"ementa": "Recurso tributario."}, id="phrase"
+        ),
+        pytest.param(
+            {"q": "dano -tributario"},
+            {"ementa": "Dano moral tributario."},
+            id="negation",
+        ),
+        pytest.param(
+            {"orgao_julgador": ["body-kept"]},
+            {"orgao_julgador": "body-other"},
+            id="judging-body",
+        ),
+        pytest.param(
+            {"relator": ["judge-kept"]},
+            {"relator": "judge-other"},
+            id="reporting-judge",
+        ),
+        pytest.param({"classe_cnj": [198]}, {"classe_cnj": 213}, id="class"),
+        pytest.param({"resultado": ["negado"]}, {}, id="outcome"),
+        pytest.param(
+            {"date_from": "2026-03-10"},
+            {"data_referencia": "2026-03-09"},
+            id="judged-from",
+        ),
+        pytest.param(
+            {"date_to": "2026-03-10"}, {"data_referencia": "2026-03-11"}, id="judged-to"
+        ),
+        pytest.param(
+            {"published_from": "2026-03-12"},
+            {"data_publicacao": "2026-03-11"},
+            id="published-from",
+        ),
+        pytest.param(
+            {"published_to": "2026-03-12"},
+            {"data_publicacao": "2026-03-13"},
+            id="published-to",
+        ),
+        pytest.param(
+            {"published_from": "2026-03-12"},
+            {"data_publicacao": None},
+            id="undated-publication",
+        ),
+        pytest.param(
+            {"orgao_julgador_excluido": ["body-other"]},
+            {"orgao_julgador": "body-other"},
+            id="excluded-body",
+        ),
+        pytest.param(
+            {"relator_excluido": ["judge-other"]},
+            {"relator": "judge-other"},
+            id="excluded-judge",
+        ),
+        pytest.param(
+            {"orgao_julgador": ["body-kept", "body-missing"]},
+            {"orgao_julgador": "body-other"},
+            id="repeated-body",
+        ),
+        pytest.param(
+            {"relator": ["judge-kept", "judge-missing"]},
+            {"relator": "judge-other"},
+            id="repeated-judge",
+        ),
+        pytest.param(
+            {"classe_cnj": [198, 999]}, {"classe_cnj": 213}, id="repeated-class"
+        ),
+        pytest.param(
+            {"resultado": ["negado", "parcialmente_provido"]}, {}, id="repeated-outcome"
+        ),
+        pytest.param(
+            {"orgao_julgador": ["body-kept"], "relator": ["judge-kept"]},
+            {"relator": "judge-other"},
+            id="filters-use-and",
+        ),
+    ],
+)
+def test_each_filter_narrows_all_three_indicators_in_each_court(
+    client: TestClient,
+    db_rolled_back: psycopg.Connection[DictRow],
+    params: dict[str, Any],
+    rejected: dict[str, Any],
+) -> None:
+    """A leaking category is visible even if the denominator stays correct.
+
+    Both courts reuse the same source identifiers, so joining citations by
+    identifier alone also leaks a second court's classifications into a column.
+    The retained dates sit on the inclusive boundaries of the date filters.
+    """
+    db_rolled_back.execute("DELETE FROM core.decisao_precedente")
+    db_rolled_back.execute("DELETE FROM core.decisao")
+    for court, adherence in (("STJ", "seguiu"), ("TJDFT", "distinguiu")):
+        for identifier, outcome, deliberation in (
+            ("kept", "negado", "unanime"),
+            ("rejected", "provido", "maioria"),
+        ):
+            decide(db_rolled_back, court, identifier)
+            source = f"{court.lower()}-teste"
+            db_rolled_back.execute(
+                "UPDATE core.decisao SET resultado = %s, deliberacao = %s, "
+                "orgao_julgador = 'body-kept', relator = 'judge-kept', "
+                "classe_cnj = 198, data_publicacao = '2026-03-12' "
+                "WHERE fonte_codigo = %s AND identificador_fonte = %s",
+                (outcome, deliberation, source, identifier),
+            )
+            cite(
+                db_rolled_back,
+                identifier,
+                7,
+                adherence if identifier == "kept" else "afastou",
+                source=source,
+            )
+            if identifier == "rejected":
+                for column, value in rejected.items():
+                    db_rolled_back.execute(
+                        sql.SQL(
+                            "UPDATE core.decisao SET {} = %s WHERE fonte_codigo = %s AND identificador_fonte = %s"
+                        ).format(sql.Identifier(column)),
+                        (value, source, identifier),
+                    )
+        # The index reads the changed ementa, just as it does in the pipeline.
+        db_rolled_back.execute(
+            "UPDATE core.decisao SET ementa_busca = "
+            "to_tsvector('portugues_sem_acento', ementa) WHERE tribunal_sigla = %s",
+            (court,),
+        )
+
+    body = comparison(client, tribunal=["STJ", "TJDFT", "TRF1"], **params)
+    assert body["total"] == 2
+    assert [court["abbreviation"] for court in body["courts"]] == [
+        "STJ",
+        "TJDFT",
+        "TRF1",
+    ]
+    for court in body["courts"]:
+        expected_total = 0 if court["abbreviation"] == "TRF1" else 1
+        assert court["total"] == expected_total
+        adherence = "seguiu" if court["abbreviation"] == "STJ" else "distinguiu"
+        for indicator, expected_value in (
+            ("outcomes", "negado"),
+            ("deliberations", "unanime"),
+            ("adherences", adherence),
+        ):
+            for item in court[indicator]:
+                expected_count = (
+                    expected_total if item["value"] == expected_value else 0
+                )
+                assert item["decisions"] == expected_count, (
+                    court["abbreviation"],
+                    indicator,
+                    item,
+                )
+                assert item["share"] == expected_count * 100.0
+
+
+def test_filtered_court_can_be_empty_while_its_peer_still_has_decisions(
+    client: TestClient,
+) -> None:
+    body = comparison(client, tribunal=["STJ", "TJDFT"], resultado=["negado"])
+    assert body["total"] == 1
+    assert [court["total"] for court in body["courts"]] == [1, 0]
+    for indicator in ("outcomes", "deliberations", "adherences"):
+        assert all(
+            item["decisions"] == item["share"] == 0
+            for item in body["courts"][1][indicator]
+        )
