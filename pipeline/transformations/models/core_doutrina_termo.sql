@@ -1,6 +1,7 @@
 MODEL (
   name core.doutrina_termo,
   kind FULL,
+  cron '@monthly',
   grain (repositorio, identificador_oai, termo),
   audits (
     not_null(columns := (repositorio, identificador_oai, termo, peso)),
@@ -45,6 +46,13 @@ MODEL (
   Só o vocabulário da doutrina entra. Termo que nenhuma obra usa não casa com
   nada, e varrer as 548.197 palavras distintas das ementas para guardar peso
   de palavra inútil custa tempo de carga e não muda resultado.
+
+  Recalculado uma vez por mês, e não a cada ingestão. O peso é o IDF: conta em
+  quantas decisões do acervo inteiro cada termo aparece, o que obriga a
+  tokenizar todas as ementas. Não há como fazer isso por faixa de data sem
+  mudar o método — mas o número quase não se move quando o acervo cresce 0,1%
+  numa semana, e o custo de recalcular é o mesmo que o de reconstruir o acervo.
+  `carregado_em` diz quando foi a última vez, e a tela de cobertura mostra.
 */
 
 WITH vocabulario AS (

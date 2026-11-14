@@ -26,7 +26,13 @@ SHIPPERS = (
     Path(".github/workflows/deploy-producao.yml"),
 )
 
-CITATION = re.compile(r"[A-Za-z0-9_./-]*(?:identidade|qualidade)\.sql")
+# Built from the schema files themselves, so adding one puts it under the
+# same scrutiny without this pattern being edited.
+CITATION = re.compile(
+    r"[A-Za-z0-9_./-]*(?:"
+    + "|".join(re.escape(schema.name) for schema in owner.SCHEMAS)
+    + r")"
+)
 
 
 def _copied_into_the_image() -> list[Path]:
@@ -63,8 +69,9 @@ def test_the_schema_travels_with_the_code() -> None:
     """
     carried = _copied_into_the_image()
 
+    assert owner.SCHEMAS, "no schema found beside the module"
+
     for schema in owner.SCHEMAS:
-        assert schema.exists()
         assert any(schema.is_relative_to(directory) for directory in carried), (
             f"{schema} is not in the image, which carries {carried}"
         )
@@ -97,14 +104,14 @@ def test_migrate_applies_the_schema_and_may_be_run_again(
 
     with db.cursor() as cursor:
         cursor.execute(
-            "SELECT table_schema, COUNT(*) AS tabelas "
+            "SELECT COUNT(DISTINCT table_schema) AS schemas "
             "FROM information_schema.tables "
-            "WHERE table_schema IN ('identidade', 'qualidade') "
-            "GROUP BY table_schema"
+            "WHERE table_schema IN ('identidade', 'leitura', 'qualidade')"
         )
-        found = {row["table_schema"]: row["tabelas"] for row in cursor.fetchall()}
+        found = cursor.fetchone()
 
-    assert found == {"identidade": 1, "qualidade": 1}
+    assert found is not None
+    assert found["schemas"] == len(owner.SCHEMAS)
 
 
 def test_the_reports_come_after_the_accounts_they_belong_to() -> None:
@@ -113,7 +120,9 @@ def test_the_reports_come_after_the_accounts_they_belong_to() -> None:
     applied once the accounts exist — by `migrar`, and by the init scripts,
     which PostgreSQL runs in the order of their names.
     """
-    assert owner.SCHEMAS.index(owner.SCHEMA) < owner.SCHEMAS.index(owner.QUALITY_SCHEMA)
+    names = [schema.name for schema in owner.SCHEMAS]
+
+    assert names.index("identidade.sql") < names.index("qualidade.sql")
 
     for relative in (
         Path("docker-compose.yml"),
@@ -122,4 +131,4 @@ def test_the_reports_come_after_the_accounts_they_belong_to() -> None:
     ):
         text = (REPOSITORY / relative).read_text(encoding="utf-8")
 
-        assert "02-identidade.sql" in text and "03-qualidade.sql" in text, relative
+        assert "02-identidade.sql" in text and "04-qualidade.sql" in text, relative

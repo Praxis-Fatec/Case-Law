@@ -43,6 +43,9 @@ const COVERAGE = {
   state: 'loaded',
   // 02:30 in UTC is still the evening before in Brasília.
   updated_at: '2026-09-18T02:30:00Z',
+  // Older than the collection on purpose: the vocabulary is recalculated on a
+  // monthly schedule of its own, not with every ingestion.
+  vocabulary_updated_at: '2026-09-01T03:14:09Z',
 };
 
 const EMPTY = {
@@ -52,6 +55,7 @@ const EMPTY = {
   courts: [],
   state: 'never_loaded',
   updated_at: null,
+  vocabulary_updated_at: null,
 };
 
 function decision(identifier: string) {
@@ -186,6 +190,8 @@ describe('the top bar', () => {
       'Sair',
       'Filtros',
       'Pesquisar',
+      // A dica de sintaxe fica abaixo da barra, e o exemplo dela é um botão.
+      'Exemplo: "prescrição intercorrente"',
     ]);
     expect(bar.getByText('Ana Almeida Costa')).toBeInTheDocument();
   });
@@ -238,6 +244,29 @@ describe('the coverage as the base answers it', () => {
     expect(field('Última atualização')).toHaveTextContent('17/09/2026, 23:30');
     expect(field('Situação da base')).toHaveTextContent('Disponível');
     expectNoRawValues();
+  });
+
+  it('carries the vocabulary date apart, older than the collection', async () => {
+    // The two dates answer different questions and move on different
+    // schedules. Showing only the newer one would let a reader take a
+    // month-old suggestion for one built with last night's decisions.
+    installApi();
+    await openCoverage();
+    await summary().findByText('1.234.567');
+
+    expect(field('Vocabulário da doutrina')).toHaveTextContent('01/09/2026, 00:14');
+    expect(field('Última atualização')).toHaveTextContent('17/09/2026, 23:30');
+  });
+
+  it('says the vocabulary was never calculated rather than borrowing a date', async () => {
+    installApi({
+      coverage: () => json({ ...COVERAGE, vocabulary_updated_at: null }),
+    });
+    await openCoverage();
+    await summary().findByText('1.234.567');
+
+    expect(field('Vocabulário da doutrina')).toHaveTextContent('Ainda não calculado');
+    expect(field('Última atualização')).toHaveTextContent('17/09/2026, 23:30');
   });
 
   it('draws one row per court the answer carries, largest first', async () => {

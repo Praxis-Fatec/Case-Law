@@ -14,6 +14,7 @@ from app.api import (
     indicators,
     reports,
     session,
+    thesis,
     users,
 )
 from app.config import settings
@@ -103,3 +104,4 @@ app.include_router(doctrine.router)
 app.include_router(reports.router)
 app.include_router(session.router)
 app.include_router(users.router)
+app.include_router(thesis.router)
