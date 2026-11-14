@@ -3786,6 +3786,92 @@ input:focus-visible {
   font-weight: 400;
 }
 
+/* The statutes the decision applied. All of it the court's own, so there is
+   no counterpart here to the precedent card's rule: nothing in this block is
+   a reading of ours. The raw entry is the exception that has to look like one,
+   boxed and monospaced, because it is text this tool could not read. */
+.legislation {
+  margin-top: 28px;
+}
+
+.legislation__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.legislation__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.legislation__list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legislation__item {
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.legislation__item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.legislation__citation {
+  color: var(--search-text);
+  font:
+    600 var(--text-sm)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__raw-note {
+  margin: 0 0 5px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__raw {
+  display: block;
+  overflow-x: auto;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--search-surface);
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.5 ui-monospace,
+    'SFMono-Regular',
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+}
+
 /* Scholarship by other people. The third kind of claim on this screen, and
    the only one that lives somewhere else: every card is built around its
    outbound link, and the rule down the left says the words are not ours. */
@@ -4631,6 +4717,7 @@ input:focus-visible {
   .search-state--error,
   .search-state--empty,
   .doctrine__state--failed,
+  .legislation__state--failed,
   .date-group__error,
   .filters-pending,
   .export-action > :is([role='status'], [role='alert']) {
