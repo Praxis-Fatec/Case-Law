@@ -548,3 +548,24 @@ JOIN core.decisao AS d
  AND d.identificador_fonte = b.identificador_fonte
 WHERE b.posicao = 1
   AND b.rank IS DISTINCT FROM TS_RANK(d.ementa_busca, QUOTE_LITERAL(b.lexema)::TSQUERY)::REAL;
+
+AUDIT (
+  name cobertura_preenchida,
+  dialect postgres
+);
+/* Fonte que entregou item datado tem que ter período, e período tem que ter
+   precisão declarada. Vazio aqui não dá erro: a tela de cobertura mostra a
+   fonte sem data, e quem lê conclui que a fonte é nova em vez de concluir que
+   a nossa medição falhou. É a regressão que o SCRUM-156 descreve — as duas
+   colunas ficaram vazias por uma sprint inteira sem nada reclamar.
+
+   A comparação é com `itens_sem_data`, não com zero: fonte cujos itens não
+   têm data nenhuma — as súmulas reconstruídas são o caso — fica sem período
+   legitimamente, e exigir um aqui obrigaria a inventá-lo. */
+SELECT *
+FROM @this_model
+WHERE (itens > itens_sem_data AND (cobertura_inicio IS NULL OR cobertura_fim IS NULL))
+   OR (itens = 0 AND precisao <> 'nenhuma')
+   OR itens_sem_data > itens
+   OR cobertura_fim < cobertura_inicio
+   OR precisao NOT IN ('dia', 'ano', 'nenhuma');

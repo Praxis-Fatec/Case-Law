@@ -204,23 +204,57 @@ One row per extraction run — the lineage anchor. **145 rows**, all
 
 ## core.fonte
 
-One row per connector. **3 rows.** Seeded from
+One row per connector. **4 rows.** Seeded from
 [`seeds/fonte.csv`](../../pipeline/transformations/seeds/fonte.csv).
 
 | Column | Type | Description |
 |---|---|---|
 | `codigo` | text | PK. The literal that ties connector, seed and model together |
 | `nome` | text | Human-readable name |
-| `conteudo` | text | What this source carries. Domain: `decisao`, `precedente`. Exists so that a test asking for a document URL pattern only asks it of sources that have documents |
+| `conteudo` | text | What this source carries. Domain: `decisao`, `precedente`, `doutrina`. Exists so that a test asking for a document URL pattern only asks it of sources that have documents |
 | `tribunal_sigla` | text | FK → `core.tribunal.sigla` |
 | `url_base` | text | The portal's root |
 | `url_documento_template` | text | Pattern with a single `{identificador}` placeholder. **This is what makes a link to the official document possible** — no court API returns one |
-| `status` | text | Domain: `ativa` |
-| `cobertura_inicio` | double precision | First year covered |
-| `cobertura_fim` | double precision | Last year covered |
+| `status` | text | Domain: `ativa`, `bloqueada` |
 | `observacoes` | text | Free notes |
 
-Current rows: `tjdft-jurisdf`, `stj-espelhos`, `stj-precedentes`.
+Current rows: `tjdft-jurisdf`, `stj-espelhos`, `stj-precedentes`, `stj-bdjur`.
+
+The period each source covers is **not** here. It was, as `cobertura_inicio`
+and `cobertura_fim`, and SCRUM-156 recorded what that produced: the seed shipped
+both columns empty, SQLMesh inferred `double precision` from a column with no
+value, `infra/postgres/core.sql` declared `date`, and this table said "first
+year covered" — four answers for one column, and no data in it. A period that
+moves with every load cannot live in a hand-edited CSV, so it is derived now.
+See `core.cobertura_fonte`.
+
+---
+
+## core.cobertura_fonte
+
+What each source actually covers, measured over the published collection. **One
+row per source in `core.fonte`**, including a source that has delivered nothing.
+
+| Column | Type | Description |
+|---|---|---|
+| `fonte_codigo` | text | PK. FK → `core.fonte.codigo` |
+| `conteudo` | text | Copied from `core.fonte`, so the period can be read against what kind of item it counts |
+| `itens` | bigint | How many items of that content the source contributed. `0` for a source never collected |
+| `itens_sem_data` | bigint | How many of them carry no date. Counted rather than hidden: a period computed over dated items says nothing about the undated ones |
+| `cobertura_inicio` | date | The oldest item. `NULL` when the source has delivered nothing |
+| `cobertura_fim` | date | The most recent item. `NULL` on the same condition |
+| `precisao` | text | The granularity the source's own data supports. Domain: `dia`, `ano`, `nenhuma` |
+
+`precisao` is what keeps an estimate from entering through the back door. The
+BDJur publishes a year, not a date, so its period is stored as 1 January of that
+year and marked `ano` — the interface writes "1953", never "1 de janeiro de
+1953". RF16 forbids replacing an unknown date with an estimated value, and a day
+nobody published is exactly that.
+
+The rebuilt súmulas are left out of the precedent count: they come from
+transcriptions in the collection rather than from a collection run, and none of
+the 371 carries a date, so counting them would credit the STJ portal with a
+period it never supplied.
 
 ---
 
