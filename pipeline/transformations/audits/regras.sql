@@ -569,3 +569,18 @@ WHERE (itens > itens_sem_data AND (cobertura_inicio IS NULL OR cobertura_fim IS 
    OR itens_sem_data > itens
    OR cobertura_fim < cobertura_inicio
    OR precisao NOT IN ('dia', 'ano', 'nenhuma');
+
+AUDIT (
+  name carga_de_fonte_conhecida,
+  dialect postgres
+);
+/* Carga atribuída a código que não está em core.fonte fica órfã: não aparece
+   em nenhuma fonte na tela de cobertura, não dá erro, e a fonte de verdade
+   passa a parecer nunca coletada. Fonte nula é permitida de propósito — é a
+   execução que terminou sem gravar nada, e o dlt não diz qual fonte rodou. */
+SELECT c.*
+FROM @this_model AS c
+LEFT JOIN core.fonte AS f
+  ON f.codigo = c.fonte_codigo
+WHERE c.fonte_codigo IS NOT NULL
+  AND f.codigo IS NULL;

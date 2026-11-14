@@ -98,3 +98,38 @@ INSERT INTO raw.espelho_stj VALUES
 ('8000004', '202600611244', '20260313', 'DJe DATA:18/03/2026 Pág. 12',
  '2106103', 'QUINTA TURMA', 'ANTONIO SALDANHA PALHEIRO', 'CLASSE QUE NAO EXISTE',
  '', 'DECISAO SEM EMENTA PUBLICADA.', '1789000000.0');
+
+-- The two sources that carry no decision. They are here because core.carga
+-- reads every raw table to work out which source a load belongs to, and a
+-- missing table is an error rather than an absent source. Empty is the honest
+-- state for an environment that only ever collected the two above.
+CREATE TABLE raw.precedente_stj (
+    tipo         TEXT,
+    numero       BIGINT,
+    _dlt_load_id TEXT
+);
+
+-- The same columns tests/test_doutrina_escopo.py declares. One definition, so
+-- its `CREATE TABLE IF NOT EXISTS` finds the table it expects instead of a
+-- narrower one created here first.
+CREATE TABLE raw.doutrina_bdjur (
+    repositorio       TEXT,
+    identificador_oai TEXT,
+    titulo            TEXT,
+    titulos           JSONB,
+    autores           JSONB,
+    assuntos          JSONB,
+    tipo              TEXT,
+    data              TEXT,
+    ano               BIGINT,
+    idioma            TEXT,
+    publicacao        TEXT,
+    resumo            TEXT,
+    referencia        TEXT,
+    url_fonte         TEXT,
+    direitos          TEXT,
+    conjuntos         JSONB,
+    arquivada_em      TIMESTAMPTZ,
+    alterada_em       TIMESTAMPTZ,
+    _dlt_load_id      TEXT
+);

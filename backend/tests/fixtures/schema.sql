@@ -73,15 +73,43 @@ CREATE INDEX ON core.busca_ampla
 CREATE TABLE core.fonte (
     codigo                 TEXT NOT NULL,
     nome                   TEXT NOT NULL,
+    conteudo               TEXT NOT NULL,
     tribunal_sigla         TEXT NOT NULL,
-    url_documento_template TEXT NOT NULL
+    url_documento_template TEXT NOT NULL,
+    status                 TEXT NOT NULL
 );
 
+-- The four sources of seeds/fonte.csv, including the two that carry no
+-- decision: RF16 answers for every source in the catalogue, and a source with
+-- no decision is exactly the case a per-court answer cannot reach.
 INSERT INTO core.fonte VALUES
-('tjdft-jurisdf', 'TJDFT JurisDF', 'TJDFT',
- 'https://jurisdf.tjdft.jus.br/acordaos/{documento}'),
-('stj-espelhos', 'STJ Espelhos de Acórdãos', 'STJ',
- 'https://processo.stj.jus.br/processo/revista/documento/mediado/?componente=ITA&sequencial={documento}');
+('tjdft-jurisdf', 'TJDFT JurisDF', 'decisao', 'TJDFT',
+ 'https://jurisdf.tjdft.jus.br/acordaos/{documento}', 'ativa'),
+('stj-espelhos', 'STJ Espelhos de Acórdãos', 'decisao', 'STJ',
+ 'https://processo.stj.jus.br/processo/revista/documento/mediado/?componente=ITA&sequencial={documento}', 'ativa'),
+('stj-precedentes', 'STJ Precedentes Qualificados', 'precedente', 'STJ',
+ '', 'ativa'),
+('stj-bdjur', 'BDJur Biblioteca Digital do STJ', 'doutrina', 'STJ',
+ 'https://bdjur.stj.jus.br/handle/{documento}', 'bloqueada');
+
+-- What each source covers, derived by core.cobertura_fonte. `stj-precedentes`
+-- is here with nothing collected: a source in the catalogue that has never
+-- delivered has to be able to say so.
+CREATE TABLE core.cobertura_fonte (
+    fonte_codigo     TEXT   NOT NULL,
+    conteudo         TEXT   NOT NULL,
+    itens            BIGINT NOT NULL,
+    itens_sem_data   BIGINT NOT NULL,
+    cobertura_inicio DATE,
+    cobertura_fim    DATE,
+    precisao         TEXT   NOT NULL
+);
+
+INSERT INTO core.cobertura_fonte VALUES
+('tjdft-jurisdf',   'decisao',    9, 0, '2026-02-02', '2026-03-11', 'dia'),
+('stj-espelhos',    'decisao',    4, 1, '1989-02-19', '2026-01-20', 'dia'),
+('stj-bdjur',       'doutrina',   2, 0, '1953-01-01', '2026-01-01', 'ano'),
+('stj-precedentes', 'precedente', 0, 0, NULL,         NULL,         'nenhuma');
 
 -- The same row as pipeline/transformations/seeds/tribunal.csv.
 CREATE TABLE core.tribunal (
@@ -99,25 +127,39 @@ INSERT INTO core.tribunal VALUES (
 -- Written by the pipeline's link check, read by the core model.
 DROP SCHEMA IF EXISTS verificacao CASCADE;
 CREATE SCHEMA verificacao;
+-- `fonte_codigo` is nullable, and so are the three columns only the JurisDF
+-- can fill. A load that wrote nothing cannot be attributed to a source, and a
+-- source with no secrecy flag and no link check reports nothing rather than
+-- zero: zero would claim nobody looked and nothing was wrong at once.
 CREATE TABLE core.carga (
     carga_id              TEXT        NOT NULL,
-    fonte_codigo          TEXT        NOT NULL,
+    fonte_codigo          TEXT,
     concluida_em          TIMESTAMPTZ NOT NULL,
     status                TEXT        NOT NULL,
     registros_lidos       BIGINT      NOT NULL,
     registros_gravados    BIGINT      NOT NULL,
-    descartados_sigilo    BIGINT      NOT NULL,
-    links_invalidos       BIGINT      NOT NULL,
-    links_nao_verificados BIGINT      NOT NULL
+    descartados_sigilo    BIGINT,
+    links_invalidos       BIGINT,
+    links_nao_verificados BIGINT
 );
 
 -- Two successful loads, so a test can tell "the most recent" from "any", and a
 -- failed one dated after both: if the endpoint ever sorts before filtering, the
 -- failure becomes the answer and the tests say so.
+--
+-- The rows below those three are dated earlier on purpose, so the collection's
+-- own last update stays the JurisDF one and the per-source answers are the only
+-- thing they change. Each carries a shape RF16 has to tell apart:
+-- `stj-espelhos` succeeded and then failed, `stj-bdjur` only ever succeeded,
+-- `stj-precedentes` has no load at all, and the last row belongs to no source.
 INSERT INTO core.carga VALUES
 ('1789000000.0', 'tjdft-jurisdf', '2026-03-16 02:00:00+00', 'concluida', 6, 4, 2, 0, 4),
 ('1789000001.0', 'tjdft-jurisdf', '2026-03-17 02:00:00+00', 'concluida', 9, 9, 0, 0, 9),
-('1789000002.0', 'tjdft-jurisdf', '2026-03-18 02:00:00+00', 'falhou',    0, 0, 0, 0, 0);
+('1789000002.0', 'tjdft-jurisdf', '2026-03-18 02:00:00+00', 'falhou',    0, 0, 0, 0, 0),
+('1788000000.0', 'stj-espelhos',  '2026-01-10 02:00:00+00', 'concluida', 4, 4, NULL, NULL, NULL),
+('1788000001.0', 'stj-espelhos',  '2026-01-21 02:00:00+00', 'falhou',    0, 0, NULL, NULL, NULL),
+('1788000002.0', 'stj-bdjur',     '2026-01-05 02:00:00+00', 'concluida', 2, 2, NULL, NULL, NULL),
+('1788000003.0', NULL,            '2026-01-06 02:00:00+00', 'concluida', 0, 0, NULL, NULL, NULL);
 
 CREATE TABLE verificacao.link (
     fonte_codigo  TEXT        NOT NULL,
