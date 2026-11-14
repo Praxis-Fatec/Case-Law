@@ -258,6 +258,54 @@ WHERE dp.corte_declarada
       !~ 'stf|supremo|repercussao geral';
 
 AUDIT (
+  name referencia_reconhecida_tem_esfera_e_tipo,
+  dialect postgres
+);
+/* `reconhecida` é a promessa de que a tela consegue nomear a referência. Linha
+   marcada como reconhecida sem esfera ou sem tipo de ato não tem nome, e a tela
+   escreveria "3.365/1941" sem dizer de que ato se trata. O contrário esconde do
+   leitor uma referência que o parser leu inteira. */
+SELECT *
+FROM @this_model
+WHERE reconhecida <> (esfera IS NOT NULL AND tipo_ato IS NOT NULL);
+
+AUDIT (
+  name referencia_guarda_a_esfera_crua,
+  dialect postgres
+);
+/* A esfera fica como o tribunal escreveu, sempre. FED, EST e DIS a tela traduz;
+   MUN, INT e IES — 0,426% das linhas — não traduzem para nenhuma das três, e o
+   dia em que esta coluna guardar 'federal' em vez de 'FED' alguém terá fechado
+   a lacuna por chute, apresentando lei municipal como estadual. A regra é a
+   forma do código: duas a quatro maiúsculas, ou nulo. */
+SELECT *
+FROM @this_model
+WHERE esfera IS NOT NULL AND esfera !~ '^[A-Z]{2,4}$';
+
+AUDIT (
+  name referencia_com_artigo_legivel,
+  dialect postgres
+);
+/* `ART:0543B` é o art. 543-B e `ART:00026` é o art. 26; 24.222 tokens são da
+   primeira forma. Lidos do mesmo jeito, 543-B viraria o artigo 5.434 — número
+   plausível, de artigo que não foi citado. */
+SELECT *
+FROM @this_model
+WHERE artigo IS NOT NULL AND artigo !~ '^[0-9]+(-[A-Z])?$';
+
+AUDIT (
+  name referencia_sem_art_colado,
+  dialect postgres
+);
+/* O recorte por artigo usa `ART:` como sentinela. Hoje nenhuma das 1.243.281
+   linhas da origem traz `ART:` colado a outra palavra; o dia em que trouxer, o
+   recorte parte a referência no lugar errado e a tela mostra artigo que não
+   existe — e nada falha sozinho, porque o número continua plausível. */
+SELECT *
+FROM @this_model
+WHERE texto_bruto ~ '[A-Z]ART:';
+
+AUDIT (
   name tese_sem_secao_seguinte,
   dialect postgres
 );
