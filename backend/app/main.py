@@ -12,6 +12,7 @@ from app.api import (
     filters,
     health,
     indicators,
+    related,
     reports,
     session,
     thesis,
@@ -105,3 +106,4 @@ app.include_router(reports.router)
 app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)
+app.include_router(related.router)
