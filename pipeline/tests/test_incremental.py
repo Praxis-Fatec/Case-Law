@@ -15,19 +15,14 @@ date at all, and two decisions six months apart that share a source link.
 
 from __future__ import annotations
 
-import os
 from datetime import date, timedelta
-from pathlib import Path
 
 import psycopg
-import pytest
 from sqlmesh.core.context import Context
 
-from tests.conftest import TEST_DATABASE_URL, needs_database
+from tests.conftest import needs_database
 
 pytestmark = needs_database
-
-PROJETO = Path(__file__).resolve().parents[1] / "transformations"
 
 PRIMEIRA = date(2026, 1, 1)
 ULTIMA = date(2026, 12, 31)
@@ -35,17 +30,6 @@ ULTIMA = date(2026, 12, 31)
 # `carregado_em` is `NOW()`: it says when the build ran, not what it read, and
 # two builds of the same rows differ in it by design.
 VOLATEIS = {"carregado_em"}
-
-
-@pytest.fixture(scope="session")
-def contexto(banco: str) -> Context:
-    partes = psycopg.conninfo.conninfo_to_dict(TEST_DATABASE_URL)
-    os.environ["POSTGRES_DB"] = str(partes.get("dbname"))
-    os.environ["POSTGRES_HOST"] = str(partes.get("host", "localhost"))
-    os.environ["POSTGRES_PORT"] = str(partes.get("port", "5432"))
-    os.environ["POSTGRES_USER"] = str(partes.get("user", "postgres"))
-    os.environ["POSTGRES_PASSWORD"] = str(partes.get("password", "postgres"))
-    return Context(paths=PROJETO)
 
 
 def _consulta(contexto: Context, modelo: str, inicio: date, fim: date) -> str:
@@ -219,6 +203,27 @@ def test_decisao_precedente_construida_por_faixa_e_igual_a_completa(
     )
     assert faltando == [], f"a construção por faixa perdeu {len(faltando)} citação(ões)"
     assert sobrando == [], f"a construção por faixa inventou {len(sobrando)} citação(ões)"
+
+
+def test_referencia_legislativa_por_faixa_e_igual_a_completa(
+    acervo: psycopg.Connection, contexto: Context
+) -> None:
+    de_uma_vez(acervo, contexto, "core.decisao", "core.decisao")
+    de_uma_vez(
+        acervo, contexto, "core.referencia_legislativa", "core.referencia_completa"
+    )
+    semana_a_semana(
+        acervo, contexto, "core.referencia_legislativa", "core.referencia_incremental"
+    )
+
+    total = acervo.execute("SELECT COUNT(*) FROM core.referencia_completa").fetchone()[0]
+    assert total > 0, "nenhuma referência no acervo de teste; o resto não prova nada"
+
+    faltando, sobrando = divergencias(
+        acervo, "core.referencia_completa", "core.referencia_incremental"
+    )
+    assert faltando == [], f"a construção por faixa perdeu {len(faltando)} referência(s)"
+    assert sobrando == [], f"a construção por faixa inventou {len(sobrando)} linha(s)"
 
 
 def test_link_dividido_entre_janelas_marca_as_duas_decisoes(

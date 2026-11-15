@@ -174,6 +174,28 @@ CREATE TABLE core.decisao_precedente (
     PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)
 );
 
+-- One row per article cited, not per reference: a reference naming six
+-- articles is six rows, which is why the article is part of the key.
+CREATE TABLE core.referencia_legislativa (
+    fonte_codigo        TEXT    NOT NULL,
+    identificador_fonte TEXT    NOT NULL,
+    ordem               BIGINT  NOT NULL,
+    sequencia           INTEGER NOT NULL,
+    esfera              TEXT,
+    tipo_ato            TEXT,
+    numero              BIGINT,
+    ano                 INTEGER,
+    artigo              TEXT,
+    paragrafos          TEXT[],
+    incisos             TEXT[],
+    letras              TEXT[],
+    reconhecida         BOOLEAN NOT NULL,
+    texto_bruto         TEXT,
+    data_referencia     DATE,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte, ordem, sequencia)
+);
+
 CREATE TABLE core.doutrina (
     repositorio          TEXT NOT NULL,
     identificador_oai    TEXT NOT NULL,

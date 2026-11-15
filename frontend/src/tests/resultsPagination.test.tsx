@@ -97,11 +97,15 @@ function installApi(total: number, answer?: Answer) {
       if (url.pathname === '/courts') {
         return json({ courts: COURTS });
       }
-      // Os blocos de doutrina e de decisões próximas também não são busca:
-      // eles pedem por decisão aberta, e contá-los como página faria a conta
-      // de requisições desta suíte dobrar sem que nada tivesse mudado na
-      // paginação.
-      if (url.pathname.endsWith('/doctrine') || url.pathname.endsWith('/related')) {
+      // Os blocos do detalhe que pedem por conta própria — doutrina, legislação
+      // e decisões próximas — também não são busca: eles pedem por decisão
+      // aberta, e contá-los como página faria a conta de requisições desta
+      // suíte crescer sem que nada tivesse mudado na paginação.
+      if (
+        url.pathname.endsWith('/doctrine') ||
+        url.pathname.endsWith('/legislation') ||
+        url.pathname.endsWith('/related')
+      ) {
         return json({ results: [] });
       }
       const found = url.pathname.match(/^\/decisions\/[^/]+\/([^/]+)$/);
