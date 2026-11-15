@@ -106,9 +106,29 @@ def test_migrate_applies_the_schema_and_may_be_run_again(
         cursor.execute(
             "SELECT COUNT(DISTINCT table_schema) AS schemas "
             "FROM information_schema.tables "
-            "WHERE table_schema IN ('identidade', 'leitura')"
+            "WHERE table_schema IN ('identidade', 'leitura', 'qualidade')"
         )
         found = cursor.fetchone()
 
     assert found is not None
     assert found["schemas"] == len(owner.SCHEMAS)
+
+
+def test_the_reports_come_after_the_accounts_they_belong_to() -> None:
+    """
+    A report references the account that sent it, so its schema can only be
+    applied once the accounts exist — by `migrar`, and by the init scripts,
+    which PostgreSQL runs in the order of their names.
+    """
+    names = [schema.name for schema in owner.SCHEMAS]
+
+    assert names.index("identidade.sql") < names.index("qualidade.sql")
+
+    for relative in (
+        Path("docker-compose.yml"),
+        Path("deploy/docker-compose.dev.yml"),
+        Path("deploy/docker-compose.prod.yml"),
+    ):
+        text = (REPOSITORY / relative).read_text(encoding="utf-8")
+
+        assert "02-identidade.sql" in text and "04-qualidade.sql" in text, relative

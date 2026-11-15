@@ -224,10 +224,6 @@ CREATE TABLE core.doutrina_termo (
     PRIMARY KEY (repositorio, identificador_oai, termo)
 );
 
--- Dropped here, created by `app/identidade.sql`: the accounts schema has one
--- definition, and a copy of it here would be a copy that drifts.
-DROP SCHEMA IF EXISTS identidade CASCADE;
-
 -- The weights behind RF20, and the length of each decision's vector. The
 -- endpoint probes for both with TO_REGCLASS and answers an empty list when
 -- either is missing, so a suite that left them out would exercise only that
@@ -248,3 +244,12 @@ CREATE TABLE core.decisao_norma (
     carregado_em        TIMESTAMPTZ,
     PRIMARY KEY (fonte_codigo, identificador_fonte)
 );
+
+-- Dropped here, created by `app/identidade.sql`: the accounts schema has one
+-- definition, and a copy of it here would be a copy that drifts.
+DROP SCHEMA IF EXISTS identidade CASCADE;
+
+-- Likewise for `app/qualidade.sql`. Dropped too, not only recreated: its
+-- reports reference the accounts dropped above, and `IF NOT EXISTS` would keep
+-- a table whose foreign key the cascade already took away.
+DROP SCHEMA IF EXISTS qualidade CASCADE;
