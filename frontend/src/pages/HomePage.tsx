@@ -15,6 +15,7 @@ import {
   type SearchOrder,
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
+import { DETAIL_ROUTE, detailPath } from '../components/decisionAddress';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
@@ -105,13 +106,6 @@ const DETAIL_PANEL_ID = 'decision-detail';
 type OpenDecision = { source: string; identifier: string };
 
 const keyOf = (decision: OpenDecision) => `${decision.source}/${decision.identifier}`;
-
-// The address of a decision: the same two identifiers the detail endpoint
-// takes, so a copied link reopens exactly this decision.
-export const DETAIL_ROUTE = '/decisoes/:source/:identifier';
-
-const detailPath = (decision: OpenDecision) =>
-  `/decisoes/${encodeURIComponent(decision.source)}/${encodeURIComponent(decision.identifier)}`;
 
 const openButtonId = (decision: OpenDecision) =>
   `open-${keyOf(decision).replace(/[^A-Za-z0-9_-]/g, '-')}`;

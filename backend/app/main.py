@@ -13,6 +13,8 @@ from app.api import (
     health,
     indicators,
     legislation,
+    related,
+    reports,
     session,
     thesis,
     users,
@@ -42,6 +44,13 @@ TAGS = [
         "description": (
             "The laws and articles a decision applied, parsed from the fixed "
             "format the court publishes them in."
+        ),
+    },
+    {
+        "name": "quality",
+        "description": (
+            "Readers reporting a classification they believe is wrong. A "
+            "report is recorded for review and never changes what is published."
         ),
     },
     {
@@ -102,6 +111,8 @@ app.include_router(indicators.router)
 app.include_router(exports.router)
 app.include_router(doctrine.router)
 app.include_router(legislation.router)
+app.include_router(reports.router)
 app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)
+app.include_router(related.router)

@@ -5,6 +5,7 @@ import { DecisionRequestError, getDecision, readThesis, type Decision } from '..
 import { readCitedPrecedents } from '../api/precedents';
 import CitedLegislation from './CitedLegislation';
 import CitedPrecedents from './CitedPrecedents';
+import RelatedDecisions from './RelatedDecisions';
 import RelatedDoctrine from './RelatedDoctrine';
 import {
   DELIBERATION_LABELS,
@@ -220,8 +221,19 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         headingId={`${titleId}-legislacao`}
       />
 
-      {/* Last of the four, because it is the furthest from the decision: what
-          it settled, what it cited, and what other people wrote. */}
+      {/* After everything the court itself cited, which is where the
+          distinction `RF20` asks for becomes visible: above are the relations
+          the court made, here the ones this tool computed. */}
+      <RelatedDecisions
+        key={`proximas:${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        ementa={decision.summary}
+        headingId={`${titleId}-proximas`}
+      />
+
+      {/* Last, because it is the furthest from the decision: what it settled,
+          what it cited, what reads like it, and what other people wrote. */}
       <RelatedDoctrine
         key={`${decision.source}:${decision.identifier}`}
         source={decision.source}

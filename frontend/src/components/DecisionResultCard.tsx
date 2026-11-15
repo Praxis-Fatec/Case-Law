@@ -4,6 +4,7 @@ import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { readThesis } from '../api/decisions';
 import IdentifiedThesis from './IdentifiedThesis';
+import ReportClassification from './ReportClassification';
 import type { Highlight, SearchDecisionMatch } from '../api/search';
 import {
   DELIBERATION_LABELS,
@@ -29,9 +30,9 @@ type DecisionCardData = Pick<
   | 'thesis'
 > & {
   published_on?: string | null;
-  // Where the decision lives, which is how the API is asked about it.
-  // Optional because the card renders without them — and then the thesis
-  // cannot be asked for, so the button is not offered.
+  // Where the decision lives, which is how the API is asked about it: for the
+  // thesis, and for a report about what was inferred. Optional because a card
+  // can be drawn from less than a search match, and then neither is offered.
   source?: string;
   identifier?: string;
 };
@@ -232,6 +233,14 @@ function DecisionResultCard({
                 ? 'O resultado é leitura automática desta ferramenta, a partir do texto acima.'
                 : 'A aderência é leitura automática desta ferramenta, a partir do texto acima.'}
             </p>
+            {/* Here, where the tool owns its reading, and nowhere else: this is
+                where disagreeing with it means something. */}
+            {decision.source && decision.identifier && (
+              <ReportClassification
+                decision={{ source: decision.source, identifier: decision.identifier }}
+                contested={justifies}
+              />
+            )}
           </details>
         )}
 
