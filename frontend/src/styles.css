@@ -2204,6 +2204,159 @@ input:focus-visible {
   font-size: var(--text-sm);
 }
 
+/* The sources, each with its collection state. Same table shape as the courts
+   above, so the page reads as one; the state colours are the only addition,
+   and they carry an icon and a label beside them because colour alone is not
+   an answer for everyone. */
+.coverage-sources {
+  margin-top: 1.5rem;
+}
+
+.source-status {
+  border: 1px solid #e7dedb;
+  border-radius: 12px;
+  background: var(--search-surface);
+  overflow-x: auto;
+}
+
+.source-status__table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.source-status__table th,
+.source-status__table td {
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--search-text);
+  font:
+    500 var(--text-sm)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.source-status__table thead th {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #ece4e1;
+  background: #faf6f4;
+  color: #5f5256;
+  font-weight: 700;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.source-status__table thead th:nth-child(1) {
+  width: 23%;
+}
+
+.source-status__table thead th:nth-child(2) {
+  width: 12%;
+}
+
+.source-status__table thead th:nth-child(3) {
+  width: 13%;
+}
+
+.source-status__table thead th:nth-child(4) {
+  width: 18%;
+}
+
+.source-status__table thead th:nth-child(5) {
+  width: 17%;
+}
+
+.source-status__table tbody tr + tr > * {
+  border-top: 1px solid #ece4e1;
+}
+
+.source-status__name {
+  display: block;
+  font-size: var(--text-xs);
+  color: #2a1016;
+  font-weight: 700;
+}
+
+.source-status__code {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6f6064;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.source-status__undated,
+.source-status__attempt {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6b3a1c;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+.source-status__collected {
+  display: block;
+}
+
+.source-status__never {
+  color: var(--search-muted);
+  font-weight: 600;
+}
+
+.source-status__reading {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  color: #2d3b33;
+  font-weight: 700;
+}
+
+.source-status__reading svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+
+.source-status__reading--coletando svg {
+  color: #4a7c59;
+}
+
+.source-status__reading--falhando {
+  color: #6b3a1c;
+}
+
+.source-status__reading--falhando svg {
+  color: #b76e2a;
+}
+
+.source-status__reading--bloqueada {
+  color: #6b3a1c;
+}
+
+.source-status__reading--bloqueada svg {
+  color: #8c5a3c;
+}
+
+.source-status__reading--nunca,
+.source-status__reading--desconhecida {
+  color: var(--search-muted);
+}
+
+.source-status__reading--nunca svg,
+.source-status__reading--desconhecida svg {
+  color: #9a8c90;
+}
+
+.source-status__table .source-status__message {
+  padding: 1.4rem 0.9rem;
+  color: var(--search-muted);
+  font-size: var(--text-sm);
+}
+
 /* How to read the page, under a thin line. */
 .coverage-note {
   margin-top: 0.75rem;
@@ -4915,6 +5068,7 @@ input:focus-visible {
 
   .coverage-summary[aria-busy='false'] .coverage-summary__total,
   .court-coverage[aria-busy='false'] tbody,
+  .source-status[aria-busy='false'] tbody,
   .doctrine__list,
   .neighbours__list,
   .decision-result-card__thesis[open] > :not(summary) {

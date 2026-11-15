@@ -19,6 +19,7 @@ TABLES = (
     "fonte",
     "classe_processual",
     "carga",
+    "cobertura_fonte",
     "decisao",
     "url_compartilhada",
     "termo_frequente",
@@ -118,6 +119,7 @@ INDEXES = (
         "(fonte_codigo, identificador_fonte, nota DESC)"
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_doutrina (repositorio, identificador_oai)",
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.cobertura_fonte (fonte_codigo)",
 )
 
 SEARCH_CONFIGURATION = """

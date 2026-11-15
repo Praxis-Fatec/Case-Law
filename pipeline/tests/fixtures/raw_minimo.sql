@@ -173,6 +173,9 @@ INSERT INTO verificacao.link (fonte_codigo, identificador, valido) VALUES
     ('tjdft-jurisdf', 'tj-002', FALSE),
     ('stj-espelhos',  'stj-001', TRUE);
 
-INSERT INTO core.precedente (corte, tipo, numero, enunciado, situacao, origem) VALUES
-    ('STJ', 'sumula', 7, 'A pretensao de simples reexame de prova nao enseja recurso especial.', 'vigente', 'reconstruida'),
-    ('STF', 'tema', 69, 'O ICMS nao compoe a base de calculo do PIS e da COFINS.', 'vigente', 'portal');
+-- Os mesmos valores de `origem` que core_precedente.sql escreve. A sumula
+-- reconstruida nao tem data porque nenhuma tem: ela sai das transcricoes do
+-- acervo, nao de coleta.
+INSERT INTO core.precedente (corte, tipo, numero, enunciado, situacao, data, origem) VALUES
+    ('STJ', 'sumula', 7, 'A pretensao de simples reexame de prova nao enseja recurso especial.', 'vigente', NULL, 'reconstruido'),
+    ('STF', 'tema', 69, 'O ICMS nao compoe a base de calculo do PIS e da COFINS.', 'vigente', '2017-03-15', 'catalogo');

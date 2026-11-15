@@ -96,8 +96,7 @@ def acervo(banco: str) -> Iterator[psycopg.Connection]:
 
 SEMENTES = {
     "fonte": "codigo TEXT, nome TEXT, conteudo TEXT, tribunal_sigla TEXT,"
-    " url_base TEXT, url_documento_template TEXT, status TEXT,"
-    " cobertura_inicio DATE, cobertura_fim DATE, observacoes TEXT",
+    " url_base TEXT, url_documento_template TEXT, status TEXT, observacoes TEXT",
     "classe_processual": "codigo_cnj BIGINT, codigo_pai BIGINT, nome TEXT",
     "tribunal": "sigla TEXT, nome TEXT, esfera TEXT, uf TEXT",
 }

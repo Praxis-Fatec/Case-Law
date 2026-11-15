@@ -851,6 +851,204 @@ def read_coverage(
     )
 
 
+# One row per source in the catalogue, whatever it has delivered. The join to
+# `core.carga` is a LEFT JOIN for exactly that reason: a source with no load is
+# the state RF16 asks to be stated, and an inner join would hide it.
+#
+# `ultima` reads the last attempt whatever its outcome; `bem_sucedida` reads the
+# last one that finished. The two apart are what lets the answer say "collected
+# on the 10th, tried again on the 21st and failed" — a single date cannot.
+SOURCES_SQL = """
+WITH ultima AS (
+    SELECT DISTINCT ON (fonte_codigo)
+           fonte_codigo, concluida_em, status
+    FROM core.carga
+    WHERE fonte_codigo IS NOT NULL
+    ORDER BY fonte_codigo, concluida_em DESC
+),
+bem_sucedida AS (
+    SELECT fonte_codigo, MAX(concluida_em) AS concluida_em
+    FROM core.carga
+    WHERE fonte_codigo IS NOT NULL AND status = 'concluida'
+    GROUP BY fonte_codigo
+)
+SELECT
+    f.codigo                          AS codigo,
+    f.nome                            AS nome,
+    f.conteudo                        AS conteudo,
+    f.status                          AS disponibilidade,
+    COALESCE(c.itens, 0)              AS itens,
+    COALESCE(c.itens_sem_data, 0)     AS itens_sem_data,
+    c.cobertura_inicio                AS inicio,
+    c.cobertura_fim                   AS fim,
+    COALESCE(c.precisao, 'nenhuma')   AS precisao,
+    b.concluida_em                    AS ultima_coleta,
+    u.concluida_em                    AS ultima_tentativa,
+    u.status                          AS desfecho
+FROM core.fonte AS f
+LEFT JOIN core.cobertura_fonte AS c ON c.fonte_codigo = f.codigo
+LEFT JOIN ultima AS u ON u.fonte_codigo = f.codigo
+LEFT JOIN bem_sucedida AS b ON b.fonte_codigo = f.codigo
+ORDER BY COALESCE(c.itens, 0) DESC, f.codigo
+"""
+
+Precision = Literal["dia", "ano", "nenhuma"]
+Availability = Literal["ativa", "bloqueada"]
+
+
+class SourceStatus(BaseModel):
+    code: str = Field(
+        description="The literal that ties connector, seed and data together.",
+        examples=["stj-espelhos"],
+    )
+    name: str = Field(
+        description="The source's name, as it is written on the screen.",
+        examples=["STJ Espelhos de Acórdãos"],
+    )
+    content: str = Field(
+        description=(
+            "What this source carries: `decisao`, `precedente` or `doutrina`. "
+            "The period below counts items of this kind, so the two are read "
+            "together."
+        ),
+        examples=["decisao"],
+    )
+    availability: Availability = Field(
+        description=(
+            "Whether collection from this source is possible at all. "
+            "`bloqueada` is a decision of the source's, not a fault of ours: "
+            "the BDJur began refusing automated access in October 2026. A "
+            "blocked source keeps whatever it delivered before."
+        ),
+        examples=["ativa"],
+    )
+    state: State = Field(
+        description=(
+            "The same three states the collection as a whole answers, asked of "
+            "one source. `never_loaded` means no load was ever attributed to "
+            "it; `all_loads_failed` means every attempt failed."
+        ),
+        examples=["loaded"],
+    )
+    last_collection: datetime | None = Field(
+        description=(
+            "When the last collection that finished for this source finished, "
+            "in UTC. `null` whenever `state` is not `loaded` — never a "
+            "substitute drawn from another source or from an attempt that "
+            "failed."
+        ),
+        examples=["2026-01-10T02:00:00Z"],
+    )
+    last_attempt: datetime | None = Field(
+        description=(
+            "When the most recent attempt finished, whatever its outcome. "
+            "Equal to `last_collection` when the last attempt succeeded, later "
+            "when it failed."
+        ),
+        examples=["2026-01-21T02:00:00Z"],
+    )
+    last_attempt_failed: bool = Field(
+        description=(
+            "Whether that most recent attempt failed. `false` when there has "
+            "been no attempt at all: nothing has failed, and the absence is "
+            "reported by `state` rather than by this flag."
+        ),
+        examples=[True],
+    )
+    items: int = Field(
+        description="How many items of `content` this source has contributed.",
+        examples=[876996],
+    )
+    undated_items: int = Field(
+        description=(
+            "How many of them carry no date. The period below is computed over "
+            "the dated ones, so without this number a collection half of which "
+            "is undated would show a period of apparently full coverage."
+        ),
+        examples=[0],
+    )
+    first: date | None = Field(
+        description=(
+            "The oldest item this source delivered. `null` when it has "
+            "delivered none, or when none of them carries a date."
+        ),
+        examples=["1989-02-19"],
+    )
+    last: date | None = Field(
+        description="The most recent item, on the same condition.",
+        examples=["2026-08-26"],
+    )
+    precision: Precision = Field(
+        description=(
+            "The granularity the source's own data supports. `ano` means only "
+            "the year was published and the day in `first` and `last` is "
+            "padding — write the year, never the date. `nenhuma` means there "
+            "is no period to read."
+        ),
+        examples=["dia"],
+    )
+
+
+def _state(row: dict[str, Any]) -> State:
+    """
+    Three states from two dates, for one source.
+
+    A source whose only load failed is not a source nobody collected: the first
+    is a connector to go and look at, the second is a connector nobody has
+    turned on yet, and the screen says different things about them.
+    """
+    if row["ultima_coleta"] is not None:
+        return "loaded"
+
+    return "all_loads_failed" if row["ultima_tentativa"] is not None else "never_loaded"
+
+
+@router.get(
+    "/indicators/sources",
+    summary="The state of each source and when it was last collected",
+    responses=RESPONSES,
+)
+def read_sources(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> list[SourceStatus]:
+    """
+    Where the data comes from, and how long ago it came.
+
+    This is asked apart from `/indicators/coverage` so that the two fail apart.
+    The per-source answer reads `core.cobertura_fonte`, which a publication
+    older than this code does not have; answered inside coverage, a server
+    mid-publication would stop reporting the scope it can still report
+    perfectly well.
+
+    Every source in the catalogue is here, including one that has delivered
+    nothing and one that can no longer be collected. Leaving either out would
+    make the list read as the sources that work rather than as the sources
+    there are, and the difference is the whole point of the question.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(SOURCES_SQL)
+        rows = cursor.fetchall()
+
+    return [
+        SourceStatus(
+            code=row["codigo"],
+            name=row["nome"],
+            content=row["conteudo"],
+            availability=row["disponibilidade"],
+            state=_state(row),
+            last_collection=row["ultima_coleta"],
+            last_attempt=row["ultima_tentativa"],
+            last_attempt_failed=row["desfecho"] == "falhou",
+            items=row["itens"],
+            undated_items=row["itens_sem_data"],
+            first=row["inicio"],
+            last=row["fim"],
+            precision=row["precisao"],
+        )
+        for row in rows
+    ]
+
+
 # `indeterminado` is not here: it travels as its own field, the way
 # `unclassified` does above, so no share is ever computed over a guess.
 DECIDED = ("seguiu", "afastou", "distinguiu", "mencionou")

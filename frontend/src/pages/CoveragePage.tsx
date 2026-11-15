@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Info } from '@phosphor-icons/react';
 
-import { getCoverage } from '../api/indicators';
+import { getCoverage, getSources } from '../api/indicators';
 import CourtCoverageTable from '../components/CourtCoverageTable';
 import CoverageSummary from '../components/CoverageSummary';
+import SourceStatusTable from '../components/SourceStatusTable';
 import { formatCount, type CoverageState } from '../components/coverageFormat';
+import type { SourcesState } from '../components/sourceFormat';
 
 export const COVERAGE_PATH = '/cobertura';
 
@@ -17,6 +19,7 @@ function CoveragePage() {
   const location = useLocation();
   const fromApp = (location.state as CoverageEntry)?.fromApp === true;
   const [state, setState] = useState<CoverageState>({ status: 'loading' });
+  const [sources, setSources] = useState<SourcesState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
   // Asked each time the page opens, and of the base alone: nothing from the
@@ -47,8 +50,35 @@ function CoveragePage() {
     };
   }, [attempt]);
 
+  // Asked apart, and failing apart. An environment serving a publication older
+  // than the API has no record of the sources, and the scope it does have is
+  // still worth showing: one answer missing must not take the other down.
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    getSources({ signal: controller.signal }).then(
+      (answer) => {
+        if (active) {
+          setSources({ status: 'loaded', sources: answer });
+        }
+      },
+      () => {
+        if (active) {
+          setSources({ status: 'failed' });
+        }
+      },
+    );
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [attempt]);
+
   const retry = () => {
     setState({ status: 'loading' });
+    setSources({ status: 'loading' });
     setAttempt((current) => current + 1);
   };
 
@@ -117,6 +147,19 @@ function CoveragePage() {
           <CourtCoverageTable state={state} />
         </section>
 
+        <section className="coverage-sources" aria-labelledby="coverage-sources-title">
+          <div className="coverage-courts__heading">
+            <div>
+              <p className="coverage-eyebrow">Confiabilidade do recorte</p>
+              <h2 id="coverage-sources-title" className="coverage-courts__title">
+                Estado de cada fonte
+              </h2>
+            </div>
+          </div>
+
+          <SourceStatusTable state={sources} />
+        </section>
+
         <aside className="coverage-note" aria-labelledby="coverage-note-title">
           <Info size={17} aria-hidden="true" className="coverage-note__icon" />
           <div>
@@ -129,6 +172,13 @@ function CoveragePage() {
               são as das próprias decisões (a do julgamento ou, sem ela, a da publicação); a última
               atualização é quando a coleta mais recente terminou. Um tribunal pesquisável tem
               documentos na base e pode ser usado nos filtros da pesquisa.
+            </p>
+            <p className="coverage-note__text">
+              O estado de cada fonte diz respeito à coleta, não às decisões: a última coleta é
+              quando aquela fonte foi lida com sucesso pela última vez, e uma tentativa que falhou
+              depois disso aparece ao lado — os dados continuam sendo os da coleta que deu certo.
+              Fonte nunca coletada é diferente de fonte sem documento, e período mostrado por ano é
+              porque a fonte publica só o ano.
             </p>
           </div>
         </aside>
