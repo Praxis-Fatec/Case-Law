@@ -16,11 +16,15 @@ function OutcomeShareChart({
   horizontal = false,
   onSelect,
   disabled = false,
+  maxValue,
+  labelFor = outcomeLabel,
 }: {
   outcomes: OutcomeCount[];
   horizontal?: boolean;
   onSelect?: (outcome: string, count: number) => void;
   disabled?: boolean;
+  maxValue?: number;
+  labelFor?: (value: string) => string;
 }) {
   const parts = outcomes.filter(drawable);
   const counted = parts.reduce((sum, row) => sum + row.decisions, 0);
@@ -30,20 +34,25 @@ function OutcomeShareChart({
   }
 
   if (horizontal) {
-    const ticks = axisTicks(Math.max(...parts.map((row) => row.decisions)));
+    const ticks = axisTicks(maxValue ?? Math.max(...parts.map((row) => row.decisions)));
     const top = ticks[ticks.length - 1] || 1;
+    const Row = onSelect ? 'button' : 'div';
     return (
       <div className="outcome-horizontal">
         {outcomes.map((row) => (
-          <button
-            type="button"
+          <Row
+            type={onSelect ? 'button' : undefined}
             className="indicator-target indicator-target--outcome outcome-horizontal__row"
             key={row.outcome}
-            disabled={disabled || row.decisions === null || !onSelect}
-            aria-label={`Consultar documentos com resultado ${outcomeLabel(row.outcome)}: ${formatCount(row.decisions)} decisões`}
+            disabled={onSelect ? disabled || row.decisions === null : undefined}
+            aria-label={
+              onSelect
+                ? `Consultar documentos com resultado ${labelFor(row.outcome)}: ${formatCount(row.decisions)} decisões`
+                : undefined
+            }
             onClick={() => row.decisions !== null && onSelect?.(row.outcome, row.decisions)}
           >
-            <span className="outcome-horizontal__label">{outcomeLabel(row.outcome)}</span>
+            <span className="outcome-horizontal__label">{labelFor(row.outcome)}</span>
             <span className="outcome-horizontal__track" aria-hidden="true">
               <span className="outcome-horizontal__grid">
                 {ticks.map((tick) => (
@@ -63,7 +72,8 @@ function OutcomeShareChart({
               {formatCount(row.decisions)}
               <span className="sr-only"> decisões</span>
             </span>
-          </button>
+            {row.share !== null && <span className="sr-only"> ({percent(row.share)})</span>}
+          </Row>
         ))}
         <div className="outcome-horizontal__axis" aria-hidden="true">
           {ticks.map((tick) => (

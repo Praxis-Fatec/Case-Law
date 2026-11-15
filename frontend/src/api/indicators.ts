@@ -311,6 +311,9 @@ export type VolumeParams = Pick<
   | 'orgao_julgador'
   | 'relator'
   | 'classe_cnj'
+  | 'resultado'
+  | 'orgao_julgador_excluido'
+  | 'relator_excluido'
   | 'date_from'
   | 'date_to'
   | 'published_from'
@@ -324,7 +327,15 @@ export function cutUrl(path: string, params: VolumeParams): URL {
   const url = new URL(`${apiBaseUrl}${path}`, window.location.origin);
   url.searchParams.set('q', params.q);
 
-  for (const name of ['tribunal', 'orgao_julgador', 'relator', 'classe_cnj'] as const) {
+  for (const name of [
+    'tribunal',
+    'orgao_julgador',
+    'relator',
+    'classe_cnj',
+    'resultado',
+    'orgao_julgador_excluido',
+    'relator_excluido',
+  ] as const) {
     for (const value of params[name] ?? []) {
       url.searchParams.append(name, String(value));
     }
@@ -577,4 +588,68 @@ export async function getLastUpdate(options: { signal?: AbortSignal } = {}): Pro
   }
 
   return readLastUpdate(await response.json());
+}
+
+export type ComparisonCount = {
+  value: string | null;
+  decisions: number | null;
+  share: number | null;
+};
+export type CourtComparison = {
+  abbreviation: string;
+  name: string | null;
+  total: number | null;
+  outcomes: ComparisonCount[];
+  deliberations: ComparisonCount[];
+  adherences: ComparisonCount[];
+};
+export type CourtComparisons = { total: number | null; courts: CourtComparison[] };
+
+function readComparisonCounts(value: unknown): ComparisonCount[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item: unknown) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    if (row.value !== null && typeof row.value !== 'string') return [];
+    return [{ value: row.value, decisions: count(row.decisions), share: count(row.share) }];
+  });
+}
+
+export function readComparison(body: unknown): CourtComparisons {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  return {
+    total: count(raw.total),
+    courts: Array.isArray(raw.courts)
+      ? raw.courts.flatMap((value: unknown) => {
+          const row = (value ?? {}) as Record<string, unknown>;
+          const abbreviation = text(row.abbreviation);
+          return abbreviation
+            ? [
+                {
+                  abbreviation,
+                  name: text(row.name),
+                  total: count(row.total),
+                  outcomes: readComparisonCounts(row.outcomes),
+                  deliberations: readComparisonCounts(row.deliberations),
+                  adherences: readComparisonCounts(row.adherences),
+                },
+              ]
+            : [];
+        })
+      : [],
+  };
+}
+
+export async function getComparison(
+  params: VolumeParams,
+  options: { signal?: AbortSignal } = {},
+): Promise<CourtComparisons> {
+  assertApiConfiguration();
+  const response = await fetch(cutUrl('/indicators/comparison', params).toString(), {
+    method: 'GET',
+    headers: apiHeaders(),
+    signal: options.signal,
+  });
+  if (!response.ok) throw new SearchRequestError(response.status, await readDetail(response));
+  return readComparison(await response.json());
 }
