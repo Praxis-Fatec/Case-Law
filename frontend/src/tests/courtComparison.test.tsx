@@ -139,6 +139,63 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('court comparison', () => {
+  it('keeps each court data in its selected column even when the API returns reversed rows', async () => {
+    api((url) => {
+      if (url.pathname === '/indicators/comparison') {
+        return json({ ...data, courts: [...data.courts].reverse() });
+      }
+      if (url.pathname === '/indicators/concentration') {
+        const groups = url.searchParams.get('tribunal') === 'STJ' ? 2 : 5;
+        return json({
+          judging_bodies: {
+            groups: [{ name: 'TURMA A', decisions: 1, share: 50 }],
+            other: { groups: groups - 1, decisions: 1, share: 50 },
+            missing: 0,
+          },
+        });
+      }
+      return undefined;
+    });
+    const { onDocuments } = panel();
+    const table = await screen.findByRole('table', { name: 'Critérios por tribunal' });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((item) => item.textContent),
+    ).toEqual(['Critério', 'STJ', 'TJDFT']);
+    for (const [label, expected] of [
+      ['Decisões encontradas', ['STJ: 2', 'TJDFT: 8']],
+      ['Órgãos julgadores', ['STJ: 2', 'TJDFT: 5']],
+      ['Recursos negados', ['STJ: 1', 'TJDFT: 4']],
+    ] as const) {
+      const row = within(table).getByRole('rowheader', { name: label }).parentElement!;
+      expect(
+        within(row)
+          .getAllByRole('cell')
+          .map((item) => item.textContent),
+      ).toEqual(expected);
+    }
+    fireEvent.click(screen.getByRole('button', { name: /Ver documentos do STJ/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ver documentos do TJDFT/ }));
+    expect(onDocuments.mock.calls).toEqual([
+      ['STJ', 2],
+      ['TJDFT', 8],
+    ]);
+    fireEvent.click(screen.getByText('Mais critérios'));
+    const columns = ['STJ', 'TJDFT'].map((name) =>
+      screen.getByRole('region', { name: `Indicadores do ${name}` }),
+    );
+    expect(columns).toHaveLength(2);
+    expect(
+      within(columns[0]).getByText('Base dos percentuais: 2 decisões deste tribunal.'),
+    ).toBeVisible();
+    expect(
+      within(columns[1]).getByText('Base dos percentuais: 8 decisões deste tribunal.'),
+    ).toBeVisible();
+    expect(columns[0].querySelectorAll('.court-comparison__chart')).toHaveLength(3);
+    expect(columns[1].querySelectorAll('.court-comparison__chart')).toHaveLength(3);
+  });
+
   it('explains why different instances cannot be ranked by appeal outcome rates', async () => {
     api();
     panel();
@@ -200,40 +257,109 @@ describe('court comparison', () => {
   });
 
   it('reuses one count scale for both courts and all three distributions', async () => {
-    api();
+    const leftCourt = {
+      ...court('STJ', 2, 1),
+      deliberations: [count('unanime', 1, 2), count('maioria', 1, 2)],
+      adherences: [count('seguiu', 1, 2), count(null, 1, 2)],
+    };
+    const rightCourt = {
+      ...court('TJDFT', 8, 4),
+      deliberations: [count('unanime', 3, 8), count('maioria', 1, 8), count(null, 4, 8)],
+      adherences: [count('seguiu', 5, 8), count(null, 3, 8)],
+    };
+    api((url) =>
+      url.pathname === '/indicators/comparison'
+        ? json({ total: 10, courts: [leftCourt, rightCourt] })
+        : undefined,
+    );
     panel();
     await screen.findByRole('table');
     fireEvent.click(screen.getByText('Mais critérios'));
     const axes = document.querySelectorAll('.court-comparison__chart .outcome-horizontal__axis');
     expect(axes).toHaveLength(6);
     expect(new Set([...axes].map((axis) => axis.textContent)).size).toBe(1);
-    const left = screen
-      .getByRole('region', { name: 'Resultado do STJ' })
-      .querySelector<HTMLElement>('[data-outcome="negado"]')!;
-    const right = screen
-      .getByRole('region', { name: 'Resultado do TJDFT' })
-      .querySelector<HTMLElement>('[data-outcome="negado"]')!;
-    expect(parseFloat(right.style.width)).toBe(parseFloat(left.style.width) * 4);
+    const ticks = [...axes[0].children].map((item) => Number(item.textContent));
+    expect(ticks[0]).toBe(0);
+    expect(ticks[ticks.length - 1]).toBeGreaterThanOrEqual(8);
+    for (const [title, value, multiple] of [
+      ['Resultado', 'negado', 4],
+      ['Deliberação', 'unanime', 3],
+      ['Aderência', 'seguiu', 5],
+    ] as const) {
+      const left = screen
+        .getByRole('region', { name: `${title} do STJ` })
+        .querySelector<HTMLElement>(`[data-outcome="${value}"]`)!;
+      const right = screen
+        .getByRole('region', { name: `${title} do TJDFT` })
+        .querySelector<HTMLElement>(`[data-outcome="${value}"]`)!;
+      const leftWidth = parseFloat(left.style.width);
+      const rightWidth = parseFloat(right.style.width);
+      expect(leftWidth).toBeGreaterThan(0);
+      expect(rightWidth).toBeLessThanOrEqual(100);
+      expect(rightWidth).toBeCloseTo(leftWidth * multiple);
+      expect(leftWidth).toBeCloseTo(100 / ticks[ticks.length - 1]);
+    }
     expect(screen.getByText('Base dos percentuais: 2 decisões deste tribunal.')).toBeVisible();
     expect(screen.getByText('Base dos percentuais: 8 decisões deste tribunal.')).toBeVisible();
   });
 
-  it('keeps the empty court column with a reason and no documents action', async () => {
-    api((url) =>
-      url.pathname === '/indicators/comparison'
-        ? json({ total: 2, courts: [court('STJ', 2, 1), court('TJDFT', 0, 0)] })
-        : undefined,
-    );
-    panel();
-    await screen.findByRole('table');
-    expect(
-      screen.getByText('Nenhuma decisão neste recorte. Revise a expressão ou os filtros.'),
-    ).toBeVisible();
-    expect(screen.getByRole('button', { name: /Ver documentos do TJDFT/ })).toBeDisabled();
-    fireEvent.click(screen.getByText('Mais critérios'));
-    expect(screen.getByText(/Nenhuma decisão corresponde à expressão/)).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Indicadores do TJDFT' })).toBeVisible();
-  });
+  it.each(['left', 'right', 'both'] as const)(
+    'keeps %s empty columns with zero counts, a reason and no documents action',
+    async (empty) => {
+      const totals = [empty === 'right' ? 2 : 0, empty === 'left' ? 8 : 0];
+      api((url) => {
+        if (url.pathname === '/indicators/comparison') {
+          return json({
+            total: totals[0] + totals[1],
+            courts: [
+              court('STJ', totals[0], totals[0] / 2),
+              court('TJDFT', totals[1], totals[1] / 2),
+            ],
+          });
+        }
+        const index = ['STJ', 'TJDFT'].indexOf(url.searchParams.get('tribunal') ?? '');
+        if (url.pathname === '/indicators/concentration' && totals[index] === 0) {
+          return json({
+            judging_bodies: {
+              groups: [],
+              other: { groups: 0, decisions: 0, share: 0 },
+              missing: 0,
+            },
+          });
+        }
+        return undefined;
+      });
+      panel();
+      const table = await screen.findByRole('table');
+      expect(
+        within(table)
+          .getAllByRole('columnheader')
+          .map((item) => item.textContent),
+      ).toEqual(['Critério', 'STJ', 'TJDFT']);
+      fireEvent.click(screen.getByText('Mais critérios'));
+      for (const [index, name] of ['STJ', 'TJDFT'].entries()) {
+        const column = screen.getByRole('region', { name: `Indicadores do ${name}` });
+        const documents = screen.getByRole('button', { name: `Ver documentos do ${name}` });
+        expect(column).toBeVisible();
+        if (totals[index] === 0) {
+          expect(
+            within(column).getByText(/Nenhuma decisão corresponde à expressão e aos filtros/),
+          ).toBeVisible();
+          expect(column.querySelector('.court-comparison__chart')).not.toBeInTheDocument();
+          expect(documents).toBeDisabled();
+          for (const row of within(table).getAllByRole('row').slice(1)) {
+            expect(within(row).getAllByRole('cell')[index]).toHaveTextContent(`${name}: 0`);
+          }
+        } else {
+          expect(documents).toBeEnabled();
+          expect(column.querySelectorAll('.court-comparison__chart')).toHaveLength(3);
+        }
+      }
+      expect(
+        screen.getAllByText('Nenhuma decisão neste recorte. Revise a expressão ou os filtros.'),
+      ).toHaveLength(empty === 'both' ? 2 : 1);
+    },
+  );
 
   it('distinguishes unavailable comparison data from zero and retries', async () => {
     let failed = true;
