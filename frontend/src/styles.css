@@ -5059,6 +5059,23 @@ input:focus-visible {
 .court-comparison__table {
   border-top: 1px solid var(--line);
 }
+.court-comparison__instance-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #ead8ba;
+  border-radius: 8px;
+  background: #fff8eb;
+  color: #804b22;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.court-comparison__instance-warning svg {
+  flex: none;
+  margin-top: 1px;
+}
 .court-comparison__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(2, minmax(80px, 132px));

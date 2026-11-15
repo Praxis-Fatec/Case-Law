@@ -139,6 +139,37 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('court comparison', () => {
+  it('explains why different instances cannot be ranked by appeal outcome rates', async () => {
+    api();
+    panel();
+    await screen.findByRole('table');
+    const warning = screen.getByRole('note');
+    expect(warning).toBeVisible();
+    expect(warning).toHaveTextContent('Instâncias diferentes');
+    expect(warning).toHaveTextContent(/julgam recursos distintos/);
+    expect(warning).toHaveTextContent(/por isso taxas de provimento não medem rigor/);
+    expect(warning).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('omits the warning for courts at the same level, even across jurisdictions', async () => {
+    api();
+    panel({ params: { q: 'dano moral', tribunal: ['TJDFT', 'TRF1'] } });
+    await screen.findByRole('table');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('updates the warning immediately when court selection changes', async () => {
+    api();
+    panel();
+    await screen.findByRole('table');
+    expect(screen.getByRole('note')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Tribunal A'), { target: { value: 'TRF1' } });
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Tribunal A'), { target: { value: 'STJ' } });
+    expect(screen.getByRole('note')).toHaveTextContent('Instâncias diferentes');
+    await screen.findByRole('table');
+  });
+
   it('keeps every applied filter in the comparison and each court concentration request', async () => {
     const requests = api();
     panel();

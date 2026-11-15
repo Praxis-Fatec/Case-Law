@@ -15,6 +15,7 @@ import { formatCount, formatDateTime } from './coverageFormat';
 import { outcomeLabel } from './outcomeFormat';
 import { adherenceLabel } from './precedentFormat';
 import OutcomeShareChart from './OutcomeShareChart';
+import { haveDifferentInstances } from './courtInstance';
 
 type ComparisonState =
   | { status: 'loading' }
@@ -295,6 +296,15 @@ export default function CourtComparisonPanel({
             </div>
           ))}
         </div>
+        {haveDifferentInstances(selected[0], selected[1]) && (
+          <p className="court-comparison__instance-warning" role="note" aria-live="polite">
+            <WarningCircle size={18} aria-hidden="true" />
+            <span>
+              Instâncias diferentes: julgam recursos distintos, por isso taxas de provimento não
+              medem rigor.
+            </span>
+          </p>
+        )}
         {!canCompare && (
           <p role="status" className="court-comparison__notice">
             Selecione dois tribunais diferentes para comparar. A lista de tribunais pode estar
