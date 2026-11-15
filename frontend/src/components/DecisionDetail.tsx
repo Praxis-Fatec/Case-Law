@@ -3,7 +3,9 @@ import { ArrowLeft, ArrowSquareOut, WarningCircle } from '@phosphor-icons/react'
 
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
 import { readCitedPrecedents } from '../api/precedents';
+import CitedLegislation from './CitedLegislation';
 import CitedPrecedents from './CitedPrecedents';
+import RelatedDecisions from './RelatedDecisions';
 import RelatedDoctrine from './RelatedDoctrine';
 import {
   DELIBERATION_LABELS,
@@ -209,8 +211,29 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         headingId={`${titleId}-precedentes`}
       />
 
-      {/* Last of the three, because it is the furthest from the decision:
-          what it settled, what it cited, and what other people wrote. */}
+      {/* Beside the precedents, and after them: a súmula is read for what it
+          settled, a statute for what it says, and the two are different kinds
+          of ground. Everything in both blocks is the court's own. */}
+      <CitedLegislation
+        key={`legislacao:${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        headingId={`${titleId}-legislacao`}
+      />
+
+      {/* After everything the court itself cited, which is where the
+          distinction `RF20` asks for becomes visible: above are the relations
+          the court made, here the ones this tool computed. */}
+      <RelatedDecisions
+        key={`proximas:${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        ementa={decision.summary}
+        headingId={`${titleId}-proximas`}
+      />
+
+      {/* Last, because it is the furthest from the decision: what it settled,
+          what it cited, what reads like it, and what other people wrote. */}
       <RelatedDoctrine
         key={`${decision.source}:${decision.identifier}`}
         source={decision.source}

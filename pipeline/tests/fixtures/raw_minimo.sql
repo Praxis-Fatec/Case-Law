@@ -42,7 +42,17 @@ CREATE TABLE raw.espelho_stj (
     ementa              VARCHAR,
     "dataDecisao"       VARCHAR,
     decisao             VARCHAR,
-    _dlt_load_id        VARCHAR NOT NULL
+    _dlt_load_id        VARCHAR NOT NULL,
+    _dlt_id             VARCHAR NOT NULL
+);
+
+-- dlt puts a repeated field in a child table of its own, linked by the parent's
+-- `_dlt_id`. The real name carries the arrow dlt builds it with.
+CREATE TABLE raw."espelho_stj▶referenciasLegislativas" (
+    value          VARCHAR,
+    _dlt_parent_id VARCHAR NOT NULL,
+    _dlt_list_idx  BIGINT NOT NULL,
+    _dlt_id        VARCHAR NOT NULL
 );
 
 CREATE TABLE verificacao.link (
@@ -113,17 +123,50 @@ VALUES
 -- six months apart, so they land in windows that are never built together.
 INSERT INTO raw.espelho_stj
     (id, "numeroProcesso", "numeroRegistro", "descricaoClasse", "nomeOrgaoJulgador",
-     "ministroRelator", "dataPublicacao", ementa, "dataDecisao", decisao, _dlt_load_id)
+     "ministroRelator", "dataPublicacao", ementa, "dataDecisao", decisao, _dlt_load_id,
+     _dlt_id)
 VALUES
     ('stj-001', '2026/0000001-0', 'REG-777', 'RECURSO ESPECIAL', 'TERCEIRA TURMA',
      'MIN. PAULO COSTA', 'DJE DATA:20/01/2026',
      'RECURSO ESPECIAL. DANO MORAL. Sumula 7 do STJ. Incidencia. Agravo nao provido.',
-     '20260115', 'Negaram provimento.', 'carga-1'),
+     '20260115', 'Negaram provimento.', 'carga-1', 'dlt-stj-001'),
 
     ('stj-002', '2026/0000001-0', 'REG-777', 'AGRAVO INTERNO NO RECURSO ESPECIAL',
      'TERCEIRA TURMA', 'MIN. PAULO COSTA', 'DJE DATA:20/01/2026',
      'AGRAVO INTERNO. Sumula 7 do STJ. Reexame de provas. Agravo improvido.',
-     '20260715', 'Negaram provimento.', 'carga-3');
+     '20260715', 'Negaram provimento.', 'carga-3', 'dlt-stj-002');
+
+-- The legislative references, in the court's own fixed format and with the
+-- shapes that can go wrong: a paragraph that belongs to its own article, one
+-- reference naming three articles, a lettered article, a sphere outside the
+-- three the story named, a header with no act code at all, and a blank entry.
+-- The two decisions are judged six months apart, so the set is also split
+-- across windows that are never built together.
+INSERT INTO raw."espelho_stj▶referenciasLegislativas"
+    (value, _dlt_parent_id, _dlt_list_idx, _dlt_id)
+VALUES
+    (E'LEG:FED DEL:003365 ANO:1941\n        ART:00026 PAR:00002',
+     'dlt-stj-001', 0, 'ref-001'),
+
+    (E'LEG:FED LEI:013105 ANO:2015\n *****  CPC-15    CODIGO DE PROCESSO CIVIL DE 2015\n        ART:00926   ART:00927 PAR:00003 PAR:00004',
+     'dlt-stj-001', 1, 'ref-002'),
+
+    (E'LEG:FED LEI:005869 ANO:1973\n        ART:0543B   INC:00003   LET:A   LET:C',
+     'dlt-stj-001', 2, 'ref-003'),
+
+    (E'LEG:MUN LEI:000123 ANO:2009\n        ART:00007\n (SAO PAULO - SP)',
+     'dlt-stj-001', 3, 'ref-004'),
+
+    (E'LEG:FED\n *****  SUM(STF)  SUMULA DO SUPREMO TRIBUNAL FEDERAL\n        SUM:000282',
+     'dlt-stj-001', 4, 'ref-005'),
+
+    ('   ', 'dlt-stj-001', 5, 'ref-006'),
+
+    (E'LEG:FED CFB:****** ANO:1988\n        ART:00105   INC:00003   LET:A',
+     'dlt-stj-002', 0, 'ref-007'),
+
+    (E'LEG:FED LEI:007711 ANO:1988\n        ART:00003   PAR:UNICO',
+     'dlt-stj-002', 1, 'ref-008');
 
 INSERT INTO verificacao.link (fonte_codigo, identificador, valido) VALUES
     ('tjdft-jurisdf', 'tj-001', TRUE),

@@ -258,6 +258,83 @@ WHERE dp.corte_declarada
       !~ 'stf|supremo|repercussao geral';
 
 AUDIT (
+  name referencia_reconhecida_tem_esfera_e_tipo,
+  dialect postgres
+);
+/* `reconhecida` é a promessa de que a tela consegue nomear a referência. Linha
+   marcada como reconhecida sem esfera ou sem tipo de ato não tem nome, e a tela
+   escreveria "3.365/1941" sem dizer de que ato se trata. O contrário esconde do
+   leitor uma referência que o parser leu inteira. */
+SELECT *
+FROM @this_model
+WHERE reconhecida <> (esfera IS NOT NULL AND tipo_ato IS NOT NULL);
+
+AUDIT (
+  name referencia_guarda_a_esfera_crua,
+  dialect postgres
+);
+/* A esfera fica como o tribunal escreveu, sempre. FED, EST e DIS a tela traduz;
+   MUN, INT e IES — 0,426% das linhas — não traduzem para nenhuma das três, e o
+   dia em que esta coluna guardar 'federal' em vez de 'FED' alguém terá fechado
+   a lacuna por chute, apresentando lei municipal como estadual. A regra é a
+   forma do código: duas a quatro maiúsculas, ou nulo. */
+SELECT *
+FROM @this_model
+WHERE esfera IS NOT NULL AND esfera !~ '^[A-Z]{2,4}$';
+
+AUDIT (
+  name referencia_com_artigo_legivel,
+  dialect postgres
+);
+/* `ART:0543B` é o art. 543-B e `ART:00026` é o art. 26; 24.222 tokens são da
+   primeira forma. Lidos do mesmo jeito, 543-B viraria o artigo 5.434 — número
+   plausível, de artigo que não foi citado. */
+SELECT *
+FROM @this_model
+WHERE artigo IS NOT NULL AND artigo !~ '^[0-9]+(-[A-Z])?$';
+
+AUDIT (
+  name referencia_sem_art_colado,
+  dialect postgres
+);
+/* O recorte por artigo usa `ART:` como sentinela. Hoje nenhuma das 1.243.281
+   linhas da origem traz `ART:` colado a outra palavra; o dia em que trouxer, o
+   recorte parte a referência no lugar errado e a tela mostra artigo que não
+   existe — e nada falha sozinho, porque o número continua plausível. */
+SELECT *
+FROM @this_model
+WHERE texto_bruto ~ '[A-Z]ART:';
+
+AUDIT (
+  name referencia_reconhecida_no_limite,
+  standalone true,
+  dialect postgres
+);
+/* O limite da história: acima de 1% de referências não reconhecidas, a carga
+   reprova. Medido em 0,6074% sobre 1.591.067 linhas em 14/11/2026, com as
+   contas em documentation/architecture/legislative-references.md.
+
+   1% dá 65% de folga sobre hoje — nenhuma semana de coleta nova derruba a regra
+   por volume — e é apertado o bastante para não esconder mudança de formato no
+   tribunal: as famílias que desviam hoje têm de 267 a 3.823 linhas, e perder o
+   código de ato de verdade moveria a taxa em pontos inteiros de uma vez.
+
+   `standalone` porque a taxa não é uniforme no tempo: 2003 fecha em 7,2329% e
+   2002 em 5,4594%, contra 0,02% nos anos recentes. Presa ao modelo, a regra
+   leria só a janela recém-escrita e reprovaria uma reconstrução de 2003 por
+   algo que já está medido e documentado. Fora dele lê a tabela inteira, que é
+   onde 1% quer dizer alguma coisa.
+
+   A taxa, e não a contagem: a coleção cresce toda semana, e um teto em número
+   de linhas teria que ser levantado à mão a cada carga — que é como uma guarda
+   deixa de guardar. O piso de cem mil linhas é para o ambiente de amostra, onde
+   proporção nenhuma significa nada. */
+SELECT 1 AS falha
+FROM core.referencia_legislativa
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE NOT reconhecida) > COUNT(*) * 0.01;
+
+AUDIT (
   name tese_sem_secao_seguinte,
   dialect postgres
 );
@@ -584,3 +661,44 @@ LEFT JOIN core.fonte AS f
   ON f.codigo = c.fonte_codigo
 WHERE c.fonte_codigo IS NOT NULL
   AND f.codigo IS NULL;
+
+AUDIT (
+  name termo_judicial_acima_do_piso,
+  dialect postgres
+);
+/* Os mesmos dois cortes do vocabulário da doutrina, pelas mesmas razões: peso
+   abaixo de 2,0 é palavra que aparece em mais de 134.133 decisões e não
+   distingue uma da outra; radical de três letras é acidente do radicalizador,
+   e `via` ligaria "via adequada" a "terceira via". */
+SELECT *
+FROM @this_model
+WHERE peso < 2.0
+   OR LENGTH(termo) < 4;
+
+AUDIT (
+  name termo_judicial_com_cobertura,
+  dialect postgres
+);
+/* Esta tabela nasce de `ementa_busca`. Se a construção daquele tsvector
+   quebrar, ela encolhe em silêncio e a tela deixa de sugerir decisões
+   próximas, com cara de acervo sem nada parecido. Medido em 11/11/2026:
+   540.103 termos para 991.163 decisões. O piso é de um décimo de termo por
+   decisão — longe do medido, porque o que ele precisa pegar é o colapso, não
+   a variação — e só vale a partir de 100 mil decisões, para não reprovar um
+   ambiente de desenvolvimento com uma amostra. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING (SELECT COUNT(*) FROM core.decisao) > 100000
+   AND COUNT(*) < (SELECT COUNT(*) FROM core.decisao) / 10;
+
+AUDIT (
+  name norma_positiva,
+  dialect postgres
+);
+/* Norma zero ou negativa quebraria o cosseno — a primeira por divisão por
+   zero, a segunda invertendo a ordem das sugestões sem erro nenhum. Nenhuma
+   das duas é possível pela fórmula, que soma quadrados: esta regra existe
+   para que, se alguém mudar a fórmula, a mudança apareça aqui e não na tela. */
+SELECT *
+FROM @this_model
+WHERE norma <= 0;

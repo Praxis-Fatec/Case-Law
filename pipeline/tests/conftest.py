@@ -8,9 +8,11 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from sqlmesh.core.context import Context
 
 RAIZ = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+PROJETO = RAIZ / "transformations"
 
 TEST_DATABASE_URL = os.getenv("PIPELINE_TEST_DATABASE_URL", "")
 
@@ -49,6 +51,23 @@ def banco() -> Iterator[str]:
             conn.execute(f'DROP SCHEMA IF EXISTS "{esquema}" CASCADE')
 
     yield TEST_DATABASE_URL
+
+
+@pytest.fixture(scope="session")
+def contexto(banco: str) -> Context:
+    """
+    The SQLMesh project, pointed at the test database.
+
+    Shared because more than one suite renders models against it, and two
+    copies of this would be two places to keep the connection in step.
+    """
+    partes = psycopg.conninfo.conninfo_to_dict(TEST_DATABASE_URL)
+    os.environ["POSTGRES_DB"] = str(partes.get("dbname"))
+    os.environ["POSTGRES_HOST"] = str(partes.get("host", "localhost"))
+    os.environ["POSTGRES_PORT"] = str(partes.get("port", "5432"))
+    os.environ["POSTGRES_USER"] = str(partes.get("user", "postgres"))
+    os.environ["POSTGRES_PASSWORD"] = str(partes.get("password", "postgres"))
+    return Context(paths=PROJETO)
 
 
 @pytest.fixture

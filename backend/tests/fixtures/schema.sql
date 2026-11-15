@@ -216,6 +216,28 @@ CREATE TABLE core.decisao_precedente (
     PRIMARY KEY (fonte_codigo, identificador_fonte, corte, tipo, numero)
 );
 
+-- One row per article cited, not per reference: a reference naming six
+-- articles is six rows, which is why the article is part of the key.
+CREATE TABLE core.referencia_legislativa (
+    fonte_codigo        TEXT    NOT NULL,
+    identificador_fonte TEXT    NOT NULL,
+    ordem               BIGINT  NOT NULL,
+    sequencia           INTEGER NOT NULL,
+    esfera              TEXT,
+    tipo_ato            TEXT,
+    numero              BIGINT,
+    ano                 INTEGER,
+    artigo              TEXT,
+    paragrafos          TEXT[],
+    incisos             TEXT[],
+    letras              TEXT[],
+    reconhecida         BOOLEAN NOT NULL,
+    texto_bruto         TEXT,
+    data_referencia     DATE,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte, ordem, sequencia)
+);
+
 CREATE TABLE core.doutrina (
     repositorio          TEXT NOT NULL,
     identificador_oai    TEXT NOT NULL,
@@ -266,6 +288,32 @@ CREATE TABLE core.doutrina_termo (
     PRIMARY KEY (repositorio, identificador_oai, termo)
 );
 
+-- The weights behind RF20, and the length of each decision's vector. The
+-- endpoint probes for both with TO_REGCLASS and answers an empty list when
+-- either is missing, so a suite that left them out would exercise only that
+-- fallback and never the matching itself.
+CREATE TABLE core.termo_judicial (
+    termo        TEXT             NOT NULL,
+    decisoes     BIGINT           NOT NULL,
+    peso         DOUBLE PRECISION NOT NULL,
+    carregado_em TIMESTAMPTZ,
+    PRIMARY KEY (termo)
+);
+
+CREATE TABLE core.decisao_norma (
+    fonte_codigo        TEXT             NOT NULL,
+    identificador_fonte TEXT             NOT NULL,
+    data_referencia     DATE             NOT NULL,
+    norma               DOUBLE PRECISION NOT NULL,
+    carregado_em        TIMESTAMPTZ,
+    PRIMARY KEY (fonte_codigo, identificador_fonte)
+);
+
 -- Dropped here, created by `app/identidade.sql`: the accounts schema has one
 -- definition, and a copy of it here would be a copy that drifts.
 DROP SCHEMA IF EXISTS identidade CASCADE;
+
+-- Likewise for `app/qualidade.sql`. Dropped too, not only recreated: its
+-- reports reference the accounts dropped above, and `IF NOT EXISTS` would keep
+-- a table whose foreign key the cascade already took away.
+DROP SCHEMA IF EXISTS qualidade CASCADE;

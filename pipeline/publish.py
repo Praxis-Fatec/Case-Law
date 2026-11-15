@@ -23,9 +23,12 @@ TABLES = (
     "decisao",
     "url_compartilhada",
     "termo_frequente",
+    "termo_judicial",
+    "decisao_norma",
     "busca_ampla",
     "precedente",
     "decisao_precedente",
+    "referencia_legislativa",
     "doutrina",
     "doutrina_termo",
     "decisao_doutrina",
@@ -64,6 +67,14 @@ INDEXES = (
         "(lexema, fonte_codigo, identificador_fonte)"
     ),
     f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_frequente (lexema)",
+    # O vocabulário é lido por termo, uma vez por termo da decisão aberta;
+    # a norma, uma vez por candidato. Sem estes dois a sugestão de decisões
+    # próximas varre as duas tabelas inteiras a cada leitura.
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_judicial (termo)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_norma "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The copy is a plain SELECT, so no index comes with it. These mirror what
     # the models declare: without them the detail screen reads 28 thousand
     # suggestions sequentially on every decision opened.
@@ -75,6 +86,19 @@ INDEXES = (
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (corte, tipo, numero)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (resolvida)",
+    # The legislation block reads by the decision and nothing else, and the
+    # unique key already starts with that pair. The partial index is for the
+    # minority the audit counts — 0,61% of 1,59 million rows — so that reading
+    # what the court wrote in a form this parser does not know is a lookup
+    # rather than a scan of the whole table.
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte, ordem, sequencia)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte) WHERE NOT reconhecida"
+    ),
     (
         f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.doutrina "
         "(repositorio, identificador_oai)"
