@@ -134,6 +134,67 @@ def test_a_person_with_no_saved_searches_sees_an_empty_list_not_someone_elses(
     assert response.json() == {"searches": []}
 
 
+@pytest.mark.parametrize("operation", ["list", "read", "delete"])
+def test_people_with_the_same_manager_do_not_share_saved_searches(
+    client: TestClient,
+    people: list[dict[str, Any]],
+    db_rolled_back: psycopg.Connection[DictRow],
+    operation: str,
+) -> None:
+    colleague = member(db_rolled_back, people[0], email="carla@almeidacosta.com.br")
+    owners = [*people, colleague]
+    # Identical names and filters must not make searches shared. Neither the
+    # common manager nor the account's role substitutes for the actual owner.
+    saved = [save(client, person) for person in owners]
+    assert len({item["id"] for item in saved}) == len(owners)
+    for owner_index, person in enumerate(owners):
+        for other_index, foreign in enumerate(saved):
+            if owner_index == other_index:
+                continue
+            if operation == "list":
+                response = client.get(
+                    "/searches",
+                    headers=header(person),
+                    params={"usuario_id": str(owners[other_index]["id"])},
+                )
+                assert response.status_code == 200
+                assert response.json() == {"searches": [saved[owner_index]]}
+            else:
+                response = client.request(
+                    "GET" if operation == "read" else "DELETE",
+                    f"/searches/{foreign['id']}",
+                    headers=header(person),
+                )
+                assert response.status_code == 404
+                assert response.json() == {"detail": NOT_FOUND}
+    # In particular, forbidden deletes must not erase anyone's search.
+    for person, own in zip(owners, saved, strict=True):
+        assert client.get("/searches", headers=header(person)).json() == {
+            "searches": [own]
+        }
+
+
+def test_delete_removes_only_the_requested_search_from_the_authenticated_owner(
+    client: TestClient, people: list[dict[str, Any]]
+) -> None:
+    foreign = save(client, people[0])
+    target = save(client, people[1])
+    retained = save(client, people[1])
+    response = client.delete(f"/searches/{target['id']}", headers=header(people[1]))
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get("/searches", headers=header(people[1])).json() == {
+        "searches": [retained]
+    }
+    assert client.get("/searches", headers=header(people[0])).json() == {
+        "searches": [foreign]
+    }
+    assert (
+        client.get(f"/searches/{target['id']}", headers=header(people[1])).status_code
+        == 404
+    )
+
+
 @pytest.mark.parametrize("method", ["GET", "DELETE"])
 @pytest.mark.parametrize("owner_index", [0, 1], ids=["manager-owner", "member-owner"])
 def test_another_persons_search_is_indistinguishable_from_a_missing_search(
@@ -148,6 +209,7 @@ def test_another_persons_search_is_indistinguishable_from_a_missing_search(
     missing = client.request(method, f"/searches/{uuid4()}", headers=header(other))
     assert response.status_code == missing.status_code == 404
     assert response.json() == missing.json() == {"detail": NOT_FOUND}
+    assert response.content == missing.content
     # A failed attempt to read or delete must leave the owner's data intact.
     assert client.get(f"/searches/{saved['id']}", headers=header(owner)).json() == saved
 
