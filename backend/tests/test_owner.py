@@ -106,7 +106,8 @@ def test_migrate_applies_the_schema_and_may_be_run_again(
         cursor.execute(
             "SELECT COUNT(DISTINCT table_schema) AS schemas "
             "FROM information_schema.tables "
-            "WHERE table_schema IN ('identidade', 'leitura', 'qualidade')"
+            "WHERE table_schema = ANY(%s)",
+            ([schema.stem for schema in owner.SCHEMAS],),
         )
         found = cursor.fetchone()
 
@@ -132,3 +133,16 @@ def test_the_reports_come_after_the_accounts_they_belong_to() -> None:
         text = (REPOSITORY / relative).read_text(encoding="utf-8")
 
         assert "02-identidade.sql" in text and "04-qualidade.sql" in text, relative
+
+
+def test_saved_searches_come_after_the_accounts_they_belong_to() -> None:
+    names = [schema.name for schema in owner.SCHEMAS]
+    assert names.index("identidade.sql") < names.index("pesquisa.sql")
+
+    for relative in (
+        Path("docker-compose.yml"),
+        Path("deploy/docker-compose.dev.yml"),
+        Path("deploy/docker-compose.prod.yml"),
+    ):
+        text = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert "02-identidade.sql" in text and "05-pesquisa.sql" in text, relative
