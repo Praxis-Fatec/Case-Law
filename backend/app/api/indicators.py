@@ -1593,3 +1593,203 @@ def read_concentration(
         judging_bodies=_concentrate(bodies, total, limit),
         reporting_judges=_concentrate(judges, total, limit),
     )
+
+
+# Aggregate decisions before joining citations: multiple precedents must never
+# inflate a court's denominator, outcomes or deliberations. One statement keeps
+# all three indicators in the same PostgreSQL snapshot.
+COMPARISON_SQL = f"""
+WITH recorte AS MATERIALIZED (
+    SELECT d.fonte_codigo, d.identificador_fonte, d.tribunal_sigla,
+           d.resultado, d.deliberacao
+    FROM core.decisao AS d
+    WHERE {MATCH}{{filters}}
+),
+tribunais AS (
+    SELECT sigla FROM core.tribunal
+    UNION
+    SELECT DISTINCT tribunal_sigla FROM core.decisao
+    UNION
+    SELECT unnest(%(comparison_courts)s::text[])
+),
+totais AS (
+    SELECT tribunal_sigla, COUNT(*) AS total
+    FROM recorte GROUP BY tribunal_sigla
+),
+categorias AS (
+    SELECT tribunal_sigla, 'outcomes' AS indicator,
+           resultado AS value, COUNT(*) AS decisions
+    FROM recorte GROUP BY tribunal_sigla, resultado
+    UNION ALL
+    SELECT tribunal_sigla, 'deliberations', deliberacao, COUNT(*)
+    FROM recorte GROUP BY tribunal_sigla, deliberacao
+    UNION ALL
+    SELECT r.tribunal_sigla, 'adherences', dp.aderencia,
+           COUNT(DISTINCT (r.fonte_codigo, r.identificador_fonte))
+    FROM recorte AS r
+    LEFT JOIN core.decisao_precedente AS dp
+      ON dp.fonte_codigo = r.fonte_codigo
+     AND dp.identificador_fonte = r.identificador_fonte
+    GROUP BY r.tribunal_sigla, dp.aderencia
+)
+SELECT t.sigla, COALESCE(n.nome, t.sigla) AS nome,
+       COALESCE(totais.total, 0) AS total,
+       c.indicator, c.value, c.decisions
+FROM tribunais AS t
+LEFT JOIN core.tribunal AS n ON n.sigla = t.sigla
+LEFT JOIN totais ON totais.tribunal_sigla = t.sigla
+LEFT JOIN categorias AS c ON c.tribunal_sigla = t.sigla
+WHERE cardinality(%(comparison_courts)s::text[]) = 0
+   OR t.sigla = ANY(%(comparison_courts)s::text[])
+ORDER BY t.sigla, c.indicator, c.value NULLS LAST
+"""
+
+
+class ComparisonCount(BaseModel):
+    value: str | None = Field(
+        description=(
+            "The recorded category. Null means an unclassified outcome or "
+            "deliberation, or a decision citing no precedent for adherence. "
+            "Undetermined citations are reported as `indeterminado`."
+        )
+    )
+    decisions: int = Field(description="Distinct decisions in this category.")
+    share: float = Field(
+        description="Percentage of this court's `total`, rounded to one decimal."
+    )
+
+
+class CourtComparison(BaseModel):
+    abbreviation: str = Field(description="The court's abbreviation.")
+    name: str = Field(description="The court's full name, or its abbreviation.")
+    total: int = Field(
+        description="Decisions from this court in the cut; every share uses this denominator."
+    )
+    outcomes: list[ComparisonCount]
+    deliberations: list[ComparisonCount]
+    adherences: list[ComparisonCount] = Field(
+        description=(
+            "Distinct decisions per adherence. A decision citing several "
+            "precedents in one category counts once. It may occur in several "
+            "categories, so these shares can add up to more than 100%."
+        )
+    )
+
+
+class CourtComparisons(BaseModel):
+    total: int = Field(description="Sum of the courts' decision counts in the cut.")
+    courts: list[CourtComparison] = Field(
+        description=(
+            "Alphabetical by abbreviation. Includes registered courts and courts "
+            "present in the collection, even without matches. A court filter "
+            "restricts this list to the requested courts, including unknown ones."
+        )
+    )
+
+
+@router.get(
+    "/indicators/comparison",
+    summary="Compare outcomes, deliberations and adherence between courts",
+    responses=SEARCH_RESPONSES,
+)
+def read_comparison(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[str, Query(min_length=2, description="The search expression.")],
+    tribunal: Annotated[
+        list[str] | None, Query(description="Courts to compare.")
+    ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None, Query(description="The search's judging-body filter.")
+    ] = None,
+    relator: Annotated[
+        list[str] | None, Query(description="The search's reporting-judge filter.")
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None, Query(description="The search's CNJ class filter.")
+    ] = None,
+    resultado: Annotated[
+        list[str] | None, Query(description="The search's outcome filter.")
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+    orgao_julgador_excluido: Annotated[
+        list[str] | None, Query(description="The search's excluded judging bodies.")
+    ] = None,
+    relator_excluido: Annotated[
+        list[str] | None, Query(description="The search's excluded reporting judges.")
+    ] = None,
+) -> CourtComparisons:
+    """Three indicators over the same search, with a denominator per court.
+
+    Unlike outcome-share and adherence, all percentages here are over the
+    court's complete cut, including unclassified decisions. Zero-count courts
+    and categories remain present even when the whole search matches nothing.
+    """
+    filters, parameters = _narrowing(
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
+        orgao_julgador_excluido,
+        relator_excluido,
+    )
+    parameters["comparison_courts"] = parameters.get("tribunais", [])
+    with connection.cursor() as cursor:
+        cursor.execute(COMPARISON_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    courts: dict[str, CourtComparison] = {}
+    counted: dict[str, dict[str, dict[str | None, int]]] = {}
+    for row in rows:
+        abbreviation = row["sigla"]
+        if abbreviation not in courts:
+            courts[abbreviation] = CourtComparison(
+                abbreviation=abbreviation,
+                name=row["nome"],
+                total=row["total"],
+                outcomes=[],
+                deliberations=[],
+                adherences=[],
+            )
+            counted[abbreviation] = {
+                "outcomes": {},
+                "deliberations": {},
+                "adherences": {},
+            }
+        if row["indicator"] is not None:
+            counted[abbreviation][row["indicator"]][row["value"]] = row["decisions"]
+
+    categories: dict[str, tuple[str | None, ...]] = {
+        "outcomes": (*OUTCOMES, None),
+        "deliberations": ("unanime", "maioria", None),
+        "adherences": (*DECIDED, UNDETERMINED, None),
+    }
+    for abbreviation, court in courts.items():
+        for indicator, values in categories.items():
+            counts = counted[abbreviation][indicator]
+            items = [
+                ComparisonCount(
+                    value=value,
+                    decisions=counts.get(value, 0),
+                    share=round(counts.get(value, 0) / court.total * 100, 1)
+                    if court.total
+                    else 0.0,
+                )
+                for value in values
+            ]
+            setattr(court, indicator, items)
+    return CourtComparisons(
+        total=sum(c.total for c in courts.values()), courts=list(courts.values())
+    )

@@ -180,6 +180,7 @@ describe('the top bar', () => {
     expect(bar.getAllByRole('link').map((link) => link.textContent)).toEqual([
       '',
       'Cobertura da baseInformações do sistema',
+      'Itens salvos',
       'UsuáriosQuem tem acesso',
       'ReportesClassificações contestadas',
     ]);

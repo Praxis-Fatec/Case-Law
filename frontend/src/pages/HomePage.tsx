@@ -7,6 +7,7 @@ import {
   FileMagnifyingGlass,
   MagnifyingGlass,
   SlidersHorizontal,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
   DEFAULT_ORDER,
@@ -22,6 +23,15 @@ import ResultsSort from '../components/ResultsSort';
 import ExportAction from '../components/ExportAction';
 import { exportParams } from '../api/exports';
 import CourtVolumePanel from '../components/CourtVolumePanel';
+import SaveSearchAction from '../components/SaveSearchAction';
+import SavedSearchesDrawer from '../components/SavedSearchesDrawer';
+import { savedSearchParams } from '../api/savedSearches';
+import {
+  SAVED_SEARCHES_PATH,
+  type ResumedSearch,
+  type AdditionalSavedFilters,
+} from '../search/savedSearches';
+import CourtComparisonPanel from '../components/CourtComparisonPanel';
 import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
@@ -37,7 +47,7 @@ import {
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
-import type { OutcomeState } from '../components/outcomeFormat';
+import { outcomeLabel, type OutcomeState } from '../components/outcomeFormat';
 import type { AdherenceState, MostCitedState } from '../components/precedentFormat';
 import { getAdherence, getMostCited } from '../api/precedents';
 import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
@@ -125,12 +135,20 @@ type AppliedSearch = {
   filters: SearchFilterValues;
   order: SearchOrder;
   page: number;
+  extraFilters?: AdditionalSavedFilters;
 };
+
+const additionalFilterCount = (search: AppliedSearch | null) =>
+  Object.values(search?.extraFilters ?? {}).reduce(
+    (total, values) => total + (values?.length ?? 0),
+    0,
+  );
 
 // The one place a request is built from the applied search. Another page is
 // another page of this same search — same expression, filters, order and page
 // size — so a page can never be read in a different cut than the first.
 const requestFor = (search: AppliedSearch) => ({
+  ...search.extraFilters,
   ...toSearchParams(search.q, search.filters),
   page: search.page,
   order: search.order,
@@ -147,6 +165,9 @@ const volumeFor = (search: AppliedSearch): VolumeParams => {
     orgao_julgador: params.orgao_julgador,
     relator: params.relator,
     classe_cnj: params.classe_cnj,
+    resultado: params.resultado,
+    orgao_julgador_excluido: params.orgao_julgador_excluido,
+    relator_excluido: params.relator_excluido,
     date_from: params.date_from,
     date_to: params.date_to,
     published_from: params.published_from,
@@ -183,7 +204,18 @@ function volumeFailure(error: unknown): string {
   return 'Não foi possível carregar o volume por tribunal. Tente novamente.';
 }
 
-function HomePage() {
+const ignoreSavedSearchCount = (_count: number) => undefined;
+const ignoreSearchSaved = () => undefined;
+
+function HomePage({
+  onSavedSearchCount = ignoreSavedSearchCount,
+  onSearchSaved = ignoreSearchSaved,
+}: {
+  onSavedSearchCount?: (count: number) => void;
+  onSearchSaved?: () => void;
+} = {}) {
+  const savedSearchesOpen = useMatch(SAVED_SEARCHES_PATH) !== null;
+  const [removedSavedSearch, setRemovedSavedSearch] = useState<string | null>(null);
   // Everything the reader would lose by leaving and coming back lives in the
   // search session, above the routes: the list can unmount and still come back
   // as it was, with no new request. Only what belongs to this one render — the
@@ -212,12 +244,14 @@ function HomePage() {
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [comparisonTrigger, setComparisonTrigger] = useState<HTMLElement | null>(null);
   const [indicatorSelection, setIndicatorSelection] = useSessionState<IndicatorSelection | null>(
     'indicatorSelection',
     null,
   );
   const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
-  const openIndicator = (point: IndicatorPoint) => {
+  const openIndicator = (point: IndicatorPoint, compareCourt = false) => {
     if (!applied || indicatorOpen || isLoading) return;
     resetBuffer();
     setIndicatorTrigger(
@@ -225,12 +259,16 @@ function HomePage() {
         ? document.activeElement
         : null,
     );
-    setIndicatorSelection(
-      selectIndicator(requestFor(applied), point, {
-        total: totalResults ?? 0,
-        filterCount: countFilters(applied.filters),
-      }),
-    );
+    const selection = selectIndicator(requestFor(applied), point, {
+      total: totalResults ?? 0,
+      filterCount: countFilters(applied.filters) + additionalFilterCount(applied),
+    });
+    // The comparison's court selector replaces only the court dimension.
+    // Keep the original search intact for the drawer's remove-selection action.
+    if (compareCourt && point.kind === 'court') {
+      selection.params = { ...requestFor(applied), tribunal: [point.court], page: 1 };
+    }
+    setIndicatorSelection(selection);
     navigate(
       { pathname: location.pathname, search: location.search },
       { state: { ...location.state, indicatorDocuments: true } },
@@ -313,6 +351,7 @@ function HomePage() {
   };
   const appliedCount =
     (appliedFilters ? countFilters(appliedFilters) : 0) +
+    additionalFilterCount(applied) +
     (indicatorOpen && indicatorSelection?.contextActive ? 1 : 0);
   const hasPendingFilters = appliedFilters !== null && !sameFilters(filterDraft, appliedFilters);
 
@@ -482,6 +521,7 @@ function HomePage() {
     void runSearch({
       q: trimmedValue,
       filters: filterDraft,
+      extraFilters: applied?.extraFilters,
       order: applied?.order ?? DEFAULT_ORDER,
       page: 1,
     });
@@ -496,6 +536,23 @@ function HomePage() {
     // Another order is another list: it starts on its first page.
     resetBuffer();
     void runSearch({ ...applied, order, page: 1 }, 'Não foi possível reordenar os resultados.');
+  };
+
+  const closeSavedSearches = () => {
+    if ((location.state as { savedSearchesEntry?: boolean } | null)?.savedSearchesEntry)
+      navigate(-1);
+    else navigate('/', { replace: true });
+  };
+  const resumeSearch = (search: ResumedSearch) => {
+    setValue(search.q);
+    setFilterDraft(search.filters);
+    setSubmitErrors({});
+    setFiltersOpen(false);
+    setView('documents');
+    resetBuffer();
+    navigate('/', { replace: true });
+    void runSearch(search);
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   // Once another page arrives, the reader is taken to its first result, not
@@ -701,10 +758,42 @@ function HomePage() {
           value,
           label: `Classe processual: ${activeOptions?.procedural_classes.find((option) => option.value === value)?.label ?? value}`,
         })),
+        ...(applied.extraFilters?.resultado ?? []).map((value) => ({
+          field: 'resultado',
+          value,
+          label: `Resultado: ${outcomeLabel(value)}`,
+        })),
+        ...(applied.extraFilters?.orgao_julgador_excluido ?? []).map((value) => ({
+          field: 'orgao_julgador_excluido',
+          value,
+          label: `Excluir órgão julgador: ${value}`,
+        })),
+        ...(applied.extraFilters?.relator_excluido ?? []).map((value) => ({
+          field: 'relator_excluido',
+          value,
+          label: `Excluir relator: ${value}`,
+        })),
       ]
     : [];
   const removeActiveFilter = (field: string, value: string | number) => {
     if (!applied) return;
+    if (
+      field === 'resultado' ||
+      field === 'orgao_julgador_excluido' ||
+      field === 'relator_excluido'
+    ) {
+      const remaining = applied.extraFilters?.[field]?.filter((item) => item !== value);
+      resetBuffer();
+      void runSearch({
+        ...applied,
+        extraFilters: {
+          ...applied.extraFilters,
+          [field]: remaining?.length ? remaining : undefined,
+        },
+        page: 1,
+      });
+      return;
+    }
     const remove = (filters: SearchFilterValues): SearchFilterValues => ({
       ...filters,
       judgingBodies: filters.judgingBodies.filter(
@@ -848,6 +937,59 @@ function HomePage() {
           </div>
         </section>
       )}
+      {applied && hasSearch && (
+        <div className="comparison-context-bar">
+          <div className="comparison-context-bar__summary">
+            <strong>Resultado para “{applied.q}”</strong>
+            <span className="comparison-context-bar__tag">
+              {applied.q.includes('"') ? 'Frase exata' : 'Termo livre'}
+            </span>
+            {applied.filters.courts.length > 0 && (
+              <span className="comparison-context-bar__tag">
+                {applied.filters.courts.join(', ')}
+              </span>
+            )}
+            {(applied.filters.dateFrom || applied.filters.dateTo) && (
+              <span className="comparison-context-bar__tag">
+                Julgamento: {applied.filters.dateFrom || 'início aberto'} a{' '}
+                {applied.filters.dateTo || 'fim aberto'}
+              </span>
+            )}
+            {totalResults !== null && !isLoading && (
+              <span className="comparison-context-bar__tag">
+                {totalResults.toLocaleString('pt-BR')} {totalResults === 1 ? 'decisão' : 'decisões'}
+              </span>
+            )}
+          </div>
+          <div className="comparison-context-bar__actions">
+            <SaveSearchAction
+              key={`saved-search:${JSON.stringify(savedSearchParams(requestFor(applied)))}`}
+              params={savedSearchParams(requestFor(applied))}
+              disabled={isLoading || Boolean(errorMessage)}
+              removedSearchId={removedSavedSearch}
+              onSaved={onSearchSaved}
+            />
+            <button
+              type="button"
+              className="comparison-context-bar__button"
+              disabled={isLoading || Boolean(errorMessage)}
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                setComparisonTrigger(event.currentTarget);
+                setComparisonOpen(true);
+              }}
+            >
+              <ArrowsLeftRight size={18} aria-hidden="true" /> Comparar tribunais
+            </button>
+            <ExportAction
+              key={JSON.stringify(exportParams(requestFor(applied)))}
+              params={exportParams(requestFor(applied))}
+              total={totalResults}
+              disabled={isLoading || Boolean(errorMessage)}
+            />
+          </div>
+        </div>
+      )}
       {(hasSearch || chosenDecision) && <ResultsTabs value={view} onChange={setView} />}
       {activeTags.length > 0 && (
         <div className="filter-tags applied-filter-tags" aria-label="Filtros aplicados">
@@ -896,12 +1038,6 @@ function HomePage() {
                   )}
                 </h2>
                 <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
-                <ExportAction
-                  key={JSON.stringify(exportParams(requestFor(applied)))}
-                  params={exportParams(requestFor(applied))}
-                  total={totalResults}
-                  disabled={isLoading || Boolean(errorMessage)}
-                />
               </div>
             )}
 
@@ -1056,6 +1192,28 @@ function HomePage() {
           />
         </div>
       </div>
+      {comparisonOpen && applied && (
+        <CourtComparisonPanel
+          key={JSON.stringify(volumeFor(applied))}
+          params={volumeFor(applied)}
+          courts={courts.state.status === 'loaded' ? courts.state.courts : []}
+          returnFocus={comparisonTrigger}
+          onClose={() => setComparisonOpen(false)}
+          onDocuments={(court, count) => {
+            setComparisonOpen(false);
+            openIndicator({ kind: 'court', court, count }, true);
+            setIndicatorTrigger(comparisonTrigger);
+          }}
+        />
+      )}
+      {savedSearchesOpen && (
+        <SavedSearchesDrawer
+          onClose={closeSavedSearches}
+          onResume={resumeSearch}
+          onCount={onSavedSearchCount}
+          onRemoved={setRemovedSavedSearch}
+        />
+      )}
       {indicatorOpen && indicatorSelection && (
         <IndicatorDocumentsDrawer
           selection={indicatorSelection}

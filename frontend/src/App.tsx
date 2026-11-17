@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SavedDecisionsProvider from './search/SavedDecisionsProvider';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppHeader from './components/AppHeader';
 import CoveragePage, { COVERAGE_PATH } from './pages/CoveragePage';
@@ -21,10 +22,11 @@ import { useSession } from './session/sessionContext';
 export function Tool() {
   // The place in the bar where the search screen puts its search.
   const [searchSlot, setSearchSlot] = useState<HTMLElement | null>(null);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   return (
-    <>
-      <AppHeader searchSlotRef={setSearchSlot} />
+    <SavedDecisionsProvider>
+      <AppHeader searchSlotRef={setSearchSlot} savedSearchCount={savedCount} />
       {/* Above the routes, so the search outlives whichever screen shows it. */}
       <HeaderSearchSlot.Provider value={searchSlot}>
         <SearchSessionProvider>
@@ -32,8 +34,19 @@ export function Tool() {
             {/* A decision's address is a child of the search, not a page of its
                 own: the search stays mounted while the address changes, so its
                 results, filters and order are still there when it changes back. */}
-            <Route path="/" element={<HomePage />}>
+            <Route
+              path="/"
+              element={
+                <HomePage
+                  onSavedSearchCount={setSavedCount}
+                  onSearchSaved={() =>
+                    setSavedCount((count) => (count === null ? null : count + 1))
+                  }
+                />
+              }
+            >
               <Route path="decisoes/:source/:identifier" element={null} />
+              <Route path="salvas" element={null} />
             </Route>
             {/* Its own page: the coverage describes the whole base, so nothing of
                 the search is passed to it. */}
@@ -45,7 +58,7 @@ export function Tool() {
           </Routes>
         </SearchSessionProvider>
       </HeaderSearchSlot.Provider>
-    </>
+    </SavedDecisionsProvider>
   );
 }
 

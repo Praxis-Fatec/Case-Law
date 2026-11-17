@@ -4,6 +4,7 @@ import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { readThesis } from '../api/decisions';
 import IdentifiedThesis from './IdentifiedThesis';
+import SaveDecisionButton from './SaveDecisionButton';
 import ReportClassification from './ReportClassification';
 import type { Highlight, SearchDecisionMatch } from '../api/search';
 import {
@@ -256,6 +257,9 @@ function DecisionResultCard({
         </dl>
 
         <div className="decision-result-card__actions" aria-live="polite">
+          {decision.source && decision.identifier && (
+            <SaveDecisionButton source={decision.source} identifier={decision.identifier} />
+          )}
           {onSelect && (
             <button type="button" className="indicator-document__open" onClick={onSelect}>
               Abrir decisão
