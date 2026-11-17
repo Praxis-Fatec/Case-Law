@@ -99,6 +99,7 @@ jobs:
           scp -i ~/.ssh/deploy backend/app/identidade.sql "$VPS_USER@$VPS_HOST:~/$REMOTE_DIR/identidade.sql"
           scp -i ~/.ssh/deploy backend/app/leitura.sql "$VPS_USER@$VPS_HOST:~/$REMOTE_DIR/leitura.sql"
           scp -i ~/.ssh/deploy backend/app/qualidade.sql "$VPS_USER@$VPS_HOST:~/$REMOTE_DIR/qualidade.sql"
+          scp -i ~/.ssh/deploy backend/app/pesquisa.sql "$VPS_USER@$VPS_HOST:~/$REMOTE_DIR/pesquisa.sql"
 
       - name: Authenticate the production server against the registry
         env:

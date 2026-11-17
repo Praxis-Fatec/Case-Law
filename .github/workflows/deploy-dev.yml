@@ -90,6 +90,7 @@ jobs:
           scp -i ~/.ssh/deploy backend/app/identidade.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/identidade.sql"
           scp -i ~/.ssh/deploy backend/app/leitura.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/leitura.sql"
           scp -i ~/.ssh/deploy backend/app/qualidade.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/qualidade.sql"
+          scp -i ~/.ssh/deploy backend/app/pesquisa.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/pesquisa.sql"
 
       - name: Authenticate the development server against the registry
         env:

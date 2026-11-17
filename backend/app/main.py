@@ -15,6 +15,8 @@ from app.api import (
     legislation,
     related,
     reports,
+    saved_decisions,
+    searches,
     session,
     thesis,
     users,
@@ -24,6 +26,10 @@ from app.db import pool
 from app.sessions import gate
 
 TAGS = [
+    {
+        "name": "saved searches",
+        "description": "Named search expressions and filters, private to their authenticated owner.",
+    },
     {
         "name": "search",
         "description": "Finding decisions across the collected courts.",
@@ -104,6 +110,7 @@ app.add_middleware(
 errors.register(app)
 
 app.include_router(health.router)
+app.include_router(saved_decisions.router)
 app.include_router(decisions.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
@@ -112,6 +119,7 @@ app.include_router(exports.router)
 app.include_router(doctrine.router)
 app.include_router(legislation.router)
 app.include_router(reports.router)
+app.include_router(searches.router)
 app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)

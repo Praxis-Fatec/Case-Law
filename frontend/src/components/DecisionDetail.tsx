@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowSquareOut, WarningCircle } from '@phosphor-icons/react'
 import { DecisionRequestError, getDecision, readThesis, type Decision } from '../api/decisions';
 import { readCitedPrecedents } from '../api/precedents';
 import CitedLegislation from './CitedLegislation';
+import SaveDecisionButton from './SaveDecisionButton';
 import CitedPrecedents from './CitedPrecedents';
 import RelatedDecisions from './RelatedDecisions';
 import RelatedDoctrine from './RelatedDoctrine';
@@ -180,6 +181,9 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
   return (
     <>
       <header className="decision-detail__header">
+        <div className="decision-detail__save">
+          <SaveDecisionButton source={decision.source} identifier={decision.identifier} />
+        </div>
         {court && <span className="decision-detail__court">{court}</span>}
         <h2 id={titleId} tabIndex={-1} className="decision-detail__title">
           {caseNumber ? `Processo ${caseNumber}` : 'Decisão sem número de processo informado'}
