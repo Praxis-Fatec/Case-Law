@@ -42,6 +42,7 @@ function api(
       requests.push({ url, init });
       const custom = override?.(url, init);
       if (custom) return custom;
+      if (url.pathname === '/saved-decisions') return json({ decisions: [] });
       if (url.pathname === '/courts')
         return json({
           courts: ['STJ', 'TJDFT'].map((abbreviation) => ({ abbreviation, name: abbreviation })),
