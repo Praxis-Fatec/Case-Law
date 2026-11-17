@@ -15,6 +15,7 @@ from app.api import (
     legislation,
     related,
     reports,
+    saved_decisions,
     searches,
     session,
     thesis,
@@ -109,6 +110,7 @@ app.add_middleware(
 errors.register(app)
 
 app.include_router(health.router)
+app.include_router(saved_decisions.router)
 app.include_router(decisions.router)
 app.include_router(courts.router)
 app.include_router(filters.router)

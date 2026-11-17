@@ -27,3 +27,19 @@ CREATE TABLE IF NOT EXISTS pesquisa.salva (
 -- List the account's searches, newest first, without reading anyone else's.
 CREATE INDEX IF NOT EXISTS salva_do_usuario
     ON pesquisa.salva (usuario_id, criado_em DESC);
+
+-- Stable source keys, deliberately without a foreign key to the replaceable
+-- collection. The snapshot identifies a bookmark even after its source goes away.
+CREATE TABLE IF NOT EXISTS pesquisa.decisao_salva (
+    usuario_id UUID NOT NULL REFERENCES identidade.usuario (id),
+    fonte_codigo TEXT NOT NULL,
+    identificador_fonte TEXT NOT NULL,
+    tribunal TEXT NOT NULL,
+    processo TEXT,
+    resumo TEXT NOT NULL,
+    data_decisao DATE,
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT CLOCK_TIMESTAMP(),
+    PRIMARY KEY (usuario_id, fonte_codigo, identificador_fonte)
+);
+CREATE INDEX IF NOT EXISTS decisoes_salvas_do_usuario
+    ON pesquisa.decisao_salva (usuario_id, criado_em DESC);
