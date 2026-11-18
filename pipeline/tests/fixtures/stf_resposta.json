@@ -1,0 +1,237 @@
+{
+  "result": {
+    "took": 7,
+    "timed_out": false,
+    "hits": {
+      "total": {
+        "value": 5,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": [
+        {
+          "_index": "jurisprudencia-idx20230518",
+          "_id": "sjur364972",
+          "_score": null,
+          "_ignored": [
+            "documental_observacao_html.keyword"
+          ],
+          "_source": {
+            "base": "acordaos",
+            "id": "sjur364972",
+            "dg_unique": "sjur364972",
+            "titulo": "HC 300",
+            "ministro_facet": [
+              "COSTA BARRADAS"
+            ],
+            "procedencia_geografica_uf_sigla": "RJ",
+            "processo_codigo_completo": "HC 300",
+            "processo_numero": 300,
+            "processo_classe_processual_unificada_sigla": "HC",
+            "processo_classe_processual_unificada_extenso": "HABEAS CORPUS",
+            "is_questao_ordem": false,
+            "is_repercussao_geral": false,
+            "relator_processo_nome": "COSTA BARRADAS",
+            "relator_acordao_nome": null,
+            "julgamento_data": "1892-04-27",
+            "orgao_julgador": "Tribunal Pleno",
+            "publicacao_data": null,
+            "ementa_texto": "Habeas-corpus. Não tem lugar quando a prizão ou constrangimento é ordenado pelo Presidente da República, por motivo político e por occasião de ser declarado o estado de sítio. Questões conexas.",
+            "acordao_ata": "Negada a ordem, por maioria (10x1).",
+            "inteiro_teor_url": "https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?numero=300&classe=HC",
+            "acompanhamento_processual_url": "https://portal.stf.jus.br/processos/listarProcessos.asp?numeroProcesso=300&classe=HC",
+            "dje_url": "https://portal.stf.jus.br/servicos/dje/listarDiarioJustica.asp?tipoPesquisaDJ=AP&numero=300&classe=HC",
+            "documental_jurisprudencia_citada_texto": null,
+            "documental_legislacao_citada_texto": null,
+            "documental_indexacao_texto": "\r\n",
+            "documental_observacao_texto": "- Julgamento Histórico.\r\n- Assunto: Revolta da Armada. Estado de sítio.\r\n- Resumo do processo: Habeas Corpus impetrado pelo advogado Rui Barbosa em favor do Senador Almirante Eduardo Wandenkolk e outros militares indiciados por crimes de sedição e conspiração contra o Presidente da República, Marechal Floriano Peixoto. Os pacientes alegam inconstitucionalidade do estado de sítio e a ilegalidade das prisões determinadas pelo governo.\r\nNúmero de páginas: 5.\r\nInclusão: 22/03/2017, MNS.",
+            "documental_tese_texto": null,
+            "documental_tese_tema_texto": null,
+            "dg_atualizado_em": "2023-11-27T11:49:02.086541"
+          },
+          "sort": [
+            -2451340800000,
+            9223372036854775807
+          ]
+        },
+        {
+          "_index": "jurisprudencia-idx20230518",
+          "_id": "sjur364973",
+          "_score": null,
+          "_ignored": [
+            "documental_observacao_html.keyword"
+          ],
+          "_source": {
+            "base": "acordaos",
+            "id": "sjur364973",
+            "dg_unique": "sjur364973",
+            "titulo": "HC 406",
+            "ministro_facet": [
+              "BARROS PIMENTEL"
+            ],
+            "procedencia_geografica_uf_sigla": "RJ",
+            "processo_codigo_completo": "HC 406",
+            "processo_numero": 406,
+            "processo_classe_processual_unificada_sigla": "HC",
+            "processo_classe_processual_unificada_extenso": "HABEAS CORPUS",
+            "is_questao_ordem": false,
+            "is_repercussao_geral": false,
+            "relator_processo_nome": "BARROS PIMENTEL",
+            "relator_acordao_nome": null,
+            "julgamento_data": "1893-08-09",
+            "orgao_julgador": "Tribunal Pleno",
+            "publicacao_data": null,
+            "ementa_texto": "Habeas-corpus. É illegal a continuação da prisão de paizanos capturados a bordo de um navio, como indiciados em crimes que não são sujeitos ao fôro militar.",
+            "acordao_ata": "Concedida a ordem de soltura em favor dos detidos, por maioria.",
+            "inteiro_teor_url": "https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?numero=406&classe=HC",
+            "acompanhamento_processual_url": "https://portal.stf.jus.br/processos/listarProcessos.asp?numeroProcesso=406&classe=HC",
+            "dje_url": "https://portal.stf.jus.br/servicos/dje/listarDiarioJustica.asp?tipoPesquisaDJ=AP&numero=406&classe=HC",
+            "documental_jurisprudencia_citada_texto": null,
+            "documental_legislacao_citada_texto": null,
+            "documental_indexacao_texto": "\r\n",
+            "documental_observacao_texto": "- Julgamento histórico. \r\n- Assunto: Crime político. Revolta da Armada. Presos do Navio Júpiter.\r\n- Resumo do processo: Habeas Corpus impetrado por Rui Barbosa em favor de David Ben Obill e outros brasileiros e estrangeiros civis que somam 48 pessoas. Presos por ordem do Vice-Presidente da República, Marechal Floriano Peixoto, os pacientes estavam a bordo do navio mercante \"Júpiter\", capturado no litoral de Santa Catarina.\r\nNúmero de páginas: 02.\r\nInclusão: 22/03/2017, MNS.",
+            "documental_tese_texto": null,
+            "documental_tese_tema_texto": null,
+            "dg_atualizado_em": "2023-11-27T11:53:04.084632"
+          },
+          "sort": [
+            -2410819200000,
+            9223372036854775807
+          ]
+        },
+        {
+          "_index": "jurisprudencia-idx20230518",
+          "_id": "",
+          "_score": null,
+          "_source": {
+            "base": "acordaos",
+            "titulo": "Registro sem chave",
+            "ementa_texto": "Acórdão sem ementa.",
+            "julgamento_data": "2026-02-05",
+            "inteiro_teor_url": "https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=0"
+          },
+          "sort": [
+            "2026-02-05",
+            "zzzz"
+          ]
+        },
+        {
+          "_index": "jurisprudencia-idx20230518",
+          "_id": "sjur559244",
+          "_score": null,
+          "_ignored": [
+            "documental_observacao_html.keyword"
+          ],
+          "_source": {
+            "base": "acordaos",
+            "id": "sjur559244",
+            "dg_unique": "sjur559244",
+            "titulo": "ADI 4462 ED",
+            "ministro_facet": [
+              "CRISTIANO ZANIN"
+            ],
+            "procedencia_geografica_uf_sigla": "TO",
+            "processo_codigo_completo": "ADI 4462 ED",
+            "processo_numero": 4462,
+            "processo_classe_processual_unificada_sigla": "ADI-ED",
+            "processo_classe_processual_unificada_extenso": "EMB.DECL. NA AÇÃO DIRETA DE INCONSTITUCIONALIDADE",
+            "is_questao_ordem": false,
+            "is_repercussao_geral": false,
+            "relator_processo_nome": "CRISTIANO ZANIN",
+            "relator_acordao_nome": null,
+            "julgamento_data": "2026-02-05",
+            "orgao_julgador": "Tribunal Pleno",
+            "publicacao_data": "2026-04-10",
+            "ementa_texto": "Ementa: Direito administrativo e outras matérias de direito público. Embargos de declaração na ação direta de inconstitucionalidade. Magistratura. Critérios de desempate. Lista de antiguidade. Ordem de classificação em concurso público. Prevalência sobre idade. Determinação ao Conselho Nacional de Justiça. Embargos acolhidos, em parte.\n\n\n\n    I. Caso em exame\n\n\n\n    1. Embargos de declaração opostos contra acórdão do Supremo Tribunal Federal que julgou parcialmente procedente pedido para declarar a inconstitucionalidade do art. 78, § 1º, incisos III e IV, da Lei Complementar n. 10/1996, do Estado de Tocantins.\n\n\n\n    2. A embargante alegou omissão no acórdão, que não teria analisado o pedido de aplicação do critério da ordem de classificação no concurso público.\n\n\n\n    II. Questão em discussão\n\n\n\n    3. Nos autos discute-se (i) se houve omissão no acórdão embargado; e (ii) se a manutenção do acórdão embargado, sem abordar o critério da ordem de classificação no concurso, poderia gerar a interpretação de que o Supremo Tribunal Federal fixou a idade como regra de desempate na lista de antiguidade de magistrados para todos os estados, em detrimento da ordem de classificação no concurso.\n\n\n\n    III. Razões de decidir\n\n\n\n    4. Há decisões do Conselho Nacional de Justiça que consideram a ordem de classificação no concurso como critério preponderante em relação à idade na avaliação da antiguidade de magistrados que tomaram posse no mesmo dia.\n\n\n\n    5. Diversos Tribunais de Justiça estaduais adotam a prevalência do critério da ordem de classificação no concurso em relação à idade para a lista de antiguidade, para magistrados que tomaram posse no mesmo dia, em observância ao entendimento do Conselho Nacional de Justiça, sem prejuízo de outros critérios preponderantes como tempo de entrância, tempo de entrância anterior, reconhecido constitucional na AO 1.789/SP, Rel. Min. Luís Roberto Barroso, e tempo de carreira na magistratura.\n\n\n\n    6. O Supremo Tribunal Federal tem declarado inconstitucionais dispositivos de leis estaduais que impõem restrições ou requisitos à promoção de magistrados, quando não previstos ou incompatíveis com a Lei Orgânica da Magistratura Nacional – LOMAN, com fundamento no caráter nacional da magistratura. \n\n\n\n    7. A ordem de classificação no concurso deve preceder o critério idade no desempate da lista de antiguidade para magistrados, em consonância com o art. 93, inciso I, da Constituição Federal.\n\n\n\n    8. É importante que o Conselho Nacional de Justiça realize um estudo para uniformização das regras de desempate na lista de antiguidade, considerando o caráter nacional da magistratura.\n\n\n\n    IV. Dispositivo e tese\n\n\n\n    9. Embargos de declaração acolhidos, em parte, para assentar que, no caso de empate nos critérios de tempo de serviço na entrância e tempo de serviço como magistrado, deve ser observada a ordem de classificação no concurso de ingresso em precedência ao critério de idade na organização do quadro de antiguidade dos desembargadores e dos juízes de direito, na entrância ou categoria e na carreira, no âmbito do Tribunal de Justiça do Estado de Tocantins.\n\n\n\n    10. Determinação ao Conselho Nacional de Justiça para que proceda a estudo e uniformização dos critérios de desempate para promoção de antiguidade na carreira dos magistrados, na linha da presente decisão.\n\n\n\n    Tese de julgamento: A ordem da classificação do concurso precede a idade na formação da lista de antiguidade dos magistrados que tomaram posse no mesmo dia, sem prejuízo de outros critérios preponderantes, como tempo de entrância e tempo de serviço como magistrado.\n\n\n\n    _________\n\n\n\n    Dispositivos relevantes citados: CF/1988, art. 93, I; Lei Complementar n. 10/1996 (Tocantins), art. 78, § 1º, III e IV.\n\n\n\n    Jurisprudência relevante citada: CNJ, Recurso Administrativo em Procedimento de Controle Administrativo n. 0005234-65.2015.2.00.0000, Rel. Conselheiro Bruno Ronchetti, 10ª Sessão Virtual, j. 12/4/2016; CNJ, Recurso Administrativo em RGD – Reclamação para Garantia das Decisões n. 0003405-39.2021.2.00.0000, Rel. Min. Luiz Fux, 111ª Sessão Virtual, j. 9/9/2022; STF, AO 1.789/SP, Rel. Min. Luís Roberto Barroso, Pleno, DJe 29/10/2018; STF, ADI 6.766/RO, Rel. Min. Alexandre de Moraes, Tribunal Pleno, DJe 30/8/2021; STF, ADI 7.295/RO, Rel. Min. Dias Toffoli, Tribunal Pleno, DJe 9/10/2023; STF, ADI 7.289/AL, Rel. Min. André Mendonça, Tribunal Pleno, DJe 19/5/2025.",
+            "acordao_ata": "Após os votos dos Ministros Cristiano Zanin (Relator), Flávio Dino, Alexandre de Moraes, Edson Fachin e Cármen Lúcia, que conheciam dos embargos de declaração opostos pela Associação Nacional dos Magistrados Estaduais – Anamages, mas os rejeitavam; e dos votos dos Ministros Gilmar Mendes e André Mendonça, que acolhiam os embargos de declaração de modo a assentar que, no caso de empate nos critérios de tempo de serviço na entrância e tempo de serviço como magistrado, deve ser observada a ordem de classificação no concurso de ingresso em precedência ao critério de idade na organização do quadro de antiguidade dos desembargadores e dos juízes de direito, na entrância ou categoria e na carreira, no âmbito do Tribunal de Justiça do Estado do Tocantins, o processo foi destacado pelo Ministro Gilmar Mendes. Impedido o Ministro Dias Toffoli. Plenário, Sessão Virtual de 19.4.2024 a 26.4.2024.\r\n\n                       Decisão: O Tribunal, por unanimidade, acolheu, em parte, os embargos de declaração, de modo a assentar que, no caso de empate nos critérios de “tempo de serviço na entrância” e “tempo de serviço como magistrado”, deve ser observada a ordem de classificação no concurso de ingresso em precedência ao critério de idade na organização do quadro de antiguidade dos desembargadores e dos juízes de direito, na entrância ou categoria e na carreira, no âmbito do Tribunal de Justiça do Estado do Tocantins. Por fim, determinou, ainda, ao Conselho Nacional de Justiça que proceda a estudo e uniformização dos critérios de desempate para promoção de antiguidade na carreira dos magistrados, na linha da presente decisão. Tudo nos termos do voto do Relator. Impedido o Ministro Dias Toffoli. Ausente, ocasionalmente, o Ministro Luiz Fux. Presidência do Ministro Edson Fachin. Plenário, 5.2.2026.",
+            "inteiro_teor_url": "https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=796311216",
+            "acompanhamento_processual_url": "https://portal.stf.jus.br/processos/listarProcessos.asp?numeroProcesso=4462&classe=ADI",
+            "dje_url": "https://portal.stf.jus.br/servicos/dje/listarDiarioJustica.asp?tipoPesquisaDJ=AP&numero=4462&classe=ADI",
+            "documental_jurisprudencia_citada_texto": null,
+            "documental_legislacao_citada_texto": [
+              "LEG-FED   CF ANO-1988\n    ART-00093 INC-00001\n    CF-1988 CONSTITUIÇÃO FEDERAL\n\n",
+              "LEG-FED   EMC-000045 ANO-2005\n    EMENDA CONSTITUCIONAL\n\n",
+              "LEG-FED   LCP-000035 ANO-1979\n    ART-00080 PAR-00001 INC-00001\n    LOMAN-1979 LEI ORGÂNICA DA MAGISTRATURA NACIONAL\n\n",
+              "LEG-FED   RGI ANO-1980\n    ART-00095\n    RISTF-1980 REGIMENTO INTERNO DO SUPREMO TRIBUNAL FEDERAL\n\n",
+              "LEG-EST   LCP-000010 ANO-1996\n    ART-00078 PAR-00001 INC-00003 INC-00004\n    INC-00005\n    LEI COMPLEMENTAR, TO"
+            ],
+            "documental_indexacao_texto": "- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. GILMAR MENDES: CONSTITUIÇÃO FEDERAL, CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, MAGISTRATURA. OBRIGATORIEDADE, OBSERVÂNCIA , NORMA CONSTITUCIONAL, ENTE FEDERADO, INDEPENDÊNCIA, REPRODUÇÃO, LEI ESTADUAL. PREDOMINÂNCIA, ORDEM, CLASSIFICAÇÃO, CRITÉRIO, DESEMPATE, HIPÓTESE, IDENTIDADE, ENTRADA, SERVIÇO. DESCABIMENTO, PREVISÃO, REQUISITO, ENTE FEDERADO, DESCONFORMIDADE, DEFINIÇÃO, ANTIGUIDADE, NORMA CONSTITUCIONAL, LEI ORGÂNICA DA MAGISTRATURA NACIONAL (LOMAN). PREDOMINÂNCIA, CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, INGRESSO, HIPÓTESE, EMPATE, CRITÉRIO, TEMPO DE SERVIÇO, ENTRÂNCIA; TEMPO DE SERVIÇO, MAGISTRADO.\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. FLÁVIO DINO: SUBMISSÃO, CONSELHO NACIONAL DE JUSTIÇA (CNJ), PRINCÍPIO DA LEGALIDADE, SUBMISSÃO, PLENÁRIO, STF. CONSTITUIÇÃO FEDERAL, CARÁTER OBJETIVO, CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, HIPÓTESE, NOMEAÇÃO. OBSERVÂNCIA, CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, HIPÓTESE, EMPATE, CRITÉRIO, TEMPO DE SERVIÇO, ENTRÂNCIA; TEMPO DE SERVIÇO, MAGISTRADO. NECESSIDADE, REGULAMENTAÇÃO, MATÉRIA, CONSELHO NACIONAL DE JUSTIÇA (CNJ).\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. ANDRÉ MENDONÇA: DISTINÇÃO, CASO CONCRETO, PRECEDENTE, UTILIZAÇÃO, CRITÉRIO, IDADE, DESEMPATE, DISPUTA, PROMOÇÃO POR MERECIMENTO. CASO CONCRETO, DEFINIÇÃO, CRITÉRIO, PROMOÇÃO POR ANTIGUIDADE. APLICAÇÃO, CRITÉRIO, CARÁTER OBJETIVO, CARÁTER NACIONAL. UTILIZAÇÃO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, INGRESSO, CARREIRA, MAGISTRATURA, HIPÓTESE, EMPATE, TEMPO DE SERVIÇO, ENTRÂNCIA; TEMPO DE SERVIÇO, MAGISTRATURA.\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. NUNES MARQUES: PREVISÃO, LEI ORGÂNICA DA MAGISTRATURA NACIONAL (LOMAN), CRITÉRIO, JUIZ MAIS ANTIGO, CARREIRA, FINALIDADE, APURAÇÃO, ANTIGUIDADE, ENTRÂNCIA. EXIGÊNCIA, CONSTITUIÇÃO FEDERAL, OBSERVÂNCIA, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, HIPÓTESE, NOMEAÇÃO. APLICAÇÃO SUBSIDIÁRIA, CRITÉRIO, IDADE.\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. ALEXANDRE DE MORAES: UTILIZAÇÃO, CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, HIPÓTESE, EMPATE, TEMPO DE SERVIÇO, ENTRÂNCIA; EMPATE, TEMPO DE SERVIÇO, MAGISTRADO. NECESSIDADE, DEFINIÇÃO, MATÉRIA, CONSELHO NACIONAL DE JUSTIÇA (CNJ), FINALIDADE, PADRONIZAÇÃO, CARREIRA, TOTALIDADE, ENTE FEDERADO, DECORRÊNCIA, CARÁTER NACIONAL, PODER JUDICIÁRIO.",
+            "documental_observacao_texto": "- Acórdão(s) citado(s):\n(CRITÉRIO, ORDEM, CLASSIFICAÇÃO, CONCURSO PÚBLICO, MAGISTRATURA, DESEMPATE, LISTA DE ANTIGUIDADE)\nMS 28494 (1ªT), ADI 4462 (TP), AO 1789 (TP), MS 34076 (1ªT). \n(CRITÉRIO, IDADE, DESEMPATE, PROMOÇÃO POR MERECIMENTO)\nMS 24509 (TP). \n(INCONSTITUCIONALIDADE, LEI ESTADUAL, IMPOSIÇÃO, REQUISITO, PROMOÇÃO POR ANTIGUIDADE, MAGISTRADO, MEMBRO, MP, DESCONFORMIDADE, LOMAN, LOMP)\nADI 6766 (TP), ADI 7289 (TP), ADI 7295 (TP). \n(CARÁTER NACIONAL, PODER JUDICIÁRIO)\nADI 3854 (TP). \nNúmero de páginas: 49.\nAnálise: 11/05/2026, JSF.",
+            "documental_tese_texto": null,
+            "documental_tese_tema_texto": null,
+            "dg_atualizado_em": "2026-05-11T15:00:07.849745"
+          },
+          "sort": [
+            1770249600000,
+            9223372036854775807
+          ]
+        },
+        {
+          "_index": "jurisprudencia-idx20230518",
+          "_id": "sjur558863",
+          "_score": null,
+          "_ignored": [
+            "documental_observacao_html.keyword"
+          ],
+          "_source": {
+            "base": "acordaos",
+            "id": "sjur558863",
+            "dg_unique": "sjur558863",
+            "titulo": "ADPF 338",
+            "ministro_facet": [
+              "LUÍS ROBERTO BARROSO",
+              "FLÁVIO DINO"
+            ],
+            "procedencia_geografica_uf_sigla": "DF",
+            "processo_codigo_completo": "ADPF 338",
+            "processo_numero": 338,
+            "processo_classe_processual_unificada_sigla": "ADPF",
+            "processo_classe_processual_unificada_extenso": "ARGUIÇÃO DE DESCUMPRIMENTO DE PRECEITO FUNDAMENTAL",
+            "is_questao_ordem": false,
+            "is_repercussao_geral": false,
+            "relator_processo_nome": "LUÍS ROBERTO BARROSO",
+            "relator_acordao_nome": "FLÁVIO DINO",
+            "julgamento_data": "2026-02-05",
+            "orgao_julgador": "Tribunal Pleno",
+            "publicacao_data": "2026-04-08",
+            "ementa_texto": "Ementa: Direito Penal. Crimes contra a honra praticados contra servidor público no exercício das suas funções. Art. 141, II, do Código Penal. Causa de aumento de pena. Constitucionalidade. Improcedência do pedido.\n\n\n\n    I. Caso em exame\n\n\n\n    1. Arguição de descumprimento de preceito fundamental proposta, com base nos arts. 5º, caput e IV, e 220 da Constituição da República, em face do inciso II do art. 141 do Código Penal, que estabelece o aumento de pena para crimes contra a honra quando praticados contra servidor público no exercício de suas funções.\n\n\n\n    II. Questão em discussão\n\n\n\n    2. A questão em discussão consiste em saber se o dispositivo legal impugnado, constante do Código Penal, é inconstitucional.\n\n\n\n    III. Razões de decidir\n\n\n\n    3. Causa de aumento de pena, instituída pelo legislador há muitas décadas (desde 1940), que não decorre exclusivamente do fato do sujeito passivo do delito ser um funcionário público, mas sim da circunstância do crime ser praticado em razão das funções por ele exercidas. Norma que visa não apenas à proteção individual do ofendido, mas, sobretudo, à salvaguarda da Administração Pública, que se manifesta por meio da figura do servidor. Não há razões fortes o suficiente para considerar ser inconstitucional a expressa e antiga previsão legal.\n\n\n\n    IV. Dispositivo\n\n\n\n    4. Pedido improcedente.",
+            "acordao_ata": "Após a leitura do relatório e a realização das sustentações orais, o julgamento foi suspenso. Falaram: pelo requerente, o Dr. Jose Rollemberg Leite Neto; e, pelo amicus curiae, o Dr. Leonardo Cardoso de Magalhães, Defensor Público-Geral Federal. Presidência do Ministro Luís Roberto Barroso. Plenário, 27.2.2025.\r\n\n                 Decisão: Após o voto do Ministro Luís Roberto Barroso (Presidente e Relator), que julgava parcialmente procedente o pedido desta arguição de descumprimento de preceito fundamental, para declarar a inconstitucionalidade parcial sem redução de texto do inciso II do art. 141 do Código Penal, excluindo-se de sua aplicação os crimes de difamação e injúria, permanecendo válida tão somente no âmbito da calúnia, propondo a fixação da seguinte tese: “A causa de aumento de pena do inciso II do art. 141 do Código Penal aplica-se exclusivamente ao crime de calúnia”, no que foi acompanhado pelo Ministro André Mendonça; e do voto do Ministro Flávio Dino, que julgava improcedente a arguição, no que foi acompanhado pelos Ministros Cristiano Zanin e Alexandre de Moraes, o julgamento foi suspenso. Ausente, justificadamente, o Ministro Nunes Marques. Plenário, 7.5.2025.\r\n\n                       Decisão: O Tribunal, por maioria, julgou improcedente a arguição de descumprimento de preceito fundamental, nos termos do voto do Ministro Flávio Dino (Redator para o acórdão), vencidos o Ministro Edson Fachin (Presidente) e, parcialmente, os Ministros Luís Roberto Barroso (Relator), André Mendonça e Cármen Lúcia. Ausente, ocasionalmente, o Ministro Luiz Fux. Plenário, 5.2.2026.",
+            "inteiro_teor_url": "https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=796196618",
+            "acompanhamento_processual_url": "https://portal.stf.jus.br/processos/listarProcessos.asp?numeroProcesso=338&classe=ADPF",
+            "dje_url": "https://portal.stf.jus.br/servicos/dje/listarDiarioJustica.asp?tipoPesquisaDJ=AP&numero=338&classe=ADPF",
+            "documental_jurisprudencia_citada_texto": null,
+            "documental_legislacao_citada_texto": [
+              "LEG-FED   CF ANO-1988\n    ART-00001 \"CAPUT\" INC-00003 INC-00004\n    INC-00005 PAR-UNICO ART-00005 \"CAPUT\"\n    INC-00004 INC-00005 INC-00009 INC-00010\n    INC-00014 INC-00039 ART-00037 PAR-00004\n    ART-00220 PAR-00001 PAR-00002 PAR-00003\n    INC-00001 INC-00002 PAR-00004 PAR-00005\n    PAR-00006\n    CF-1988 CONSTITUIÇÃO FEDERAL\n\n",
+              "LEG-FED   LEI-014197\n    LEI ORDINÁRIA\n\n",
+              "LEG-FED   LEI-004737 ANO-1965\n    ART-00324 ART-00325 ART-00326\n    CEL-1965 CÓDIGO ELEITORAL\n\n",
+              "LEG-FED   LEI-007716 ANO-1989\n    ART-0002A\n    LEI ORDINÁRIA\n\n",
+              "LEG-FED   LEI-008112 ANO-1990\n    ART-00116 INC-00001\n    RJU-1990 REGIME JURÍDICO DOS SERVIDORES PÚBLICOS CIVIS DA UNIÃO, DAS AUTARQUIAS E DAS FUNDAÇÕES PÚBLICAS FEDERAIS\n\n",
+              "LEG-FED   LEI-009868 ANO-1999\n    LEI ORDINÁRIA\n\n",
+              "LEG-FED   LEI-009882 ANO-1999\n    ART-00001 INC-00001\n    LEI ORDINÁRIA\n\n",
+              "LEG-FED   LEI-013869 ANO-2019\n    LEI ORDINÁRIA\n\n",
+              "LEG-FED   LEI-014532 ANO-2023\n    LEI ORDINÁRIA\n\n",
+              "LEG-INT   CVC ANO-1969\n    ART-00013 PAR-00001 PAR-00002 LET-A\n    PAR-00003 PAR-00004 PAR-00005\n    CONVENÇÃO AMERICANA SOBRE DIREITOS HUMANOS (PACTO DE SÃO JOSÉ DA COSTA RICA), DE 22 DE NOVEMBRO DE 1969\n\n",
+              "LEG-INT   PCT ANO-1966\n    ART-00019 PAR-00001 PAR-00002 PAR-00003\n    LET-A LET-B\n    PACTO INTERNACIONAL SOBRE DIREITOS CIVIS E POLÍTICOS\n\n",
+              "LEG-FED   DEL-002848 ANO-1940\n    ART-00068 ART-00071 ART-00138 PAR-00001\n    PAR-00002 ART-00139 PAR-ÚNICO ART-00140\n    PAR-00003 ART-00141 INC-00001 INC-00002\n    INC-00003 INC-00004 PAR-00001 PAR-00002\n    PAR-00003 ART-00331\n    CP-1940 CÓDIGO PENAL\n\n",
+              "LEG-FED   DLG-000226 ANO-1991\n    DECRETO LEGISLATIVO - APROVA O PACTO INTERNACIONAL SOBRE DIREITOS CIVIS E POLÍTICOS\n\n",
+              "LEG-FED   DLG-000027 ANO-1992\n    DECRETO LEGISLATIVO - APROVA A CONVENÇÃO AMERICANA SOBRE DIREITOS HUMANOS (PACTO DE SÃO JOSÉ DA COSTA RICA), DE 22 DE NOVEMBRO DE 1969\n\n",
+              "LEG-FED   DEC-000592 ANO-1992\n    DECRETO - PROMULGA O PACTO INTERNACIONAL SOBRE DIREITOS CIVIS E POLÍTICOS\n\n",
+              "LEG-FED   DEC-000678 ANO-1992\n    DECRETO - PROMULGA A CONVENÇÃO AMERICANA SOBRE DIREITOS HUMANOS (PACTO DE SÃO JOSÉ DA COSTA RICA), DE 22 DE NOVEMBRO DE 1969\n\n",
+              "LEG-FED   SUMSTF-000714\n    SÚMULA DO SUPREMO TRIBUNAL FEDERAL - STF"
+            ],
+            "documental_indexacao_texto": "- DESVALOR DA CONDUTA, COMPROMETIMENTO, EFICIÊNCIA, CREDIBILIDADE, SERVIÇO PÚBLICO, PREJUÍZO, COLETIVIDADE. INDISPENSABILIDADE, PROTEÇÃO, DIREITO PENAL, ATUALIDADE, DECORRÊNCIA, INCITAÇÃO AO ÓDIO, PREDOMINÂNCIA, COMUNICAÇÃO SOCIAL, REDE SOCIAL. AUSÊNCIA, CARÁTER ABSOLUTO, LIBERDADE DE EXPRESSÃO. \n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. CRISTIANO ZANIN: LEGITIMIDADE, CRIMINALIZAÇÃO, DESACATO, CRIME CONTRA A HONRA DE SERVIDOR PÚBLICO, VINCULAÇÃO, PUNIBILIDADE, CONDUTA. DIFERENÇA, DIREITO DE CRÍTICA, OFENSA, CARÁTER PENAL.\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. GILMAR MENDES: PONDERAÇÃO DE PRINCÍPIOS, LEGISLADOR, PROTEÇÃO, CARÁTER SUBJETIVO, SERVIDOR PÚBLICO, CARÁTER OBJETIVO, SERVIÇO PÚBLICO. CONTROLE DE CONSTITUCIONALIDADE, LEI PENAL, PRINCÍPIO DA PROPORCIONALIDADE EM SENTIDO ESTRITO. NÍVEIS DE INTENSIDADE DO CONTROLE DE CONSTITUCIONALIDADE DE LEIS PENAIS. CONTROLE DE EVIDÊNCIA, CONTROLE MATERIAL DE INTENSIDADE. \n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. ALEXANDRE DE MORAES: DIFERENÇA, CRIME CONTRA A HONRA DE SERVIDOR PÚBLICO, DESACATO, EXIGÊNCIA, CONEXÃO, DELITO, FUNÇÃO PÚBLICA. INCREMENTO, DESVALOR DA CONDUTA, FUNDAMENTO, FUNÇÃO PÚBLICA, VÍTIMA. DOUTRINA, JURISPRUDÊNCIA, ENTENDIMENTO, CAUSA DE AUMENTO DE PENA, ULTIMA RATIO. LIBERDADE DE EXPRESSÃO, AUSÊNCIA, CONFIGURAÇÃO, LIBERDADE, AGRESSÃO.\n\n- FUNDAMENTAÇÃO COMPLEMENTAR, MIN. NUNES MARQUES: INEXISTÊNCIA, PRIVILÉGIO, HONRA, SERVIDOR PÚBLICO, EXISTÊNCIA, PROTEÇÃO, EXERCÍCIO DE FUNÇÃO PÚBLICA. INEXISTÊNCIA, OFENSA, PRINCÍPIO DA ISONOMIA. PROPORCIONALIDADE, ADEQUAÇÃO, JUSTIFICATIVA, CAUSA DE AUMENTO DE PENA. PREVALÊNCIA, PRINCÍPIO, PRESUNÇÃO, CONSTITUCIONALIDADE, NORMA.\n\n- VOTO VENCIDO, MIN. LUÍS ROBERTO BARROSO: POSIÇÃO, PREFERÊNCIA, LIBERDADE DE EXPRESSÃO, LEGITIMIDADE, CRÍTICA, DEBATE PÚBLICO. CRIMINALIZAÇÃO, CRÍTICA, EXIGÊNCIA, DOLO ESPECÍFICO. JURISPRUDÊNCIA, ÂMBITO INTERNACIONAL, INTERPRETAÇÃO, OFENSA, LIBERDADE DE EXPRESSÃO, CRIME CONTRA A HONRA DE SERVIDOR PÚBLICO. PRINCÍPIO DA ADEQUAÇÃO, PRINCÍPIO DA NECESSIDADE, PRINCÍPIO DA PROPORCIONALIDADE EM SENTIDO ESTRITO. JUSTIFICATIVA, CAUSA DE AUMENTO DE PENA, DESVALOR DA CONDUTA, CALÚNIA, HIPÓTESE, COMPROMETIMENTO, EXERCÍCIO DE FUNÇÃO PÚBLICA. INCOMPATIBILIDADE, CONSTITUIÇÃO FEDERAL, CAUSA DE AUMENTO DE PENA, CRIME CONTRA A HONRA, DIFAMAÇÃO, INJÚRIA.\n\n- VOTO VENCIDO, MIN. EDSON FACHIN: HIERARQUIA CONSTITUCIONAL, CONVENÇÃO AMERICANA DE DIREITOS HUMANOS, PACTO INTERNACIONAL SOBRE DIREITOS CIVIS E POLÍTICOS. LIBERDADE DE EXPRESSÃO, DIREITO DE CRÍTICA, EFETIVIDADE, PLURALISMO, IDEIA, DEMOCRACIA. INADEQUAÇÃO, TUTELA, REPUTAÇÃO, ADMINISTRAÇÃO PÚBLICA, INTERMÉDIO, CRIMINALIZAÇÃO, DIFERENÇA, PENA, DECORRÊNCIA, EXERCÍCIO DE FUNÇÃO PÚBLICA. RISCO, DESESTÍMULO, DIREITO DE CRÍTICA, ESTÍMULO, CENSURA. DIREITO PENAL, ULTIMA RATIO. DIMENSÃO SOCIAL DA LIBERDADE DE EXPRESSÃO.\n\n- TERMO(S) DE RESGATE: EFEITO INIBIDOR, EFEITO RESFRIADOR, CHILLING EFFECT. DELITOS DE TENDÊNCIA INTENSIFICADA. CONFORMAÇÃO DO LEGISLADOR. CRITÉRIO DE JUSTICABILIDADE.",
+            "documental_observacao_texto": "- Acórdão(s) citado(s):\n(RECEPÇÃO, CRIME, DESACATO, CONSTITUIÇÃO FEDERAL)\nADPF 496 (TP). \n(CONSTITUCIONALIDADE, CAUSA DE AUMENTO DE PENA, CRIME CONTRA A HONRA, CALÚNIA)\nAP 891 (1ªT). \n(CONFIGURAÇÃO, CRIME CONTRA A HONRA, CALÚNIA)\nInq 2915 (TP), AP 541 (TP), AP 891 (1ªT), Pet 7168 AgR (1ªT), Pet 7107 AgR (1ªT). \n(CONFIGURAÇÃO, CRIME CONTRA A HONRA, DIFAMAÇÃO)\nHC 71826 (2ªT), Inq 2503 (TP), Inq 2915 (TP), Inq 3399 (1ªT). \n(CRIME CONTRA A HONRA DE SERVIDOR PÚBLICO)\nHC 78426 (1ªT), Inq 2154 (TP), Inq 3546 (1ªT), Inq 3555 (TP), Inq 726 AgR (TP). \n(PRINCÍPIO DA FUNGIBILIDADE, ADI, ADPF)\nADPF 195 AgR (TP), ADPF 314 AgR (TP), ADPF 936 (TP). \n(INADMISSIBILIDADE, ADI, LEGISLAÇÃO ANTERIOR, CONSTITUIÇÃO FEDERAL DE 1988)\nADI 5 (TP), ADI 30 (TP), ADI 75 (TP). \n(LIBERDADE DE EXPRESSÃO)\nADPF 130 (TP), HC 82424 (TP), ADPF 187 (TP), ADI 4451 (TP), ADI 4815 (TP), Rcl 22328 (1ªT), ADI 7261 MC-Ref (TP). \n(CRIME CONTRA A HONRA, ELEMENTO SUBJETIVO)\nHC 71466 (1ªT), RHC 81750 (2ªT). \n(PRINCÍPIO DA PROPORCIONALIDADE, CRITÉRIO, CONTROLE DE CONSTITUCIONALIDADE)\nADI 3446 (TP), ADI 6031 (TP). \n(LIBERDADE DE EXPRESSÃO, ASSÉDIO JUDICIAL, JORNALISTA)\nRE 1075412 (TP), ADI 6792 (TP), ADI 7055 (TP). \n- Decisão monocrática citada:\n(CONFIGURAÇÃO, CRIME CONTRA A HONRA, CÓDIGO ELEITORAL)\nInq 3546.\n- Legislação estrangeira citada: art. 12(13) do Código Penal chileno.\n- Decisões estrangeiras citadas: Caso Lingens vs. Áustria (1986), Caso Castells vs. Espanha (1992), Caso Tusalp vs. Turquia (2012) e Caso Dickinson vs. Turquia (2021), da Corte Europeia de Direitos Humanos; Caso Ricardo Canese vs. Paraguai (2004), Caso Palamara Iribarne vs. Chile (2005), Caso Kimel vs. Argentina (2008), Caso Moya Chacón y otro vs. Costa Rica (2022), e Caso Viteri Ungaretti, Caso Baraona Bray vs. Chile (2022) e outros vs. Equador (2023), da Corte Interamericana de Direitos Humanos; 1 BvR 2459/19, 1 BvR 2397/19, 1 BvR 1094/19, 1 BvR 362/18 e BVerfGE 50, 290, do Tribunal Constitucional Federal alemão.\n\nNúmero de páginas: 144.\nAnálise: 11/11/2026, KBP.",
+            "documental_tese_texto": null,
+            "documental_tese_tema_texto": null,
+            "dg_atualizado_em": "2026-11-11T19:40:19.263447"
+          },
+          "sort": [
+            1770249600000,
+            9223372036854775807
+          ]
+        }
+      ]
+    }
+  },
+  "search_id": "fixture"
+}
