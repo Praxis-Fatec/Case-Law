@@ -145,12 +145,28 @@ WHERE ra.termos && rb.termos
 ;
 
 JINJA_STATEMENT_BEGIN;
+/* O nome sai da VERSÃO do modelo, não do nome inteiro da tabela física, e a
+   diferença é um caractere. `core.decisao_contraria_candidata` é o modelo de
+   nome mais longo do projeto: a tabela física dá 45 caracteres, o SQLMesh
+   acrescenta `_schema_tmp` ao construir um modelo FULL porque as declarações
+   de pós-execução rodam contra a temporária antes da troca, e `_leitura` fecha
+   em 64 — um acima do limite do Postgres, que o SQLMesh recusa em vez de
+   truncar calado.
+
+   Passou despercebido porque o estouro depende do hash: as versões anteriores
+   terminaram em nove dígitos e couberam em 63 por um caractere. Nada no modelo
+   mudou para quebrá-lo; mudou o número que o SQLMesh sorteou.
+
+   A versão é a única parte que precisa variar — é dela que vem tanto a troca a
+   cada mudança de modelo quanto a estabilidade entre os lotes de uma mesma
+   construção, que é o que faz IF NOT EXISTS significar "já criei este". */
 {% set tabela = this_model.split('.')[-1] | replace('"', '') %}
-CREATE INDEX IF NOT EXISTS "{{ tabela }}_leitura"
+{% set versao = tabela.split('__')[-1] %}
+CREATE INDEX IF NOT EXISTS "candidata_{{ versao }}_leitura"
   ON {{ this_model }} (fonte_codigo, identificador_fonte);
 
 /* `core.decisao_contraria` lê esta tabela na mesma execução, e o cosseno só
-   escolhe joins de hash sabendo que aqui há 3,3 milhões de linhas. Ver o ANALYZE
+   escolhe joins de hash sabendo que aqui há 6,3 milhões de linhas. Ver o ANALYZE
    de `core.precedente_judicial` para o que acontece sem isto. */
 ANALYZE {{ this_model }};
 JINJA_END;
