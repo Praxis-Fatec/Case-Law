@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
 from sources import stf
 
 FIXTURES = Path(__file__).parent / "fixtures"
