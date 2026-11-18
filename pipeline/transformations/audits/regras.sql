@@ -702,3 +702,82 @@ AUDIT (
 SELECT *
 FROM @this_model
 WHERE norma <= 0;
+AUDIT (
+  name contraria_tem_motivo,
+  dialect postgres
+);
+/* Par sem motivo é a falha que esta história existe para evitar: uma lista de
+   "contrárias" sem dizer em que divergem é ruído com cara de análise. O motivo
+   é o precedente disputado mais as duas aderências, e elas têm que ser de fato
+   opostas — uma seguiu, a outra afastou ou distinguiu. Aderências iguais, ou
+   `mencionou` e `indeterminado` de qualquer lado, não são discordância. */
+SELECT *
+FROM @this_model
+WHERE corte IS NULL
+   OR tipo IS NULL
+   OR numero IS NULL
+   OR NOT (
+        (aderencia = 'seguiu' AND contraria_aderencia IN ('afastou', 'distinguiu'))
+     OR (contraria_aderencia = 'seguiu' AND aderencia IN ('afastou', 'distinguiu'))
+      );
+
+AUDIT (
+  name contraria_nao_e_ela_mesma,
+  dialect postgres
+);
+/* Decisão contrária a si mesma passaria despercebida na tela — apareceria como
+   uma sugestão a mais, com semelhança 1,0 e o mesmo processo dos dois lados. */
+SELECT *
+FROM @this_model
+WHERE fonte_codigo = contraria_fonte
+  AND identificador_fonte = contraria_identificador;
+
+AUDIT (
+  name contraria_e_simetrica,
+  dialect postgres
+);
+/* Quem lê a decisão que seguiu o precedente e quem lê a que o afastou têm que
+   receber a mesma resposta. Uma direção faltando não dá erro em lugar nenhum:
+   a tela simplesmente diz que não há contrária conhecida, que é a resposta
+   normal em cinco de cada seis decisões e por isso não chama atenção. */
+SELECT a.*
+FROM @this_model AS a
+LEFT JOIN @this_model AS b
+  ON b.fonte_codigo = a.contraria_fonte
+ AND b.identificador_fonte = a.contraria_identificador
+ AND b.contraria_fonte = a.fonte_codigo
+ AND b.contraria_identificador = a.identificador_fonte
+ AND b.corte = a.corte AND b.tipo = a.tipo AND b.numero = a.numero
+WHERE b.fonte_codigo IS NULL;
+
+AUDIT (
+  name contraria_acima_do_piso,
+  dialect postgres
+);
+/* O piso de peso é o que separa um precedente de assunto de uma súmula de
+   admissibilidade citada por todo o acervo. Se ele cair, a tabela incha com
+   pares que dividem só a postura processual — e incha calada, porque cada
+   linha continua tendo precedente e aderências opostas.
+
+   Lê `peso_precedente` da própria linha, e não `core.precedente_judicial`. A
+   primeira versão consultava a tabela de pesos e falhou na estreia: auditoria
+   roda antes da promoção, então a view do modelo novo ainda não existe. Pior
+   que falhar, se existisse: ela seria a view publicada, de uma carga anterior,
+   conferindo os pares de hoje contra os pesos de antes. Quem confere o peso na
+   fonte é `precedente_judicial_com_peso`. */
+SELECT *
+FROM @this_model
+WHERE peso_precedente IS NULL OR peso_precedente < 6.0;
+
+AUDIT (
+  name precedente_judicial_com_peso,
+  dialect postgres
+);
+/* Precedente sem peso, ou com peso zero, passa calado: ele simplesmente nunca
+   alcança o piso de nenhum consumidor e desaparece da conta. Peso zero quer
+   dizer citado por todas as decisões do acervo, o que nenhum precedente real
+   é — na prática significa que a contagem do acervo e a de citações vieram de
+   versões diferentes da tabela. */
+SELECT *
+FROM @this_model
+WHERE peso IS NULL OR peso <= 0 OR decisoes < 1;

@@ -24,7 +24,10 @@ TABLES = (
     "url_compartilhada",
     "termo_frequente",
     "termo_judicial",
+    "precedente_judicial",
     "decisao_norma",
+    "decisao_contraria_candidata",
+    "decisao_contraria",
     "busca_ampla",
     "precedente",
     "decisao_precedente",
@@ -120,6 +123,18 @@ INDEXES = (
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_doutrina (repositorio, identificador_oai)",
     f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.cobertura_fonte (fonte_codigo)",
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria "
+        "(fonte_codigo, identificador_fonte, semelhanca DESC)"
+    ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.precedente_judicial "
+        "(corte, tipo, numero)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria_candidata "
+        "(fonte_codigo, identificador_fonte)"
+    ),
 )
 
 SEARCH_CONFIGURATION = """
@@ -254,7 +269,13 @@ def stage() -> int:
     for statement in INDEXES:
         _local_psql(["-c", statement])
 
-    _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.decisao"])
+    # Era só `decisao`, e isso bastava enquanto só ela era grande. A cópia é um
+    # `CREATE TABLE AS`, então toda tabela encenada chega sem estatística: a
+    # primeira leitura de cada tela planeja contra a estimativa padrão e pode
+    # varrer 411 MB de `decisao_contraria` por índice que existe. Analisar
+    # todas custa segundos e tira a lista de manutenção manual do caminho.
+    for table in TABLES:
+        _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.{table}"])
 
     return int(
         _local_psql(["-tA", "-c", f"SELECT COUNT(*) FROM {STAGING_SCHEMA}.decisao"])
