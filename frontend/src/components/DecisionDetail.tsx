@@ -6,6 +6,7 @@ import { readCitedPrecedents } from '../api/precedents';
 import CitedLegislation from './CitedLegislation';
 import SaveDecisionButton from './SaveDecisionButton';
 import CitedPrecedents from './CitedPrecedents';
+import OpposingDecisions from './OpposingDecisions';
 import RelatedDecisions from './RelatedDecisions';
 import RelatedDoctrine from './RelatedDoctrine';
 import {
@@ -234,6 +235,16 @@ function DecisionContent({ decision, titleId }: DecisionContentProps) {
         identifier={decision.identifier}
         ementa={decision.summary}
         headingId={`${titleId}-proximas`}
+      />
+
+      {/* After the decisions on the same subject, and for the same reason they
+          come after the precedents: those are near this one, these disagree
+          with it, and the disagreement only reads once the subject is near. */}
+      <OpposingDecisions
+        key={`contrarias:${decision.source}:${decision.identifier}`}
+        source={decision.source}
+        identifier={decision.identifier}
+        headingId={`${titleId}-contrarias`}
       />
 
       {/* Last, because it is the furthest from the decision: what it settled,

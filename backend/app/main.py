@@ -13,6 +13,7 @@ from app.api import (
     health,
     indicators,
     legislation,
+    opposing,
     related,
     reports,
     saved_decisions,
@@ -124,3 +125,4 @@ app.include_router(session.router)
 app.include_router(users.router)
 app.include_router(thesis.router)
 app.include_router(related.router)
+app.include_router(opposing.router)

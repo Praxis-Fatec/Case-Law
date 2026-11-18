@@ -98,14 +98,16 @@ function installApi(total: number, answer?: Answer) {
       if (url.pathname === '/courts') {
         return json({ courts: COURTS });
       }
-      // Os blocos do detalhe que pedem por conta própria — doutrina, legislação
-      // e decisões próximas — também não são busca: eles pedem por decisão
-      // aberta, e contá-los como página faria a conta de requisições desta
-      // suíte crescer sem que nada tivesse mudado na paginação.
+      // Os blocos do detalhe que pedem por conta própria — doutrina, legislação,
+      // decisões próximas e decisões contrárias — também não são busca: eles
+      // pedem por decisão aberta, e contá-los como página faria a conta de
+      // requisições desta suíte crescer sem que nada tivesse mudado na
+      // paginação.
       if (
         url.pathname.endsWith('/doctrine') ||
         url.pathname.endsWith('/legislation') ||
-        url.pathname.endsWith('/related')
+        url.pathname.endsWith('/related') ||
+        url.pathname.endsWith('/opposing')
       ) {
         return json({ results: [] });
       }
