@@ -191,33 +191,64 @@ precedent.
 
 ### What had to be measured to transform it
 
-Sampled across every band of years, 2.000 to 2.500 records per question:
+The first measurements here were taken from samples, and they were wrong. The
+sampler walked the first pages of each band of years over a date-ascending sort,
+so it always read the oldest records of each band — the sparsest ones. It
+reported 8,1% of the ementas as placeholders where the base has 0,97%, and 19,2%
+without a judging body where the base has 6,8%.
 
-- **The ementa is never empty, and 8,1% of it is the sentence "Acórdão sem
-  ementa."** The audit `ementa_nao_vazia` approves it — the field has text. It
-  is a placeholder, and indexed it would answer a search for the word "ementa"
-  with a decision that has none. Excluded by its own rule.
+The figures below are counted over all 373.178 acordaos after the load, not
+sampled. The lesson is worth keeping: on a source sorted by date, the first page
+of a window is not a sample of that window.
+
+- **"Acórdão sem ementa." is the source's own placeholder**: 3.608 records,
+  0,97%, plus 16 whose ementa is genuinely empty. The audit `ementa_nao_vazia`
+  approves the placeholder — the field has text. Indexed, it would answer a
+  search for the word "ementa" with a decision that has none. Excluded by its
+  own rule.
 - **The class is named by the whole abbreviated ladder**, as in `EMB.DECL.NO
   AG.REG.NO AGRAVO DE INSTRUMENTO`, and the class is the outermost of them. Five
-  abbreviations, a leading ordinal and the first connective resolve **99,1%** of
-  the sampled acordaos. The rest are incidents the CNJ does not classify —
-  referendo, diligência, repercussão geral — and keep no code.
+  abbreviations, a leading ordinal and the first connective resolve **369.273 of
+  373.178 — 98,95%**. The remaining 3.905 are incidents the CNJ does not
+  classify — referendo, diligência, repercussão geral — and keep no code.
 - **The CNJ table has a subtree of the STF's own**, root 1310, 67 classes.
   Without preferring it, `Agravo Regimental` resolves to 206, which is the civil
   one. The screen would show a plausible label from another court.
-- **The address of the inteiro teor changes form with the era**: 79,9% open by
-  `numero` and `classe`, 20,1% by `idDocumento`. The parameter's own name varies,
-  so the token is the whole query string and the seed's template keeps only the
-  path.
-- **Absence is common in the old records**: 19,2% carry no judging body, 21,0% no
-  publication date, 0,2% no reporting judge. All of it arrives as absence.
+- **The address of the inteiro teor changes form with the era**: 68,0% open by
+  `numero` and `classe`, 32,0% by `idDocumento`, and none is missing. The
+  parameter's own name varies, so the token is the whole query string and the
+  seed's template keeps only the path.
+- **Absence is concentrated in the old records**: 6,8% carry no judging body,
+  6,8% no publication date, 0,1% no reporting judge. All of it arrives as
+  absence.
+
+### The walk had a silent hole
+
+The index advertises a field called `tiebreaker_sort`, and the court's own page
+sorts by it. The field does not exist: Elasticsearch answers `Long.MAX` for every
+document. The sort tuple is then unique only in its date, and `search_after`
+means "after this date" — every other decision judged that day is skipped.
+
+Nothing fails. The walk ends early and reports success. Measured over 2026 before
+the fix: **3.593 of 11.568 acordaos**, a third of the window, loaded without a
+warning. The walk now sorts by `julgamento_data` and `id`, which is the
+document's own key, and reads 11.568 of 11.568.
+
+This is the shape every failure of this source will take, and the reason the
+collector is tested against its contract rather than trusted to it.
+
+### The load
+
+Run on 18/11/2026: **373.178 acordaos**, every id distinct, from **27/04/1892 to
+16/11/2026**. Beside them the service's repeated fields landed in child tables of
+their own — **677.943 legislative references** and 382.423 reporting-judge
+entries. **189.435 of the acordaos, 50,8%, precede 1989.**
 
 ## What is still open
 
-- The load itself has not been run. The collector and the transformation are
-  tested against saved answers and the minimal collection; the 373.191 acordaos
-  have not been written to `raw`.
-- Entering 373.191 decisions into a collection of 991.163 changes the divisor of
+- The collection has not been rebuilt. The acordaos are in `raw`; nothing has
+  turned them into decisions yet.
+- Entering 373.178 decisions into a collection of 991.163 changes the divisor of
   every IDF weight in `core.precedente_judicial`, and with it every pair in
   `core.decisao_contraria`. Both need rebuilding and republishing, and the
   numbers recorded in `opposing-decisions.md` need measuring again.

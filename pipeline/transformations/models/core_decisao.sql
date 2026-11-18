@@ -22,7 +22,7 @@ MODEL (
   ),
   /* 1989 era a data de criação do STJ, e enquanto a coleção eram STJ e TJDFT
      nada havia antes dela. O acervo do STF começa em 27/04/1892, e 189.435 dos
-     seus 373.189 acórdãos — 50,8% — são anteriores a 1989. Mantida a data, eles
+     seus 373.178 acórdãos — 50,8% — são anteriores a 1989. Mantida a data, eles
      entrariam no `raw` e desapareceriam aqui, sem erro e sem aviso: o SQLMesh
      só processa intervalos a partir do `start`.
 
@@ -214,10 +214,10 @@ coletado AS (
      `stf-jurisprudencia` do seed. */
   SELECT
     a."_id"                                                  AS identificador,
-    /* O endereço do inteiro teor muda de forma com a época — 79,9% de 1.000
-       amostrados abrem por `numero` e `classe`, 20,1% por `idDocumento`. Como o
-       nome do parâmetro varia, o token é a query inteira e o template do seed
-       guarda só o caminho. */
+    /* O endereço do inteiro teor muda de forma com a época: dos 373.178
+       acórdãos carregados, 68,0% abrem por `numero` e `classe` e 32,0% por
+       `idDocumento`. Nenhum veio sem endereço. Como o nome do parâmetro varia,
+       o token é a query inteira e o template do seed guarda só o caminho. */
     NULLIF(REGEXP_REPLACE(a.inteiro_teor_url, '^[^?]*\?', ''), '')
                                                              AS identificador_documento,
     NULLIF(a.julgamento_data, '')::DATE                      AS data_julgamento,
@@ -240,9 +240,9 @@ coletado AS (
      AG.REG.NO AGRAVO DE INSTRUMENTO". A classe é a mais externa, como no STJ —
      os embargos, não o agravo em que foram opostos. Expandir as cinco
      abreviaturas, tirar o ordinal da frente ("SEGUNDO AGRAVO REGIMENTAL") e
-     cortar no primeiro conectivo casa 99,1% de 2.500 acórdãos amostrados em
-     todas as faixas de ano. O resto são incidentes que o CNJ não classifica —
-     referendo, diligência, repercussão geral — e ficam sem código. */
+     cortar no primeiro conectivo casa 369.273 dos 373.178 acórdãos — 98,95%.
+     Os 3.905 restantes são incidentes que o CNJ não classifica — referendo,
+     diligência, repercussão geral — e ficam sem código. */
   LEFT JOIN classe_stf AS cs
     ON cs.chave = TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
          REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
@@ -255,10 +255,11 @@ coletado AS (
          '^(PRIMEIR|SEGUND|TERCEIR|QUART|QUINT|SEXT|SETIM|OITAV|NON|DECIM)[AO]S?\s+', ''),
          '\s+(NOS|NAS|NO|NA|EM|DOS|DAS|DO|DA)\s+.*$', ''),
          '\s+$', ''))
-  /* "Acórdão sem ementa." é o texto que a fonte grava quando não tem ementa, e
-     são 8,1% do acervo. Não é ementa vazia, então `ementa_nao_vazia` deixa
-     passar — mas é um rótulo, não um texto: entraria no índice de busca, casaria
-     com quem procurasse "ementa" e contaria como decisão com conteúdo. */
+  /* "Acórdão sem ementa." é o texto que a fonte grava quando não tem ementa:
+     3.608 acórdãos, 0,97% do acervo carregado, mais 16 de ementa realmente
+     vazia. Não sendo vazio, `ementa_nao_vazia` deixa passar — mas é um rótulo,
+     não um texto: entraria no índice de busca, casaria com quem procurasse
+     "ementa" e contaria como decisão com conteúdo. */
   WHERE COALESCE(TRIM(a.ementa_texto), '') <> ''
     AND UPPER(UNACCENT(TRIM(a.ementa_texto))) !~ '^ACORDAO SEM EMENTA\.?$'
 ),

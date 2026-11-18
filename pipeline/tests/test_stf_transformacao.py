@@ -58,9 +58,10 @@ class TestOQueEntra:
         self, decisoes: dict[str, dict[str, Any]]
     ) -> None:
         """
-        8,1% do acervo traz "Acórdão sem ementa." no lugar da ementa. O campo não
-        está vazio, então `ementa_nao_vazia` aprova — e a decisão entraria no
-        índice de busca para casar com quem procurasse a palavra "ementa".
+        3.608 acórdãos do acervo carregado — 0,97% — trazem "Acórdão sem
+        ementa." no lugar da ementa, e outros 16 vêm realmente vazios. O campo
+        não está vazio, então `ementa_nao_vazia` aprova — e a decisão entraria
+        no índice de busca para casar com quem procurasse a palavra "ementa".
         """
         assert "sjur-sem-ementa" not in decisoes
         for decisao in decisoes.values():
@@ -100,8 +101,8 @@ class TestClasse:
     ) -> None:
         """
         "SEGUNDO AGRAVO REGIMENTAL NO RECURSO EXTRAORDINÁRIO" continua sendo um
-        agravo regimental. Sem tirar o ordinal, 13 dos 2.500 acórdãos medidos
-        ficavam sem classe.
+        agravo regimental. Sem tirar o ordinal ele fica sem classe, e com a
+        regra inteira 369.273 dos 373.178 acórdãos — 98,95% — resolvem.
         """
         assert decisoes["sjur-ordinal"]["classe_cnj"] == 1321
 
@@ -176,9 +177,10 @@ class TestCampos:
         self, decisoes: dict[str, dict[str, Any]]
     ) -> None:
         """
-        19,2% dos acórdãos não trazem órgão julgador e 21,0% não trazem data de
-        publicação. Preencher qualquer um dos dois dataria uma decisão por
-        quando ela foi coletada.
+        6,8% dos acórdãos não trazem órgão julgador, 6,8% não trazem data de
+        publicação e 0,1% não trazem relator — e a escassez se concentra nos
+        mais antigos. Preencher qualquer um deles dataria ou atribuiria uma
+        decisão por conveniência.
         """
         antigo = decisoes["sjur-antigo"]
 
