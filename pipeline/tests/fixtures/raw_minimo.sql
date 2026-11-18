@@ -46,6 +46,26 @@ CREATE TABLE raw.espelho_stj (
     _dlt_id             VARCHAR NOT NULL
 );
 
+-- The STF arrives from the service behind the court's own search, so the raw
+-- table is the shape that service answers with, not a published file.
+CREATE TABLE raw.acordao_stf (
+    "_id"                                        VARCHAR NOT NULL,
+    id                                           VARCHAR,
+    titulo                                       VARCHAR,
+    ementa_texto                                 VARCHAR,
+    inteiro_teor_url                             VARCHAR,
+    julgamento_data                              VARCHAR,
+    publicacao_data                              VARCHAR,
+    orgao_julgador                               VARCHAR,
+    relator_processo_nome                        VARCHAR,
+    relator_acordao_nome                         VARCHAR,
+    processo_codigo_completo                     VARCHAR,
+    processo_classe_processual_unificada_extenso VARCHAR,
+    acordao_ata                                  VARCHAR,
+    _dlt_load_id                                 VARCHAR NOT NULL,
+    _dlt_id                                      VARCHAR NOT NULL
+);
+
 -- dlt puts a repeated field in a child table of its own, linked by the parent's
 -- `_dlt_id`. The real name carries the arrow dlt builds it with.
 CREATE TABLE raw."espelho_stj▶referenciasLegislativas" (
@@ -179,3 +199,48 @@ INSERT INTO verificacao.link (fonte_codigo, identificador, valido) VALUES
 INSERT INTO core.precedente (corte, tipo, numero, enunciado, situacao, data, origem) VALUES
     ('STJ', 'sumula', 7, 'A pretensao de simples reexame de prova nao enseja recurso especial.', 'vigente', NULL, 'reconstruido'),
     ('STF', 'tema', 69, 'O ICMS nao compoe a base de calculo do PIS e da COFINS.', 'vigente', '2017-03-15', 'catalogo');
+
+-- Five acordaos, each for a trap the real collection carries: a 1961 judgement
+-- that only the widened `start` reaches, the two shapes of inteiro teor
+-- address, a class named by the whole abbreviated ladder, an ordinal in front
+-- of the class, and the "Acordao sem ementa." placeholder that is 8,1% of the
+-- base and must not reach the collection.
+INSERT INTO raw.acordao_stf
+    ("_id", id, titulo, ementa_texto, inteiro_teor_url, julgamento_data,
+     publicacao_data, orgao_julgador, relator_processo_nome, relator_acordao_nome,
+     processo_codigo_completo, processo_classe_processual_unificada_extenso,
+     acordao_ata, _dlt_load_id, _dlt_id)
+VALUES
+    ('sjur-antigo', 'sjur-antigo', 'HC 41000',
+     'HABEAS CORPUS. Prisao preventiva. Constrangimento ilegal reconhecido.',
+     'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?numero=41000&classe=HC',
+     '1961-03-14', NULL, NULL, NULL, NULL, 'HC 41000', 'HABEAS CORPUS',
+     NULL, 'carga-stf-1', 'dlt-stf-001'),
+
+    ('sjur-escada', 'sjur-escada', 'AI 800000 AgR-ED',
+     'EMBARGOS DE DECLARACAO. Omissao inexistente. Embargos rejeitados.',
+     'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=800000',
+     '2026-01-20', '2026-02-10', 'Primeira Turma', 'MIN. ANTIGO RELATOR',
+     'MIN. RELATOR DO ACORDAO', 'AI 800000 AgR-ED',
+     'EMB.DECL.NO AG.REG.NO AGRAVO DE INSTRUMENTO',
+     'Rejeitaram os embargos.', 'carga-stf-1', 'dlt-stf-002'),
+
+    ('sjur-ordinal', 'sjur-ordinal', 'RE 900000 AgR-segundo',
+     'AGRAVO REGIMENTAL. Materia infraconstitucional. Agravo nao provido.',
+     'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=900000',
+     '2026-07-15', '2026-08-01', 'Segunda Turma', NULL, 'MIN. SEGUNDA RELATORA',
+     'RE 900000 AgR-segundo', 'SEGUNDO AGRAVO REGIMENTAL NO RECURSO EXTRAORDINARIO',
+     NULL, 'carga-stf-2', 'dlt-stf-003'),
+
+    ('sjur-sem-ementa', 'sjur-sem-ementa', 'RE 910000',
+     'Acordao sem ementa.',
+     'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=910000',
+     '2026-01-21', '2026-02-11', 'Tribunal Pleno', NULL, 'MIN. RELATOR',
+     'RE 910000', 'RECURSO EXTRAORDINARIO', NULL, 'carga-stf-1', 'dlt-stf-004'),
+
+    ('sjur-sumula', 'sjur-sumula', 'RE 920000',
+     'RECURSO EXTRAORDINARIO. Sumula Vinculante 10. Reserva de plenario. Provido.',
+     'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=920000',
+     '2026-01-22', '2026-02-12', 'Tribunal Pleno', NULL, 'MIN. RELATOR',
+     'RE 920000', 'RECURSO EXTRAORDINARIO', 'Deram provimento.',
+     'carga-stf-1', 'dlt-stf-005');

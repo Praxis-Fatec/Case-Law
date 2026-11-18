@@ -20,7 +20,11 @@ MODEL (
     -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
     batch_concurrency 1
   ),
-  start '1989-01-01',
+  /* Acompanha `core.decisao`: o acervo do STF começa em 1892 e metade dele é
+     anterior a 1989. Mantida a data antiga aqui, essas decisões existiriam na
+     coleção sem nunca render referência nem precedente — uma assimetria dentro
+     da mesma fonte, invisível na tela. */
+  start '1892-01-01',
   grain (fonte_codigo, identificador_fonte, corte, tipo, numero),
   audits (
     not_null(columns := (

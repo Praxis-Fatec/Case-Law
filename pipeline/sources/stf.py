@@ -260,7 +260,11 @@ def document_opens(identificador: str, documento: str | None = None) -> bool:
 
     answer = _ask(
         {
-            "query": {"bool": {"filter": [{"term": {"base": BASE}}, {"ids": {"values": [chave]}}]}},
+            "query": {
+                "bool": {
+                    "filter": [{"term": {"base": BASE}}, {"ids": {"values": [chave]}}]
+                }
+            },
             "_source": ["id"],
             "size": 1,
             "track_total_hits": False,
@@ -279,13 +283,15 @@ def main() -> None:
         destination="postgres",
         dataset_name="raw",
     )
-    print(pipeline.run(
-        acordaos(
-            start=date.fromisoformat(inicio) if inicio else None,
-            end=date.fromisoformat(fim) if fim else None,
-            max_pages=int(limite) if limite else None,
+    print(
+        pipeline.run(
+            acordaos(
+                start=date.fromisoformat(inicio) if inicio else None,
+                end=date.fromisoformat(fim) if fim else None,
+                max_pages=int(limite) if limite else None,
+            )
         )
-    ))
+    )
 
 
 if __name__ == "__main__":
