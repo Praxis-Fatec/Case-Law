@@ -4332,6 +4332,212 @@ input:focus-visible {
   text-transform: uppercase;
 }
 
+/* Decisions this tool indicates as possibly contrary — `RF23`. Computed like
+   the block above it, so it borrows no part of the precedent card's left rule,
+   which on this screen means "the court said so". What is the court's own here
+   is the adherence inside each reason, and that is where the emphasis sits. */
+.contraries {
+  margin-top: 28px;
+}
+
+.contraries__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* The basis, which `RF23` requires this line to carry. */
+.contraries__lead strong {
+  color: var(--search-text);
+  font-weight: 600;
+}
+
+.contraries__lead em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.contraries__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* "Não rodou" must not read like "não existe". */
+.contraries__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.contraries__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contrary {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.contrary:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.contrary__case {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.contrary__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.contrary__link:hover,
+.contrary__link:focus-visible {
+  text-decoration: underline;
+}
+
+.contrary__byline {
+  margin: 4px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* The reason the entry exists. Set apart from the byline on purpose: a reader
+   deciding whether to open the decision reads this, not the court and date. */
+.contrary__reasons {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.contrary__reason {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--search-soft);
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__precedent {
+  font-weight: 700;
+}
+
+.contrary__sides {
+  color: var(--search-muted);
+}
+
+/* The verbs are the court's own reading, and the only words in the row that
+   change what the reader concludes. */
+.contrary__sides strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.contrary__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-2xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__terms {
+  letter-spacing: 0.02em;
+}
+
+/* A chip and not a warning: it is context, and the note under the list says
+   what it is worth. */
+.contrary__flag {
+  padding: 2px 7px;
+  border: 1px solid var(--search-border);
+  border-radius: 999px;
+  color: var(--search-text);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.contraries__note,
+.contraries__cut {
+  margin: 12px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-2xs)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.contraries__note strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.contraries__more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.contraries__expand {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--search-primary);
+  border-radius: 9px;
+  background: var(--search-surface);
+  color: var(--search-primary);
+  font:
+    700 var(--text-xs)/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.contraries__expand:hover:not(:disabled),
+.contraries__expand:focus-visible {
+  background: var(--search-soft);
+}
+
+.contraries__expand:disabled {
+  border-color: var(--search-border);
+  color: var(--search-muted);
+  cursor: progress;
+}
+
 @media (max-width: 640px) {
   .denominators__item {
     flex-basis: 100%;
@@ -5071,6 +5277,7 @@ input:focus-visible {
   .source-status[aria-busy='false'] tbody,
   .doctrine__list,
   .neighbours__list,
+  .contraries__list,
   .decision-result-card__thesis[open] > :not(summary) {
     animation: panel-reveal 180ms ease-out both;
   }
@@ -5080,6 +5287,7 @@ input:focus-visible {
   .doctrine__state--failed,
   .legislation__state--failed,
   .neighbours__state--failed,
+  .contraries__state--failed,
   .date-group__error,
   .filters-pending,
   .export-action > :is([role='status'], [role='alert']) {

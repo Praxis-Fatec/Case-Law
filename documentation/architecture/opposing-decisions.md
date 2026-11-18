@@ -172,11 +172,18 @@ five by default and twenty at most, ordered by similarity, which means that on
 the worst decision in the collection the reader sees five of 1.266. That is
 defensible — similarity ordering is exactly how `RF20` already decides what is
 worth showing, and the same cosine is used here — but it is a cut, not an
-absence of one, and the reader is not told the list was truncated. Whether the
-screen should say so, and whether a similarity floor belongs in the model after
-all, is the first thing to settle after the legal reading below. No threshold was
-invented here, because inventing one would be a number with no measurement
-behind it.
+absence of one.
+
+Half of that is settled. Subtask 23.4 makes the screen say it was cut: where the
+list comes back full, the block says so and offers the twenty, and the sentence
+claims no total because the answer carries none. A screen that shows five of
+1.266 in silence is asserting something it never measured; one that says "pode
+haver outras" is not.
+
+What is still open is whether a similarity floor belongs in the model. No
+threshold was invented here, because inventing one would be a number with no
+measurement behind it, and the measurement that would justify it is the legal
+reading below.
 
 ---
 
