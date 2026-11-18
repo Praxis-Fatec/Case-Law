@@ -4,8 +4,7 @@ MODEL (
   grain carga_id,
   audits (
     not_null(columns := (carga_id, status)),
-    unique_values(columns := (carga_id)),
-    carga_de_fonte_conhecida
+    unique_values(columns := (carga_id))
   )
 );
 

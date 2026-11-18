@@ -182,11 +182,19 @@ WHERE tipo NOT IN ('sumula', 'tema')
 
 AUDIT (
   name citacao_com_volume,
+  standalone true,
   dialect postgres
 );
-/* Redação muda, extração encolhe calada: o indicador mediria menos acervo. */
+/* Redação muda, extração encolhe calada: o indicador mediria menos acervo.
+
+   `standalone` pelo mesmo motivo de referencia_reconhecida_no_limite: é
+   afirmação sobre a tabela inteira. Presa ao modelo, o SQLMesh a aplicava à
+   janela recém-escrita, e nenhuma janela de carga tem trezentas mil citações —
+   uma semana tem algumas centenas. Reprovava toda carga incremental, e só
+   passava quando a janela era o histórico todo. Medido: 459.800 ligações em
+   18/11/2026, 53% de folga sobre o piso. */
 SELECT 1 AS falha
-FROM @this_model
+FROM core.decisao_precedente
 HAVING COUNT(*) < 300000;
 
 AUDIT (
@@ -228,15 +236,41 @@ WHERE dp.resolvida AND p.corte IS NULL;
 
 AUDIT (
   name citacao_com_alcance,
+  standalone true,
   dialect postgres
 );
 /* Se a redação das citações mudar, a extração encolhe calada e a tela diz
    "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
-   O piso é sobre a proporção de decisões, não de ligações: hoje 30,2%. */
+   O piso é sobre a proporção de decisões, não de ligações.
+
+   `standalone` porque compara a contagem com o acervo todo: presa ao modelo,
+   media as decisões da janela contra 24% da coleção inteira, e nenhuma janela
+   de carga é um quarto da coleção. Não havia como passar incrementalmente.
+
+   O piso desceu de 0,24 para 0,15 quando o STF entrou, e a razão é a mistura
+   de fontes, não perda de extração. Medido em 18/11/2026:
+
+   | fonte | decisões  | citam precedente |
+   |-------|-----------|------------------|
+   | STJ   |   876.996 | 30,9%            |
+   | TJDFT |   114.167 | 24,7%            |
+   | STF   |   369.545 | 11,2%            |
+   | acervo| 1.360.708 | 25,04%           |
+
+   O STF cita menos porque o acervo dele começa em 1892 e citar súmula é
+   prática recente — não é o recorte falhando. Com 0,24 a regra ficava com 1,04
+   ponto de folga e reprovaria na próxima carga por nada.
+
+   0,15 continua pegando o que a regra existe para pegar. Se o recorte quebrar
+   para todas as fontes a taxa vai a zero; se quebrar só para o STJ, que carrega
+   59% das ligações, cai para 5,1%. E sobrevive à mistura que já está à vista:
+   as 762.031 monocráticas do STF estão ao alcance do mesmo coletor, e com elas
+   a taxa do acervo desceria sozinha para perto de 18%. Um piso que precisa ser
+   recalibrado a cada fonte nova é um piso que deixa de guardar. */
 SELECT 1 AS falha
-FROM @this_model
+FROM core.decisao_precedente
 HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
-     < (SELECT COUNT(*) FROM core.decisao) * 0.24;
+     < (SELECT COUNT(*) FROM core.decisao) * 0.15;
 
 AUDIT (
   name citacao_com_corte_do_texto,
@@ -649,14 +683,27 @@ WHERE (itens > itens_sem_data AND (cobertura_inicio IS NULL OR cobertura_fim IS 
 
 AUDIT (
   name carga_de_fonte_conhecida,
+  standalone true,
   dialect postgres
 );
 /* Carga atribuída a código que não está em core.fonte fica órfã: não aparece
    em nenhuma fonte na tela de cobertura, não dá erro, e a fonte de verdade
    passa a parecer nunca coletada. Fonte nula é permitida de propósito — é a
-   execução que terminou sem gravar nada, e o dlt não diz qual fonte rodou. */
+   execução que terminou sem gravar nada, e o dlt não diz qual fonte rodou.
+
+   `standalone` porque o SQLMesh só remapeia, dentro de uma auditoria, os
+   modelos que são dependência do modelo auditado — e `core.carga` não lê
+   `core.fonte`. Presa ao modelo, esta regra conferia as cargas recém-escritas
+   contra a view `core.fonte` ANTERIOR, que a promoção ainda não trocou.
+
+   O efeito era impedir qualquer fonte nova de entrar no acervo: a carga do STF
+   trazia 'stf-jurisprudencia', o catálogo publicado ainda tinha quatro códigos,
+   e o plano reprovava. Reprovava também no replan, porque a promoção depende do
+   plano passar — um impasse que não aparece em nenhuma mensagem de erro.
+   Standalone, a regra é nó próprio, as duas tabelas são dependências dela, e as
+   duas vêm da mesma construção. */
 SELECT c.*
-FROM @this_model AS c
+FROM core.carga AS c
 LEFT JOIN core.fonte AS f
   ON f.codigo = c.fonte_codigo
 WHERE c.fonte_codigo IS NOT NULL
@@ -682,7 +729,8 @@ AUDIT (
 /* Esta tabela nasce de `ementa_busca`. Se a construção daquele tsvector
    quebrar, ela encolhe em silêncio e a tela deixa de sugerir decisões
    próximas, com cara de acervo sem nada parecido. Medido em 11/11/2026:
-   540.103 termos para 991.163 decisões. O piso é de um décimo de termo por
+   540.103 termos para 991.163 decisões; em 18/11/2026, com o STF no acervo,
+   592.962 para 1.360.708. O piso é de um décimo de termo por
    decisão — longe do medido, porque o que ele precisa pegar é o colapso, não
    a variação — e só vale a partir de 100 mil decisões, para não reprovar um
    ambiente de desenvolvimento com uma amostra. */

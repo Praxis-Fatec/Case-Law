@@ -35,9 +35,7 @@ MODEL (
       columns := (fonte_codigo, identificador_fonte, corte, tipo, numero)
     ),
     citacao_de_tipo_conhecido,
-    citacao_com_volume,
     citacao_resolvida_com_precedente,
-    citacao_com_alcance,
     citacao_com_corte_do_texto,
     aderencia_de_valor_conhecido,
     aderencia_sem_contradicao
