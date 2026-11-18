@@ -351,6 +351,15 @@ re-measured distribution.
   comes from the STJ's open data portal and the STF publishes no equivalent.
   The links are kept and marked unresolved, which is what makes the size of the
   gap visible.
+- **Two thirds of the temas the STF cites do not say whose they are.** Of its
+  19.908 tema citations, 13.402 — 67,3 % — carry no court in the ementa, against
+  a third of the STJ's and the TJDFT's. Nothing is misreported: an undeclared
+  citation is stored with `corte_declarada = FALSE`, never resolves even when a
+  row of that number exists, the name on screen stops at the number rather than
+  reading "Tema 660 do STJ", and the block says in words why the holding is not
+  shown. But it means the reader of an STF acordao sees a bare number more often
+  than the reader of any other court's, and the fix is a catalogue of the STF's
+  repercussão geral temas, which no portal publishes.
 - The 799 sumulas and the 762.031 monocratic decisions are in reach of the same
   collector and belong to no story yet. The monocratic ones would roughly
   double the collection, and would take the precedent-citation rate on their
