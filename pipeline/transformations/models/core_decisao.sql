@@ -287,8 +287,10 @@ bruto AS (
   A tese que o próprio tribunal escreveu, quando escreveu.
 
   Desde 2024 o CNJ pede uma ementa em quatro seções, e a quarta é "DISPOSITIVO
-  E TESE". Dentro dela o relator rotula o que firmou. 54.918 decisões trazem o
-  rótulo — 34,5% do TJDFT e 2,0% do STJ, que tem acervo desde 1989.
+  E TESE". Dentro dela o relator rotula o que firmou. 58.202 decisões trazem o
+  rótulo — 34,7% do TJDFT, 2,0% do STJ e 0,2% do STF. A proporção acompanha a
+  idade do acervo, não a qualidade da fonte: o padrão é de 2024, o STJ tem
+  acervo desde 1989 e o do STF começa em 1892.
 
   Os dois-pontos são obrigatórios: sem eles o padrão pega prosa, como em "tese
   de julgamento extra petita", e contamina 3.925 decisões do STJ.

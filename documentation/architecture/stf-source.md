@@ -244,15 +244,119 @@ Run on 18/11/2026: **373.178 acordaos**, every id distinct, from **27/04/1892 to
 their own — **677.943 legislative references** and 382.423 reporting-judge
 entries. **189.435 of the acordaos, 50,8%, precede 1989.**
 
+### Into the collection
+
+Of the 373.178 acordaos read, **369.545 became decisions**. The whole difference
+is accounted for, which is the point of listing it:
+
+| | |
+|---|---:|
+| read from the source | 373.178 |
+| ementa is the literal `Acórdão sem ementa.` | −3.608 |
+| ementa empty | −16 |
+| neither a judgment nor a publication date | −9 |
+| **in the collection** | **369.545** |
+
+The placeholder ementas are dropped because the ementa is the search target and
+the only text the screen can show: a result whose body reads "Acórdão sem
+ementa." is a row that matches nothing and says nothing. The nine dateless ones
+are a real loss rather than a cleanup — `CJ 1585`, `AI 6093`, `MS 285` and six
+others are decisions with real holdings, and every filter and sort in the
+product is by date, so a decision with no date has no place in the collection as
+it is built. They stay in `raw`, and `core.cobertura_fonte` reports 44 items
+with no date on the STF's row so the gap is counted rather than implied.
+
+With them the collection goes from 991.163 decisions to **1.360.708**, and its
+floor from 1989 to **27/04/1892**.
+
+### Three guards that could not have let it in
+
+Adding a court exercised the pipeline in a way that nothing had since the audits
+were written, and three of them turned out to be checking something other than
+what they claimed. All three failed the same way: a model audit is applied by
+SQLMesh **only to the window just written**, and it resolves **only the models
+the audited model itself reads**. Break either rule and the audit silently
+compares the wrong things.
+
+| audit | what it actually checked | effect |
+|---|---|---|
+| `carga_de_fonte_conhecida` | joined `core.fonte`, which `core.carga` does not read, so it resolved to the **previously published** catalogue | a run carrying a source that was not in the last published catalogue always failed — **no new source could ever enter**, and the replan failed too, because promotion needs the plan to pass |
+| `citacao_com_volume` | a floor of 300.000 citations, applied to one window | failed every incremental load; a week has hundreds of citations, not hundreds of thousands |
+| `citacao_com_alcance` | the window's decisions against 24 % of the **whole** collection | could not pass incrementally at all |
+
+All three are standalone audits now, which is the pattern
+`referencia_reconhecida_no_limite` had already established in the same file for
+the same reason. `citacao_com_alcance`'s floor also had to move, and that one is
+not a mechanical fix:
+
+| source | decisions | cite a precedent |
+|---|---:|---:|
+| STJ | 876.996 | 30,9 % |
+| TJDFT | 114.167 | 24,7 % |
+| STF | 369.545 | **11,2 %** |
+| collection | 1.360.708 | 25,04 % |
+
+The STF cites fewer because its collection reaches back to 1892 and citing a
+súmula is a recent drafting practice — the extraction is not failing. Against a
+floor of 24 % that left 1,04 points of headroom, so the floor is 15 % now: a
+collapse of the extraction takes the rate to zero, and losing the STJ alone,
+which carries 59 % of the links, takes it to 5,1 %. A floor that has to be
+recalibrated every time a source is added is a floor that stops guarding.
+
+A fourth defect was waiting on luck rather than on the STF.
+`core.decisao_contraria_candidata` is the longest model name in the project; its
+physical table is 45 characters, SQLMesh appends `_schema_tmp` when building a
+FULL model because post-statements run against the temporary table before the
+swap, and the index suffix `_leitura` closed at **64** — one over Postgres's
+limit, which SQLMesh refuses rather than truncating. Earlier snapshot versions
+ended in nine digits and fit in 63 by one character. Nothing in the model
+changed to break it; the number SQLMesh drew did. The index name is composed
+from the version alone now.
+
+### What the rebuild moved
+
+| | before | after |
+|---|---:|---:|
+| decisions | 991.163 | 1.360.708 |
+| period | 19/02/1989 → 17/09/2026 | 27/04/1892 → 16/11/2026 |
+| citation links | 375.189 | 459.800 |
+| reconstructed súmulas | 340 | 383 |
+| judicial vocabulary | 540.103 terms | 592.962 |
+| contrary pairs | 3.325.818 | 6.323.556 |
+| decisions with a contrary | 50.925 | 61.644 |
+
+The 43 new súmulas came for free: holdings that only the STF's own acordaos
+transcribe, found by the same reconstruction rule. The contrary pairs nearly
+doubled, and `documentation/architecture/opposing-decisions.md` carries the
+re-measured distribution.
+
 ## What is still open
 
-- The collection has not been rebuilt. The acordaos are in `raw`; nothing has
-  turned them into decisions yet.
-- Entering 373.178 decisions into a collection of 991.163 changes the divisor of
-  every IDF weight in `core.precedente_judicial`, and with it every pair in
-  `core.decisao_contraria`. Both need rebuilding and republishing, and the
-  numbers recorded in `opposing-decisions.md` need measuring again.
+- **The STF yields no legislative references.** It publishes them in the same
+  fixed format the STJ does, with a hyphen where the STJ uses a colon —
+  `LEG-FED DEC-029784 ANO-1951 ART-00002` against
+  `LEG:FED DEL:003365 ANO:1941 ART:00026`. Of its 677.943 citation lines,
+  565.445 (83,4 %) carry a readable header and 326.293 (48,1 %) name an article.
+  But `core.referencia_legislativa` is scoped `WHERE fonte_codigo =
+  'stj-espelhos'` and joins the STJ's own child table, so every STF decision
+  shows an empty "legislação citada". That is a feature of its own, with four
+  audits and its own document; it belongs to no story yet.
+- **The STF declares 108.060 citations of its own súmulas** in that same
+  structured field (`LEG-FED SUMSTF-000279`), plus 1.873 TST and 1.138 STJ.
+  `core.decisao_precedente` infers citations with a regular expression over the
+  ementa; here the court states them. Reading the declared field would be a
+  stronger signal than the inference, and it is measurable against it.
+- **The STF's temas do not resolve.** 12,9 % of tema citations match a row in
+  `core.precedente`, against 97,3 % of súmula citations, because the catalogue
+  comes from the STJ's open data portal and the STF publishes no equivalent.
+  The links are kept and marked unresolved, which is what makes the size of the
+  gap visible.
 - The 799 sumulas and the 762.031 monocratic decisions are in reach of the same
-  collector and belong to no story yet.
+  collector and belong to no story yet. The monocratic ones would roughly
+  double the collection, and would take the precedent-citation rate on their
+  own to near 18 % — which the floor above already allows for.
+- `core.decisao_contraria_candidata` is **1.788 MB** against the 461 MB that
+  SCRUM-205 measured. The table is built, audited and read within one execution
+  and is not published, but the growth is worth watching.
 - Nothing has been asked of the COPJ. The channel is recorded above, and asking
   costs a message.

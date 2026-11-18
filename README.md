@@ -48,7 +48,7 @@ keeps the address of its own document on the court's site.
 
 | | |
 |---|---|
-| **One search, many courts** | 984,824 decisions from the STJ and the TJDFT, searched together |
+| **One search, many courts** | 1,360,708 decisions from the STF, the STJ and the TJDFT, searched together |
 | **Full-text in Portuguese** | accents and word endings do not matter: *acao* finds *ação*, *usucapiao* finds *usucapião* |
 | **The terms, highlighted** | the excerpt shows why the decision matched |
 | **Always the official source** | every result links to the document on the court's own site, and the screen says that the original prevails |
@@ -60,8 +60,14 @@ The reach today:
 | Court | Decisions | Coverage |
 |---|---|---|
 | **STJ** — Superior Tribunal de Justiça | 876,996 | 19/02/1989 – 26/08/2026 |
-| **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 107,828 | 17/09/2025 – 17/09/2026 |
-| **Total** | **984,824** | **19/02/1989 – 17/09/2026** |
+| **STF** — Supremo Tribunal Federal | 369,545 | 27/04/1892 – 16/11/2026 |
+| **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 114,167 | 17/09/2025 – 17/09/2026 |
+| **Total** | **1,360,708** | **27/04/1892 – 16/11/2026** |
+
+The STF publishes no open data, so its decisions are read from the private
+backend of the court's own search page — identified, paced, and stopping on
+refusal. What that means, and everything else that was checked first, is in
+[STF as a source](documentation/architecture/stf-source.md).
 
 ---
 

@@ -7,7 +7,7 @@ Contrary is not opposite outcome. `opposing-decisions.md` measured it: over
 disagree *less* than random ones. An endpoint built on opposite outcomes would
 answer about six contradictions per decision, nearly all of them pairs that
 agree on the law and differ on which party appealed — the collection does not
-record who appealed, and `conhecimento` is NULL for all 991.163 decisions, so
+record who appealed, and `conhecimento` is NULL for all 1.360.708 decisions, so
 neither can be corrected for.
 
 What is answered instead is a disagreement the court itself wrote down: two
@@ -19,8 +19,8 @@ they diverge is noise with the face of analysis.
 The opposite outcome still travels, as context beside each entry and never as
 the reason an entry exists.
 
-Nineteen decisions in twenty have no known contrary — 50.925 of the 991.163
-carry one — so an empty list is the ordinary answer. It is not the same as not knowing: where the table is not published
+More than nineteen decisions in twenty have no known contrary — 61.644 of the
+1.360.708 carry one — so an empty list is the ordinary answer. It is not the same as not knowing: where the table is not published
 this answers 503 rather than an empty list, because telling a lawyer there is
 no contradiction when nobody looked is worse than telling them the screen is
 unavailable.

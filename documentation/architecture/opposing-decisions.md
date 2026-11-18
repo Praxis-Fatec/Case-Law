@@ -19,10 +19,13 @@ party appealed — something the collection does not record.
 
 That is an argument. Here is the measurement.
 
-**Measured over 300 decisions drawn at random** from the 225.136 that cite a
-resolved precedent and carry a published vector, taking up to 50 neighbours
+**Measured over 300 decisions drawn at random** from the 225.136 that cited a
+resolved precedent and carried a published vector, taking up to 50 neighbours
 each by the `RF20` method: **14.546 pairs** over 293 decisions (seven returned
-no neighbour).
+no neighbour). Measured in the collection as it stood before the STF entered it
+— 991.163 decisions — and left as measured: it is a study of how the rule
+behaves, not a figure the collection moves. The counts further down, which the
+collection does move, were measured again after the rebuild.
 
 | | Share of similar pairs |
 |---|---:|
@@ -39,7 +42,7 @@ would show, on a typical decision, around six "contrary" decisions that are
 mostly pairs agreeing on the law and differing on who appealed.
 
 It also cannot be repaired by excluding appeals that were never admitted:
-`conhecimento` is NULL for all 991.163 decisions — the column exists and was
+`conhecimento` is NULL for all 1.360.708 decisions — the column exists and was
 never implemented, as `etl.md` and the data dictionary already record.
 
 ---
@@ -59,7 +62,7 @@ the court itself wrote down.
 | … disputing at least one merits precedent | **217** | **36,7 %** |
 
 Súmula 7/STJ alone — the re-examination of evidence — accounts for 263 of the
-591, and it is cited 128.176 times across every subject in the base. A pair
+591, and it is cited 128.237 times across every subject in the base. A pair
 "disputing" it is usually two unrelated cases where one could reach the facts
 and the other could not. `related-decisions.md` measured the same bias from the
 other side and warned about it; it shows up here in full force.
@@ -100,66 +103,91 @@ cannot be telling us what a decision is *about*, and that is measurable. The
 ordering it produces is the argument for it: the fourteen precedents below the
 floor are the fourteen most cited in the collection.
 
+Re-measured after the STF entered the collection, which moved every weight:
+the weight is `ln(N / citations)` and `N` went from 991.163 to 1.360.708.
+
 | Precedent | Decisions citing it | Weight | |
 |---|---:|---:|---|
-| Súmula 7/STJ | 128.176 | 2,05 | dropped |
-| Súmula 284/STF | 29.971 | 3,50 | dropped |
-| Súmula 83/STJ | 29.226 | 3,52 | dropped |
-| Súmula 182/STJ | 21.970 | 3,81 | dropped |
-| Súmula 211/STJ | 17.259 | 4,05 | dropped |
-| Súmula 283/STF | 12.766 | 4,35 | dropped |
-| Súmula 282/STF | 9.062 | 4,69 | dropped |
-| Súmula 280/STF | 9.060 | 4,70 | dropped |
-| Súmula 568/STJ | 3.795 | 5,57 | dropped |
-| Súmula 126/STJ | 3.574 | 5,63 | dropped |
-| Súmula 691/STF | 3.426 | 5,67 | dropped |
-| Súmula 115/STJ | 3.200 | 5,74 | dropped |
-| Súmula 85/STJ | 2.894 | 5,84 | dropped |
-| Súmula 5/STJ | 2.691 | 5,91 | dropped |
-| *the floor* | *2.457* | *6,00* | |
-| Súmula 187/STJ | 1.665 | 6,39 | **kept** |
-| Súmula 320/STJ | 181 | 8,61 | **kept** |
+| Súmula 7/STJ | 128.237 | 2,36 | dropped |
+| Súmula 284/STF | 31.170 | 3,78 | dropped |
+| Súmula 83/STJ | 29.230 | 3,84 | dropped |
+| Súmula 182/STJ | 22.001 | 4,12 | dropped |
+| Súmula 279/STF | 17.576 | 4,35 | dropped |
+| Súmula 211/STJ | 17.265 | 4,37 | dropped |
+| Súmula 283/STF | 13.776 | 4,59 | dropped |
+| Súmula 280/STF | 12.485 | 4,69 | dropped |
+| Súmula 282/STF | 9.951 | 4,92 | dropped |
+| Súmula 691/STF | 4.494 | 5,71 | dropped |
+| Súmula 568/STJ | 3.797 | 5,88 | dropped |
+| Súmula 126/STJ | 3.577 | 5,94 | dropped |
+| *the floor* | *3.373* | *6,00* | |
+| Súmula 115/STJ | 3.201 | 6,05 | **kept** |
+| Súmula 85/STJ | 2.899 | 6,15 | **kept** |
+| Súmula 5/STJ | 2.692 | 6,23 | **kept** |
+| Súmula 168/STJ | 2.331 | 6,37 | **kept** |
+| Súmula 343/STF | 2.141 | 6,45 | **kept** |
+
+**The floor moved with the collection, and that is the property that matters.**
+Twelve precedents fall below it now rather than fourteen, and the three that
+crossed over — STJ 115, 85 and 5 — did not become less procedural. They are
+cited the same number of times against a collection a third larger, so a
+proportional floor stops calling them collection-wide. Súmula 279/STF appears
+because the STF's own acordaos cite it, which the STJ's mirrors never did.
 
 **The floor is not a better version of the list. It is a different criterion.**
-It keeps 988 of the 1.002 resolved precedents, and the two rows at the bottom of
-the table are where the two methods disagree the other way: Súmula 187/STJ and
-Súmula 320/STJ are as procedural as the ones above them, and the floor keeps
-them because they are rarely cited. Rarity is a proxy for "narrows the subject",
-and a rarely cited procedural súmula defeats the proxy.
+It keeps 1.004 of the 1.016 resolved precedents that carry a weight, and the
+rows just below the floor line are where the two methods disagree the other way:
+they are as procedural as the ones above, and the floor keeps them because they
+are rarely cited. Rarity is a proxy for "narrows the subject", and a rarely cited
+procedural súmula defeats the proxy.
 
-What the floor does guarantee is a bound: no precedent cited by more than 2.457
-decisions — 0,25 % of the collection — can produce a pair. Without it the rule
-generates 666 million pairs, almost all of them two unrelated cases that both
-reached for Súmula 7.
+What the floor does guarantee is a bound, and the bound is the same share it
+always was: no precedent cited by more than **3.373** decisions — **0,25 % of
+the collection** — can produce a pair. That the number moved from 2.457 to 3.373
+while the share did not is the whole case for expressing it as a weight rather
+than a count. Without it the rule generated 666 million pairs on the smaller
+collection, almost all of them two unrelated cases that both reached for
+Súmula 7.
 
 ---
 
 ## What the rule returns
 
-Measured over the whole collection by subtask 23.2, not over a sample.
+Measured over the whole collection by subtask 23.2, not over a sample, and
+re-measured on 18/11/2026 after the STF entered it.
 
-| | |
-|---|---:|
-| Pairs | **3.325.818** |
-| Decisions with at least one contrary | **50.925** |
-| … as a share of the collection | **5,1 %** |
-| … as a share of the 225.136 that cite a resolved precedent and carry a vector | 22,6 % |
-| Similarity of the pairs, median | 0,193 |
-| Similarity of the pairs, ninetieth percentile | 0,353 |
-| Pairs whose two decisions had opposite outcomes | 17,2 % |
+| | before the STF | with the STF |
+|---|---:|---:|
+| Pairs | 3.325.818 | **6.323.556** |
+| Decisions with at least one contrary | 50.925 | **61.644** |
+| … as a share of the collection | 5,1 % | **4,5 %** |
+| … as a share of those that cite a resolved precedent and carry a vector | 22,6 % | **20,8 %** (296.926) |
+| Similarity of the pairs, median | 0,193 | **0,198** |
+| Similarity of the pairs, ninetieth percentile | 0,353 | **0,357** |
+| Pairs whose two decisions had opposite outcomes | 17,2 % | **15,0 %** |
 
-**The empty state is the common case, by design.** Nineteen decisions in twenty
-have no known contrary, which is why the story's acceptance criteria require the
-screen to say so rather than show an empty block.
+The pairs nearly doubled while the **share of decisions the rule fires on
+fell**, from 5,1 % to 4,5 %. Both move for the same reason: the STF's acordaos
+cite a precedent in 11,2 % of cases against the STJ's 30,9 %, so they add far
+more decisions than they add pairable ones — but the ones they do add pair
+against the whole collection. A bigger base does not make the rule fire more
+often per decision; it makes each firing carry more.
+
+The opposite-outcome share fell too, from 17,2 % to 15,0 %, which is the finding
+at the top of this document holding up on a third more data.
+
+**The empty state is the common case, by design.** More than nineteen decisions
+in twenty have no known contrary, which is why the story's acceptance criteria
+require the screen to say so rather than show an empty block.
 
 ### The volume per decision is the open question
 
-| Contraries on a decision that has any | |
-|---|---:|
-| Median | **21** |
-| Mean | 65,3 |
-| Ninetieth percentile | 160 |
-| Most | **1.266** |
+| Contraries on a decision that has any | before the STF | with the STF |
+|---|---:|---:|
+| Median | 21 | **27** |
+| Mean | 65,3 | **102,6** |
+| Ninetieth percentile | 160 | **291** |
+| Most | 1.266 | **2.732** |
 
 The sampled measurement in this document reported a median of 0 and a maximum of
 18. It was not wrong about a different thing: it drew candidates from each
@@ -167,18 +195,21 @@ decision's top fifty `RF20` neighbours, and the published model has no such cut 
 it pairs every two decisions that share a precedent above the floor and two rare
 terms.
 
-So the endpoint's `limit` is doing more work than the sample implied. It answers
-five by default and twenty at most, ordered by similarity, which means that on
-the worst decision in the collection the reader sees five of 1.266. That is
-defensible — similarity ordering is exactly how `RF20` already decides what is
-worth showing, and the same cosine is used here — but it is a cut, not an
-absence of one.
+So the endpoint's `limit` is doing more work than the sample implied, and more
+of it with every court added. It answers five by default and twenty at most,
+ordered by similarity, which means that on the worst decision in the collection
+the reader now sees five of **2.732** rather than five of 1.266 — the truncation
+more than doubled without a line of code changing. That is defensible —
+similarity ordering is exactly how `RF20` already decides what is worth showing,
+and the same cosine is used here — but it is a cut, not an absence of one, and
+it is a cut that grows with the collection.
 
 Half of that is settled. Subtask 23.4 makes the screen say it was cut: where the
 list comes back full, the block says so and offers the twenty, and the sentence
 claims no total because the answer carries none. A screen that shows five of
-1.266 in silence is asserting something it never measured; one that says "pode
-haver outras" is not.
+2.732 in silence is asserting something it never measured; one that says "pode
+haver outras" is not — and the sentence stayed true when the number behind it
+doubled, which is what not claiming a total buys.
 
 What is still open is whether a similarity floor belongs in the model. No
 threshold was invented here, because inventing one would be a number with no
@@ -222,10 +253,12 @@ and the pairs it produces look exactly like the ones the floor was meant to
 remove. The sample includes pairs drawn from just above the floor so the reading
 can say whether that failure matters in practice.
 
-**Where 6,0 came from.** It is the value at which the fourteen heaviest
-precedents fall away and the pair count drops from 666 million to 3,3 million.
-It was not tuned against an outcome, because there is no labelled outcome to tune
-against until the reading exists.
+**Where 6,0 came from.** It is the value at which the heaviest precedents fall
+away and the pair count drops from 666 million to a few million. It was not
+tuned against an outcome, because there is no labelled outcome to tune against
+until the reading exists. It has since survived a test it was not designed for:
+the collection grew by a third and the floor's bound stayed at 0,25 % of it
+without anyone touching the number.
 
 Until that reading exists, the share above is **the share of decisions the rule
 fires on**, not the share of indications a lawyer would accept. The two are
