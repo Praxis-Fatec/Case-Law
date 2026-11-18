@@ -142,20 +142,86 @@ to ask about a collection.
 
 ---
 
+## The path taken
+
+Reading the search backend, decided on 18/11/2026. The collector identifies
+itself, paces its requests and stops on the first refusal; the survey above is
+what it stops with, so whoever meets a 403 finds the channel to ask through
+rather than a stack trace.
+
+What that reading costs is recorded here because none of it is visible from the
+code alone.
+
+### The contract is inferred, not given
+
+The service wraps the Elasticsearch answer in `result`, beside a search id of
+its own. Read as plain Elasticsearch — which is what the route name suggests —
+every load reports zero documents **and succeeds**. That is the shape of every
+failure to expect here: not an error, but a silent zero.
+
+Paging walks `search_after` over `julgamento_data` and the index's own
+`tiebreaker_sort`. The page the court serves uses `from` and `size`, which
+Elasticsearch caps at ten thousand; nobody browsing past page one thousand ever
+meets that cap, and a load meets it immediately.
+
+### What the base holds
+
+Measured on 18/11/2026. The index serves five bases and the collector reads one:
+
+| base | documents |
+|---|---:|
+| `acordaos` | 373.191 |
+| `decisoes` (monocratic) | 762.031 |
+| `novo_informativo` | 11.654 |
+| `sumulas` | 799 |
+| `acordaos_externos` | 0 |
+
+The 799 sumulas are worth a story of their own: the STJ's are reconstructed from
+transcriptions in the collection, and the STF publishes its own, structured.
+
+### Half the collection predates the old start
+
+The oldest acordao is from **27/04/1892**, and **189.435 of the 373.189 — 50,8%
+— precede 1989**, which is where `core.decisao` began, the STJ having been
+created that year. Left there, those decisions would load into `raw` and vanish
+in the transformation without an error or a missing line in any log. The start
+moved to 1892, and the three models derived per decision moved with it, so that
+no decision exists in the collection without ever yielding a reference or a
+precedent.
+
+### What had to be measured to transform it
+
+Sampled across every band of years, 2.000 to 2.500 records per question:
+
+- **The ementa is never empty, and 8,1% of it is the sentence "Acórdão sem
+  ementa."** The audit `ementa_nao_vazia` approves it — the field has text. It
+  is a placeholder, and indexed it would answer a search for the word "ementa"
+  with a decision that has none. Excluded by its own rule.
+- **The class is named by the whole abbreviated ladder**, as in `EMB.DECL.NO
+  AG.REG.NO AGRAVO DE INSTRUMENTO`, and the class is the outermost of them. Five
+  abbreviations, a leading ordinal and the first connective resolve **99,1%** of
+  the sampled acordaos. The rest are incidents the CNJ does not classify —
+  referendo, diligência, repercussão geral — and keep no code.
+- **The CNJ table has a subtree of the STF's own**, root 1310, 67 classes.
+  Without preferring it, `Agravo Regimental` resolves to 206, which is the civil
+  one. The screen would show a plausible label from another court.
+- **The address of the inteiro teor changes form with the era**: 79,9% open by
+  `numero` and `classe`, 20,1% by `idDocumento`. The parameter's own name varies,
+  so the token is the whole query string and the seed's template keeps only the
+  path.
+- **Absence is common in the old records**: 19,2% carry no judging body, 21,0% no
+  publication date, 0,2% no reporting judge. All of it arrives as absence.
+
 ## What is still open
 
-The story cannot be built from an open STF product, because there is none. Three
-paths remain, and the choice is not technical:
-
-1. **Ask.** Request access from the COPJ, and meanwhile build the connector and
-   its tests against a saved sample — the shape already used for the BDJur when
-   its endpoint closed. The story delivers the whole structure and the real load
-   plugs in when the answer arrives.
-2. **Read the search backend.** Complete today, and an undocumented private
-   endpoint of a court, named and consumed from a public repository.
-3. **Narrow the story.** Carry the Corte Aberta series as volume indicators and
-   state plainly that the STF's text is not in the base.
-
-Whichever is chosen, `fonte.csv` must record it: the STJ rows already carry the
-licence, the collection's limits and the date an endpoint stopped answering, and
-the STF's row has to earn the same.
+- The load itself has not been run. The collector and the transformation are
+  tested against saved answers and the minimal collection; the 373.191 acordaos
+  have not been written to `raw`.
+- Entering 373.191 decisions into a collection of 991.163 changes the divisor of
+  every IDF weight in `core.precedente_judicial`, and with it every pair in
+  `core.decisao_contraria`. Both need rebuilding and republishing, and the
+  numbers recorded in `opposing-decisions.md` need measuring again.
+- The 799 sumulas and the 762.031 monocratic decisions are in reach of the same
+  collector and belong to no story yet.
+- Nothing has been asked of the COPJ. The channel is recorded above, and asking
+  costs a message.
