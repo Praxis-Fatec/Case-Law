@@ -317,3 +317,13 @@ DROP SCHEMA IF EXISTS identidade CASCADE;
 -- reports reference the accounts dropped above, and `IF NOT EXISTS` would keep
 -- a table whose foreign key the cascade already took away.
 DROP SCHEMA IF EXISTS qualidade CASCADE;
+
+-- And the same for the two that were left out, which is how the reason above
+-- stopped being hypothetical: `pesquisa.salva` and `leitura` both reference
+-- `identidade.usuario`, the cascade above dropped those keys, and the
+-- `IF NOT EXISTS` in `app/pesquisa.sql` kept the table without them. The suite
+-- passed on a database created that minute and failed on every run after, so
+-- it was green in CI and red on the machine where somebody would see it.
+DROP SCHEMA IF EXISTS pesquisa CASCADE;
+
+DROP SCHEMA IF EXISTS leitura CASCADE;
