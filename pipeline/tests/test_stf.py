@@ -18,11 +18,11 @@ of retrying around it.
 """
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
-
 from sources import stf
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -47,13 +47,17 @@ class _Resposta:
             raise AssertionError(f"raise_for_status reached with {self.status_code}")
 
 
-def _responde(monkeypatch: pytest.MonkeyPatch, *respostas: _Resposta) -> list[dict[str, Any]]:
+def _responde(
+    monkeypatch: pytest.MonkeyPatch, *respostas: _Resposta
+) -> list[dict[str, Any]]:
     enviados: list[dict[str, Any]] = []
     fila = list(respostas)
 
     def _post(url: str, **kwargs: Any) -> _Resposta:
         enviados.append({"url": url, **kwargs})
-        return fila.pop(0) if fila else _Resposta(200, {"result": {"hits": {"hits": []}}})
+        return (
+            fila.pop(0) if fila else _Resposta(200, {"result": {"hits": {"hits": []}}})
+        )
 
     monkeypatch.setattr(stf.requests, "post", _post)
     return enviados
@@ -67,7 +71,18 @@ def _registros(monkeypatch: pytest.MonkeyPatch, **kwargs: Any) -> list[dict[str,
     return saida
 
 
-def _na_cadeia(erro: BaseException, tipo: type[BaseException]) -> BaseException | None:
+def _falha(acao: Callable[[], object]) -> BaseException | None:
+    """Whatever the action raised, or None when it did not raise."""
+    try:
+        acao()
+    except BaseException as erro:  # noqa: BLE001 - the type is what is under test
+        return erro
+    return None
+
+
+def _na_cadeia(
+    erro: BaseException | None, tipo: type[BaseException]
+) -> BaseException | None:
     """
     The refusal travels inside whatever the extraction wrapped it in.
 
@@ -213,20 +228,17 @@ class TestConduta:
         """
         _responde(monkeypatch, _Resposta(status))
 
-        with pytest.raises(Exception) as erro:
-            list(stf.acordaos(interval=0.0))
+        erro = _falha(lambda: list(stf.acordaos(interval=0.0)))
+        recusa = _na_cadeia(erro, stf.SourceRefused)
 
-        recusa = _na_cadeia(erro.value, stf.SourceRefused)
-        assert recusa is not None, f"the refusal did not survive: {erro.value!r}"
+        assert recusa is not None, f"the refusal did not survive: {erro!r}"
         assert str(status) in str(recusa)
         assert "copj@stf.jus.br" in str(recusa)
 
     def test_a_refusal_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
         enviados = _responde(monkeypatch, _Resposta(429), _Resposta(200, RESPOSTA))
 
-        with pytest.raises(Exception):
-            list(stf.acordaos(interval=0.0))
-
+        assert _falha(lambda: list(stf.acordaos(interval=0.0))) is not None
         assert len(enviados) == 1
 
     def test_the_client_says_what_it_is(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -263,7 +275,10 @@ class TestConduta:
         enviados = _responde(monkeypatch, _Resposta(200, RESPOSTA))
         list(
             stf.acordaos(
-                start=date(2026, 1, 1), end=date(2026, 12, 31), max_pages=1, interval=0.0
+                start=date(2026, 1, 1),
+                end=date(2026, 12, 31),
+                max_pages=1,
+                interval=0.0,
             )
         )
 
