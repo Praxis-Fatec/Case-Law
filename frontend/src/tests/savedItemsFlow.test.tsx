@@ -122,7 +122,8 @@ function api(initialSearches: SavedSearch[] = [], initialDecisions: SavedDecisio
         (item) => url.pathname === `/decisions/${item.source}/${item.identifier}`,
       );
       if (detail) return json(detail);
-      if (/\/(doctrine|legislation|related)$/.test(url.pathname)) return json({ results: [] });
+      if (/\/(doctrine|legislation|related|opposing)$/.test(url.pathname))
+        return json({ results: [] });
       if (url.pathname === '/courts')
         return json({ courts: [{ abbreviation: 'TJDFT', name: 'TJDFT' }] });
       if (url.pathname === '/filters')
