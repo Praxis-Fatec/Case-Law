@@ -309,6 +309,32 @@ CREATE TABLE core.decisao_norma (
     PRIMARY KEY (fonte_codigo, identificador_fonte)
 );
 
+-- `RF23`. No probe guards this one: where the table is absent the endpoint
+-- answers 503, because an empty list on that screen reads as "no contradiction"
+-- and saying that when nobody looked is the one wrong answer it cannot afford.
+-- So the suite needs the table to exercise anything but the failure.
+CREATE TABLE core.decisao_contraria (
+    fonte_codigo            TEXT             NOT NULL,
+    identificador_fonte     TEXT             NOT NULL,
+    contraria_fonte         TEXT             NOT NULL,
+    contraria_identificador TEXT             NOT NULL,
+    corte                   TEXT             NOT NULL,
+    tipo                    TEXT             NOT NULL,
+    numero                  BIGINT           NOT NULL,
+    aderencia               TEXT             NOT NULL,
+    contraria_aderencia     TEXT             NOT NULL,
+    termos_comuns           BIGINT           NOT NULL,
+    peso_precedente         DOUBLE PRECISION NOT NULL,
+    semelhanca              DOUBLE PRECISION NOT NULL,
+    resultado_oposto        BOOLEAN,
+    carregado_em            TIMESTAMPTZ,
+    PRIMARY KEY (
+        fonte_codigo, identificador_fonte,
+        contraria_fonte, contraria_identificador,
+        corte, tipo, numero
+    )
+);
+
 -- Dropped here, created by `app/identidade.sql`: the accounts schema has one
 -- definition, and a copy of it here would be a copy that drifts.
 DROP SCHEMA IF EXISTS identidade CASCADE;
