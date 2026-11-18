@@ -100,11 +100,30 @@ doutrina AS (
   GROUP BY 1
 ),
 
+/*
+  O STF lê os acórdãos e grava todos; o descarte que esta fonte faz é por
+  ementa, não por sigilo, e acontece na transformação. `registros_lidos` e
+  `registros_gravados` contam a carga, não a coleção.
+*/
+stf AS (
+  SELECT
+    _dlt_load_id                  AS carga_id,
+    'stf-jurisprudencia'          AS fonte_codigo,
+    COUNT(*)                      AS registros_lidos,
+    COUNT(*)                      AS registros_gravados,
+    CAST(NULL AS BIGINT)          AS descartados_sigilo,
+    CAST(NULL AS BIGINT)          AS links_invalidos,
+    CAST(NULL AS BIGINT)          AS links_nao_verificados
+  FROM raw.acordao_stf
+  GROUP BY 1
+),
+
 contagem AS (
   SELECT * FROM tjdft
   UNION ALL SELECT * FROM espelhos
   UNION ALL SELECT * FROM precedentes
   UNION ALL SELECT * FROM doutrina
+  UNION ALL SELECT * FROM stf
 )
 
 SELECT
