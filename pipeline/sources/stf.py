@@ -283,6 +283,8 @@ def main() -> None:
     inicio = os.getenv("STF_START", "").strip()
     fim = os.getenv("STF_END", "").strip()
     limite = os.getenv("STF_MAX_PAGES", "").strip()
+    ritmo = os.getenv("STF_REQUEST_INTERVAL", "").strip()
+    pagina = os.getenv("STF_PAGE_SIZE", "").strip()
 
     pipeline = dlt.pipeline(
         pipeline_name="case_law",
@@ -295,6 +297,8 @@ def main() -> None:
                 start=date.fromisoformat(inicio) if inicio else None,
                 end=date.fromisoformat(fim) if fim else None,
                 max_pages=int(limite) if limite else None,
+                interval=float(ritmo) if ritmo else REQUEST_INTERVAL,
+                page_size=int(pagina) if pagina else PAGE_SIZE,
             )
         )
     )
