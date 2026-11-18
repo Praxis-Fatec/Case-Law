@@ -78,7 +78,13 @@ FIELDS = (
     "dg_atualizado_em",
 )
 
-SORT = [{"julgamento_data": "asc"}, {"tiebreaker_sort": "asc"}]
+# The index advertises a `tiebreaker_sort` and the page sorts by it. It does not
+# exist: Elasticsearch substitutes Long.MAX for every document, so the tuple is
+# unique only in its first element. `search_after` then means "after this date",
+# and every other decision judged on that date is skipped — a walk that ends
+# quietly with a third of the base. Measured over 2026: 3.593 of 11.568.
+# `id` is the document's own key and sorts, so the pair is unique again.
+SORT = [{"julgamento_data": "asc"}, {"id": "asc"}]
 
 dlt.config["schema.naming"] = "direct"
 

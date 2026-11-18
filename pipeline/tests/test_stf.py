@@ -194,6 +194,24 @@ class TestPaginacao:
         ultimo = RESPOSTA["result"]["hits"]["hits"][-1]["sort"]
         assert enviados[1]["json"]["search_after"] == ultimo
 
+    def test_the_tiebreaker_is_unique_per_document(self) -> None:
+        """
+        The index advertises a `tiebreaker_sort` and the court's own page sorts
+        by it, but the field does not exist: Elasticsearch answers Long.MAX for
+        every document. The sort tuple is then unique only in its date, and
+        `search_after` reads as "after this date" — every other decision judged
+        that day is skipped.
+
+        It fails silently, which is why this is a test and not a comment. The
+        walk ends early, reports no error, and loads a third of the base:
+        measured over 2026, 3.593 of 11.568.
+        """
+        assert len(stf.SORT) == 2
+        assert stf.SORT[0] == {"julgamento_data": "asc"}
+        assert stf.SORT[1] == {"id": "asc"}, (
+            "the second sort key has to be unique per document"
+        )
+
     def test_a_short_page_ends_the_walk(self, monkeypatch: pytest.MonkeyPatch) -> None:
         enviados = _responde(monkeypatch, _Resposta(200, RESPOSTA))
         list(stf.acordaos(page_size=500, interval=0.0))
