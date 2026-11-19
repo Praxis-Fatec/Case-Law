@@ -331,6 +331,38 @@ input:focus-visible {
   display: none;
 }
 
+/* A label, not a notice: muted, one line, inline with its example. */
+.search-syntax {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 2px 0;
+  color: var(--search-muted);
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+}
+
+.search-syntax__example {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--search-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.search-syntax__example:hover:not(:disabled) {
+  color: var(--search-primary-hover);
+}
+
+.search-syntax__example:disabled {
+  color: var(--search-muted);
+  cursor: default;
+  text-decoration: none;
+}
+
 .search-filters {
   display: flex;
   flex-direction: column;
@@ -1155,6 +1187,98 @@ input:focus-visible {
   margin-bottom: 0;
 }
 
+/* Reporting a reading of the tool, inside the block that owns it. */
+.classification-report {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e4d8d6;
+}
+
+.classification-report__open,
+.classification-report__cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6b5b5e;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.classification-report__open:hover,
+.classification-report__open:focus-visible,
+.classification-report__cancel:hover,
+.classification-report__cancel:focus-visible {
+  color: #45151f;
+}
+
+.classification-report__form {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.classification-report__field {
+  font-weight: 600;
+  color: #45151f;
+}
+
+.classification-report__form select,
+.classification-report__form textarea {
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #d8cbc9;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.classification-report__form textarea {
+  resize: vertical;
+}
+
+.classification-report__hint {
+  color: #8a7579;
+}
+
+.classification-report__failure {
+  margin: 0;
+  color: #9b1c1c;
+}
+
+.classification-report__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.classification-report__send {
+  padding: 0.3rem 0.8rem;
+  border: 0;
+  border-radius: 4px;
+  background: #45151f;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.classification-report__send:disabled,
+.classification-report__cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.classification-report__receipt {
+  margin: 0;
+  color: #1f5f3a;
+  font-weight: 600;
+}
+
 .decision-result-card__arrow {
   grid-column: 3;
   grid-row: 1;
@@ -1905,8 +2029,14 @@ input:focus-visible {
   padding: 1.1rem 1rem 1.1rem 1.1rem;
 }
 
-/* The line between the two rows, inset by the block's own padding. */
-.coverage-summary__field:nth-child(-n + 2) {
+/* The vocabulary has a schedule of its own and belongs under the rest, not
+   beside one of them: it takes the whole last row. */
+.coverage-summary__field:last-child {
+  grid-column: 1 / -1;
+}
+
+/* A line under every row but the last, inset by the block's own padding. */
+.coverage-summary__field:not(:last-child) {
   border-bottom: 1px solid #ece4e1;
 }
 
@@ -2069,6 +2199,159 @@ input:focus-visible {
 }
 
 .court-coverage__table .court-coverage__message {
+  padding: 1.4rem 0.9rem;
+  color: var(--search-muted);
+  font-size: var(--text-sm);
+}
+
+/* The sources, each with its collection state. Same table shape as the courts
+   above, so the page reads as one; the state colours are the only addition,
+   and they carry an icon and a label beside them because colour alone is not
+   an answer for everyone. */
+.coverage-sources {
+  margin-top: 1.5rem;
+}
+
+.source-status {
+  border: 1px solid #e7dedb;
+  border-radius: 12px;
+  background: var(--search-surface);
+  overflow-x: auto;
+}
+
+.source-status__table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.source-status__table th,
+.source-status__table td {
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  vertical-align: top;
+  color: var(--search-text);
+  font:
+    500 var(--text-sm)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.source-status__table thead th {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid #ece4e1;
+  background: #faf6f4;
+  color: #5f5256;
+  font-weight: 700;
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.source-status__table thead th:nth-child(1) {
+  width: 23%;
+}
+
+.source-status__table thead th:nth-child(2) {
+  width: 12%;
+}
+
+.source-status__table thead th:nth-child(3) {
+  width: 13%;
+}
+
+.source-status__table thead th:nth-child(4) {
+  width: 18%;
+}
+
+.source-status__table thead th:nth-child(5) {
+  width: 17%;
+}
+
+.source-status__table tbody tr + tr > * {
+  border-top: 1px solid #ece4e1;
+}
+
+.source-status__name {
+  display: block;
+  font-size: var(--text-xs);
+  color: #2a1016;
+  font-weight: 700;
+}
+
+.source-status__code {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6f6064;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.source-status__undated,
+.source-status__attempt {
+  display: block;
+  margin-top: 0.3rem;
+  color: #6b3a1c;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+
+.source-status__collected {
+  display: block;
+}
+
+.source-status__never {
+  color: var(--search-muted);
+  font-weight: 600;
+}
+
+.source-status__reading {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  color: #2d3b33;
+  font-weight: 700;
+}
+
+.source-status__reading svg {
+  flex: none;
+  margin-top: 0.15rem;
+}
+
+.source-status__reading--coletando svg {
+  color: #4a7c59;
+}
+
+.source-status__reading--falhando {
+  color: #6b3a1c;
+}
+
+.source-status__reading--falhando svg {
+  color: #b76e2a;
+}
+
+.source-status__reading--bloqueada {
+  color: #6b3a1c;
+}
+
+.source-status__reading--bloqueada svg {
+  color: #8c5a3c;
+}
+
+.source-status__reading--nunca,
+.source-status__reading--desconhecida {
+  color: var(--search-muted);
+}
+
+.source-status__reading--nunca svg,
+.source-status__reading--desconhecida svg {
+  color: #9a8c90;
+}
+
+.source-status__table .source-status__message {
   padding: 1.4rem 0.9rem;
   color: var(--search-muted);
   font-size: var(--text-sm);
@@ -3748,6 +4031,92 @@ input:focus-visible {
   font-weight: 400;
 }
 
+/* The statutes the decision applied. All of it the court's own, so there is
+   no counterpart here to the precedent card's rule: nothing in this block is
+   a reading of ours. The raw entry is the exception that has to look like one,
+   boxed and monospaced, because it is text this tool could not read. */
+.legislation {
+  margin-top: 28px;
+}
+
+.legislation__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.legislation__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.legislation__list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legislation__item {
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.legislation__item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.legislation__citation {
+  color: var(--search-text);
+  font:
+    600 var(--text-sm)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__raw-note {
+  margin: 0 0 5px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.legislation__raw {
+  display: block;
+  overflow-x: auto;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--search-surface);
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.5 ui-monospace,
+    'SFMono-Regular',
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+}
+
 /* Scholarship by other people. The third kind of claim on this screen, and
    the only one that lives somewhere else: every card is built around its
    outbound link, and the rule down the left says the words are not ours. */
@@ -3856,6 +4225,317 @@ input:focus-visible {
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
+}
+
+/* Decisions this tool found to be about the same subject. Computed, not
+   official — the cards deliberately do not borrow the precedent card's left
+   rule, which on this screen means "the court said so". */
+.neighbours {
+  margin-top: 28px;
+}
+
+.neighbours__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* The method is the one word of this line `RF20` requires to be there. */
+.neighbours__lead strong {
+  color: var(--search-text);
+  font-weight: 600;
+}
+
+.neighbours__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* An answer and a failure must not read alike. */
+.neighbours__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.neighbours__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.neighbour {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.neighbour:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.neighbour__case {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.neighbour__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.neighbour__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.neighbour__link:hover,
+.neighbour__link:focus-visible {
+  text-decoration: underline;
+}
+
+.neighbour__byline {
+  margin: 4px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* Why it is here. Without this the reader has to open every suggestion to
+   find out whether it has anything to do with theirs. */
+.neighbour__ground {
+  margin: 7px 0 0;
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.neighbour__ground-label {
+  color: var(--search-muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Decisions this tool indicates as possibly contrary — `RF23`. Computed like
+   the block above it, so it borrows no part of the precedent card's left rule,
+   which on this screen means "the court said so". What is the court's own here
+   is the adherence inside each reason, and that is where the emphasis sits. */
+.contraries {
+  margin-top: 28px;
+}
+
+.contraries__lead {
+  margin: 0 0 14px;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* The basis, which `RF23` requires this line to carry. */
+.contraries__lead strong {
+  color: var(--search-text);
+  font-weight: 600;
+}
+
+.contraries__lead em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.contraries__state {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+/* "Não rodou" must not read like "não existe". */
+.contraries__state--failed {
+  padding: 9px 11px;
+  border: 1px solid #8c4034;
+  border-radius: 6px;
+  color: #8c4034;
+  font-weight: 600;
+}
+
+.contraries__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contrary {
+  padding: 13px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.contrary:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.contrary__case {
+  margin: 0;
+  font:
+    700 var(--text-md)/1.3 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__link {
+  display: inline;
+  color: var(--search-primary);
+  text-decoration: none;
+}
+
+.contrary__link svg {
+  margin-left: 5px;
+  vertical-align: baseline;
+}
+
+.contrary__link:hover,
+.contrary__link:focus-visible {
+  text-decoration: underline;
+}
+
+.contrary__byline {
+  margin: 4px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+/* The reason the entry exists. Set apart from the byline on purpose: a reader
+   deciding whether to open the decision reads this, not the court and date. */
+.contrary__reasons {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.contrary__reason {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  background: var(--search-soft);
+  color: var(--search-text);
+  font:
+    400 var(--text-xs)/1.45 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__precedent {
+  font-weight: 700;
+}
+
+.contrary__sides {
+  color: var(--search-muted);
+}
+
+/* The verbs are the court's own reading, and the only words in the row that
+   change what the reader concludes. */
+.contrary__sides strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.contrary__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-2xs)/1.4 'Source Sans 3',
+    sans-serif;
+}
+
+.contrary__terms {
+  letter-spacing: 0.02em;
+}
+
+/* A chip and not a warning: it is context, and the note under the list says
+   what it is worth. */
+.contrary__flag {
+  padding: 2px 7px;
+  border: 1px solid var(--search-border);
+  border-radius: 999px;
+  color: var(--search-text);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.contraries__note,
+.contraries__cut {
+  margin: 12px 0 0;
+  color: var(--search-muted);
+  font:
+    400 var(--text-2xs)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
+.contraries__note strong {
+  color: var(--search-text);
+  font-weight: 700;
+}
+
+.contraries__more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.contraries__expand {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--search-primary);
+  border-radius: 9px;
+  background: var(--search-surface);
+  color: var(--search-primary);
+  font:
+    700 var(--text-xs)/1 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+
+.contraries__expand:hover:not(:disabled),
+.contraries__expand:focus-visible {
+  background: var(--search-soft);
+}
+
+.contraries__expand:disabled {
+  border-color: var(--search-border);
+  color: var(--search-muted);
+  cursor: progress;
 }
 
 @media (max-width: 640px) {
@@ -4262,6 +4942,15 @@ input:focus-visible {
     sans-serif;
 }
 
+.reports__description {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    400 var(--text-sm)/1.5 'Source Sans 3',
+    sans-serif;
+}
+
 .team__change {
   display: inline-flex;
   align-items: center;
@@ -4585,7 +5274,10 @@ input:focus-visible {
 
   .coverage-summary[aria-busy='false'] .coverage-summary__total,
   .court-coverage[aria-busy='false'] tbody,
+  .source-status[aria-busy='false'] tbody,
   .doctrine__list,
+  .neighbours__list,
+  .contraries__list,
   .decision-result-card__thesis[open] > :not(summary) {
     animation: panel-reveal 180ms ease-out both;
   }
@@ -4593,6 +5285,9 @@ input:focus-visible {
   .search-state--error,
   .search-state--empty,
   .doctrine__state--failed,
+  .legislation__state--failed,
+  .neighbours__state--failed,
+  .contraries__state--failed,
   .date-group__error,
   .filters-pending,
   .export-action > :is([role='status'], [role='alert']) {
@@ -4688,5 +5383,1019 @@ input:focus-visible {
 @keyframes motion-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Asking this tool to read a thesis the court did not write, and what comes
+   back. Set apart from the court's own words on purpose: the reading is ours,
+   and a reader who skims must not take it for the acórdão's. */
+.decision-result-card__read-thesis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--search-border);
+  border-radius: 999px;
+  background: var(--search-surface);
+  color: var(--search-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.decision-result-card__read-thesis:hover:not(:disabled) {
+  background: var(--search-soft);
+}
+
+.decision-result-card__read-thesis:disabled {
+  color: var(--search-muted);
+  cursor: progress;
+}
+
+.decision-result-card__read {
+  margin-top: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-left: 3px solid var(--search-border);
+  background: var(--search-soft);
+}
+
+.decision-result-card__read-thesis-text {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.decision-result-card__read-passage {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--search-muted);
+  font-style: italic;
+}
+
+/* Concentration by judging body and reporting judge (RF18). Long names wrap
+   instead of being cut: the name is the identity of the group. */
+.panorama-dimension--concentration .panorama__grid {
+  display: block;
+}
+.panorama-dimension--concentration .panorama-card--composition {
+  margin-top: 14px;
+}
+.concentration__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+@media (max-width: 760px) {
+  .concentration__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.concentration__title {
+  margin: 0 0 0.5rem;
+  color: var(--search-text);
+  font:
+    700 var(--text-sm)/1.3 'Source Sans 3',
+    sans-serif;
+}
+.concentration__list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--search-border);
+  list-style: none;
+}
+.concentration__item {
+  border-bottom: 1px solid var(--search-border);
+}
+.indicator-target--concentration {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto auto 16px;
+  grid-template-areas:
+    'rank name share count arrow'
+    '. track track track .';
+  align-items: center;
+  column-gap: 0.6rem;
+  row-gap: 0.35rem;
+  padding: 0.6rem 0.5rem;
+}
+.indicator-target--concentration .composition__rank {
+  grid-area: rank;
+}
+.indicator-target--concentration .concentration__name {
+  grid-area: name;
+}
+.indicator-target--concentration .concentration__share {
+  grid-area: share;
+}
+.indicator-target--concentration .composition__count {
+  grid-area: count;
+}
+.indicator-target--concentration .indicator-target__arrow {
+  grid-area: arrow;
+}
+.concentration__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  color: var(--search-text);
+  font:
+    600 var(--text-sm)/1.3 'Source Sans 3',
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.concentration__rule {
+  color: var(--search-muted);
+  font:
+    500 var(--text-xs)/1.3 'Source Sans 3',
+    sans-serif;
+}
+.concentration__share {
+  color: var(--search-muted);
+  font:
+    600 var(--text-xs)/1 'Source Sans 3',
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.concentration__track {
+  grid-area: track;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--search-border);
+  overflow: hidden;
+}
+.concentration__bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--search-primary);
+}
+.concentration__bar--other {
+  background: var(--search-muted);
+}
+/* Court comparison: the same criteria and geometry on both sides. */
+.comparison-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 28px;
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  flex: none;
+}
+.comparison-context-bar__summary,
+.comparison-context-bar__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.comparison-context-bar__summary {
+  font-size: 12px;
+}
+.comparison-context-bar__summary > strong {
+  margin-right: 6px;
+}
+.comparison-context-bar__tag {
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #f6efec;
+  color: var(--search-muted);
+  font-weight: 600;
+}
+.comparison-context-bar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #d9bfbe;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--search-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.comparison-context-bar__button:hover {
+  background: var(--search-soft);
+}
+.comparison-context-bar__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.comparison-context-bar .export-action__hint {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.comparison-context-bar .export-action__button {
+  min-height: 44px;
+  border-radius: 10px;
+  padding: 10px 16px;
+  white-space: nowrap;
+}
+.court-comparison {
+  width: min(820px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--search-border);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--search-text);
+  box-shadow: 0 24px 80px #2d131b24;
+}
+.court-comparison::backdrop {
+  background: rgb(35 20 24 / 46%);
+}
+.court-comparison__surface {
+  padding: 26px 34px 24px;
+}
+.court-comparison__header {
+  position: relative;
+  padding-right: 60px;
+  margin-bottom: 26px;
+}
+.court-comparison__header h2 {
+  margin: 0 0 2px;
+  font:
+    600 32px/1.2 'Source Serif 4',
+    Georgia,
+    serif;
+  letter-spacing: -0.6px;
+}
+.court-comparison__header p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--search-muted);
+}
+.court-comparison__close {
+  position: absolute;
+  right: -4px;
+  top: -3px;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 3px solid #ddd4d5;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--search-primary);
+}
+.court-comparison__close:hover {
+  background: var(--search-soft);
+}
+.court-comparison__selectors,
+.court-comparison__columns,
+.court-comparison__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.court-comparison__selectors label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: var(--search-muted);
+}
+.court-comparison select {
+  width: 100%;
+  min-height: 45px;
+  padding: 10px 14px;
+  border: 1px solid #d7bdbb;
+  border-radius: 10px;
+  color: var(--search-text);
+  background: #fff;
+  font:
+    700 15px 'Source Sans 3',
+    'Segoe UI',
+    sans-serif;
+}
+.court-comparison :is(button, select, summary):focus-visible {
+  outline: 3px solid #9b697e;
+  outline-offset: 3px;
+}
+.court-comparison__coverage {
+  margin: 8px 0 18px;
+  font-size: 12px;
+  color: var(--search-muted);
+}
+.court-comparison__coverage p {
+  margin: 4px 0;
+}
+.court-comparison__coverage .court-comparison__status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #2d7a60;
+  font-size: 13px;
+  font-weight: 700;
+}
+.court-comparison__coverage .court-comparison__status--partial {
+  color: #af4c36;
+}
+.court-comparison__collection {
+  font-size: 11px;
+}
+.court-comparison__table {
+  border-top: 1px solid var(--line);
+}
+.court-comparison__instance-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #ead8ba;
+  border-radius: 8px;
+  background: #fff8eb;
+  color: #804b22;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.court-comparison__instance-warning svg {
+  flex: none;
+  margin-top: 1px;
+}
+.court-comparison__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, minmax(80px, 132px));
+  align-items: center;
+  min-height: 52px;
+  border-bottom: 1px solid var(--line);
+  gap: 12px;
+  color: var(--search-muted);
+  font-size: 14px;
+}
+.court-comparison__row:last-child {
+  border-bottom: 0;
+}
+.court-comparison__row > strong {
+  text-align: center;
+  font:
+    700 24px/1.3 'Source Serif 4',
+    Georgia,
+    serif;
+  color: var(--search-text);
+  overflow-wrap: anywhere;
+}
+.court-comparison__row--heading {
+  min-height: 40px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+}
+.court-comparison__row--heading > span:not(:first-child) {
+  text-align: center;
+}
+.court-comparison__mobile-court {
+  display: none;
+}
+.court-comparison__details {
+  margin: 14px 0 22px;
+}
+.court-comparison__details summary {
+  width: fit-content;
+  padding: 6px 2px;
+  font-size: 13px;
+  color: var(--search-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+.court-comparison__columns {
+  margin-top: 18px;
+}
+.court-comparison__columns section {
+  min-width: 0;
+}
+.court-comparison__columns h3 {
+  margin: 0 0 6px;
+  font:
+    700 23px 'Source Serif 4',
+    Georgia,
+    serif;
+}
+.court-comparison__denominator,
+.court-comparison__explanation {
+  font-size: 12px;
+  color: var(--search-muted);
+  line-height: 1.5;
+}
+.court-comparison__chart h4 {
+  margin: 20px 0 10px;
+  font-size: 14px;
+}
+.court-comparison__chart .outcome-horizontal__row {
+  min-height: 47px;
+  grid-template-columns: 100px minmax(0, 1fr) 30px;
+  gap: 10px;
+}
+.court-comparison__chart .outcome-horizontal__track {
+  margin-right: 40px;
+}
+.court-comparison__chart .outcome-horizontal__label {
+  font-size: 11px;
+}
+.court-comparison__chart .outcome-horizontal__bar {
+  height: 18px;
+}
+.court-comparison__chart .outcome-horizontal__value {
+  font-size: 10px;
+}
+.court-comparison__chart .outcome-horizontal__grid {
+  inset: -14px 0;
+}
+.court-comparison__chart .outcome-horizontal__axis {
+  margin-left: 110px;
+  margin-right: 80px;
+}
+.court-comparison__chart .outcome-horizontal__axis span {
+  font-size: 10px;
+}
+.court-comparison__chart .outcome-horizontal__row.indicator-target {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: default;
+  color: inherit;
+}
+.court-comparison__actions {
+  margin-bottom: 18px;
+  align-items: end;
+}
+.court-comparison__actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 43px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #cba4a9;
+  border-radius: 10px;
+  font:
+    700 13px 'Source Sans 3',
+    'Segoe UI',
+    sans-serif;
+  color: var(--search-primary);
+}
+.court-comparison__actions button:hover:not(:disabled) {
+  background: var(--search-soft);
+}
+.court-comparison__actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.court-comparison__notice {
+  padding: 16px;
+  margin: 12px 0;
+  background: var(--page-bg);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.court-comparison__notice button {
+  padding: 8px 12px;
+  border: 1px solid var(--search-border);
+  border-radius: 7px;
+  background: white;
+  color: var(--search-primary);
+  font: inherit;
+}
+.court-comparison__empty {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--search-muted);
+}
+.court-comparison__footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--search-muted);
+}
+.court-comparison__footer svg {
+  flex: none;
+  color: var(--search-primary);
+}
+.court-comparison__footer p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+}
+@media (max-width: 700px) {
+  .comparison-context-bar {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .comparison-context-bar__summary > strong {
+    flex-basis: 100%;
+  }
+  .comparison-context-bar__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .comparison-context-bar__button,
+  .comparison-context-bar .export-action__button {
+    white-space: normal;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .court-comparison {
+    width: calc(100% - 20px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 16px;
+  }
+  .court-comparison__surface {
+    padding: 22px 18px;
+  }
+  .court-comparison__header h2 {
+    font-size: 27px;
+  }
+  .court-comparison__header p {
+    font-size: 13px;
+  }
+  .court-comparison__close {
+    width: 40px;
+    height: 40px;
+    border-width: 2px;
+    border-radius: 12px;
+  }
+  .court-comparison__selectors,
+  .court-comparison__columns,
+  .court-comparison__actions {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .court-comparison__coverage {
+    margin-bottom: 4px;
+  }
+  .court-comparison__table {
+    margin-top: 18px;
+  }
+  .court-comparison__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px 0;
+    gap: 6px;
+  }
+  .court-comparison__row > :first-child {
+    grid-column: 1 / -1;
+  }
+  .court-comparison__row > strong {
+    font-size: 22px;
+    text-align: left;
+  }
+  .court-comparison__row--heading > span:not(:first-child) {
+    display: none;
+  }
+  .court-comparison__mobile-court {
+    display: inline;
+    margin-right: 6px;
+    font:
+      600 11px 'Source Sans 3',
+      'Segoe UI',
+      sans-serif;
+    color: var(--search-muted);
+  }
+  .court-comparison__columns > section + section {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+  }
+}
+/* Saved searches share the search action bar and its working-memory drawer. */
+.save-search-action__button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 8px 14px;
+  border: 1px solid #dbc8c4;
+  border-radius: 10px;
+  background: white;
+  color: var(--search-primary);
+  text-align: left;
+  font: inherit;
+}
+.save-search-action__button strong {
+  display: block;
+  font-size: 12px;
+}
+.save-search-action__button small {
+  display: block;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--search-muted);
+}
+.save-search-action__button:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--search-soft);
+}
+.save-search-action__button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.save-search-action__button--saved {
+  background: #edf5f1;
+  border-color: #acd2c4;
+  color: #286b54;
+  cursor: default;
+}
+.saved-items__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 50%;
+  color: white;
+  background: var(--search-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+.saved-items {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0 0 0 auto;
+  width: min(520px, 100%);
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--search-border);
+  background: white;
+  color: var(--search-text);
+}
+.saved-items::backdrop,
+.save-search-dialog::backdrop {
+  background: rgb(35 20 24 / 30%);
+}
+.saved-items__surface {
+  padding: 32px 30px;
+}
+.saved-items__header {
+  position: relative;
+  border-bottom: 1px solid var(--search-border);
+  padding: 0 42px 26px 0;
+}
+.saved-items__eyebrow {
+  margin: 0 0 8px;
+  color: var(--search-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+.saved-items h2,
+.save-search-dialog h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.3;
+}
+.saved-items__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 5px;
+  background: white;
+  color: var(--search-primary);
+  border: 0;
+  border-radius: 7px;
+}
+.saved-items__close:hover {
+  background: var(--search-soft);
+}
+.saved-items__intro {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--search-muted);
+}
+.saved-items__card {
+  margin: 0 0 16px;
+  padding: 18px;
+  border: 1px solid var(--search-border);
+  border-radius: 14px;
+}
+.saved-items__meta {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--search-muted);
+  text-transform: uppercase;
+}
+.saved-items__card h3 {
+  margin: 0 0 5px;
+  font:
+    600 18px/1.3 'Source Serif 4',
+    Georgia,
+    serif;
+  overflow-wrap: anywhere;
+}
+.saved-items__expression {
+  margin: 5px 0;
+  font-size: 12px;
+  color: var(--search-muted);
+  overflow-wrap: anywhere;
+}
+.saved-items__date {
+  margin: 0;
+  font-size: 11px;
+  color: var(--search-muted);
+  line-height: 1.5;
+}
+.saved-items__card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 15px;
+}
+.saved-items__card-actions button,
+.saved-items__state button,
+.saved-items__empty button,
+.save-search-dialog__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 15px;
+  border: 1px solid #d9c3be;
+  border-radius: 10px;
+  background: white;
+  color: var(--search-primary);
+  font:
+    700 11px 'Source Sans 3',
+    'Segoe UI',
+    sans-serif;
+}
+.saved-items__card-actions > button:first-child {
+  text-transform: uppercase;
+}
+.saved-items__card-actions .saved-items__remove {
+  border-color: transparent;
+  padding: 8px 5px;
+  color: var(--search-muted);
+}
+.saved-items button:hover:not(:disabled),
+.save-search-dialog__actions button:hover:not(:disabled) {
+  background: var(--search-soft);
+}
+.saved-items button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.saved-items__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 15px;
+  border-radius: 12px;
+  background: #fdf3ef;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.saved-items__notice svg {
+  flex: none;
+  margin-top: 1px;
+}
+.saved-items__notice p {
+  margin: 4px 0 0;
+  color: var(--search-muted);
+  font-size: 11px;
+}
+.saved-items__empty,
+.saved-items__state {
+  margin: 18px 0;
+  padding: 20px;
+  border: 1px solid var(--search-border);
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--search-muted);
+}
+.saved-items__empty h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: var(--search-text);
+}
+.saved-items__error {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9b3528;
+}
+.saved-items__spinner {
+  animation: saved-items-spin 900ms linear infinite;
+  flex: none;
+}
+@keyframes saved-items-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.save-search-dialog {
+  width: min(480px, calc(100% - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 28px;
+  border: 1px solid var(--search-border);
+  border-radius: 18px;
+  color: var(--search-text);
+  background: white;
+}
+.save-search-dialog header {
+  position: relative;
+  padding-right: 30px;
+}
+.save-search-dialog header > p:last-child {
+  margin: 12px 0 0;
+  color: var(--search-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.save-search-dialog__expression {
+  padding: 12px;
+  background: var(--page-bg);
+  border-radius: 8px;
+  font:
+    400 16px/1.5 'Source Serif 4',
+    Georgia,
+    serif;
+  overflow-wrap: anywhere;
+}
+.save-search-dialog label {
+  display: block;
+  margin: 18px 0 7px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.save-search-dialog input {
+  width: 100%;
+  padding: 12px;
+  min-height: 46px;
+  border: 1px solid var(--search-border);
+  border-radius: 9px;
+  color: var(--search-text);
+  background: white;
+}
+.saved-items__tabs {
+  display: flex;
+  padding: 4px;
+  gap: 4px;
+  background: #f4efed;
+  border-radius: 12px;
+  margin: 18px 0;
+}
+.saved-items__tabs button {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--search-muted);
+  font:
+    700 12px 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+}
+.saved-items__tabs button[aria-pressed='true'] {
+  background: white;
+  color: var(--search-primary);
+  box-shadow: 0 1px 4px #42151f12;
+}
+.saved-items__tabs span {
+  margin-left: 5px;
+}
+.save-decision {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+.decision-result-card__actions .save-decision {
+  margin-left: auto;
+  order: 2;
+}
+.save-decision__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--search-primary);
+  font:
+    700 12px 'Source Sans 3',
+    sans-serif;
+  cursor: pointer;
+  padding: 8px;
+}
+.save-decision__button--saved {
+  background: #e0edef;
+}
+.save-decision__button:hover:not(:disabled) {
+  background: #f4efed;
+}
+.save-decision__button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.save-decision__button:focus-visible,
+.saved-decision__open:focus-visible {
+  outline: 3px solid #9b697e;
+  outline-offset: 3px;
+}
+.decision-detail__save {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.saved-decision__open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 15px;
+  border: 1px solid #d9c3be;
+  border-radius: 10px;
+  color: var(--search-primary);
+  font:
+    700 11px 'Source Sans 3',
+    sans-serif;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+.saved-decision__summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.save-search-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+.save-search-dialog__actions .save-search-dialog__submit {
+  background: var(--search-primary);
+  color: white;
+}
+.save-search-dialog__actions .save-search-dialog__submit:hover:not(:disabled) {
+  background: var(--search-primary-hover);
+}
+.save-search-dialog button:disabled,
+.save-search-dialog input:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+:is(.saved-items, .save-search-dialog) :is(button, input):focus-visible {
+  outline: 3px solid #9b697e;
+  outline-offset: 3px;
+}
+@media (max-width: 700px) {
+  .saved-items__surface {
+    padding: 26px 20px;
+  }
+  .comparison-context-bar__actions .save-search-action {
+    grid-column: 1 / -1;
+  }
+  .save-search-action__button {
+    width: 100%;
+  }
+  .save-search-dialog {
+    padding: 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .saved-items__spinner {
+    animation: none;
   }
 }

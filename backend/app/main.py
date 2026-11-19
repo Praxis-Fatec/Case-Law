@@ -12,7 +12,14 @@ from app.api import (
     filters,
     health,
     indicators,
+    legislation,
+    opposing,
+    related,
+    reports,
+    saved_decisions,
+    searches,
     session,
+    thesis,
     users,
 )
 from app.config import settings
@@ -20,6 +27,10 @@ from app.db import pool
 from app.sessions import gate
 
 TAGS = [
+    {
+        "name": "saved searches",
+        "description": "Named search expressions and filters, private to their authenticated owner.",
+    },
     {
         "name": "search",
         "description": "Finding decisions across the collected courts.",
@@ -33,6 +44,20 @@ TAGS = [
         "description": (
             "Legal scholarship that treats what a decision settled. "
             "Enrichment: a decision opens whether this answers or not."
+        ),
+    },
+    {
+        "name": "legislation",
+        "description": (
+            "The laws and articles a decision applied, parsed from the fixed "
+            "format the court publishes them in."
+        ),
+    },
+    {
+        "name": "quality",
+        "description": (
+            "Readers reporting a classification they believe is wrong. A "
+            "report is recorded for review and never changes what is published."
         ),
     },
     {
@@ -86,11 +111,18 @@ app.add_middleware(
 errors.register(app)
 
 app.include_router(health.router)
+app.include_router(saved_decisions.router)
 app.include_router(decisions.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)
 app.include_router(exports.router)
 app.include_router(doctrine.router)
+app.include_router(legislation.router)
+app.include_router(reports.router)
+app.include_router(searches.router)
 app.include_router(session.router)
 app.include_router(users.router)
+app.include_router(thesis.router)
+app.include_router(related.router)
+app.include_router(opposing.router)

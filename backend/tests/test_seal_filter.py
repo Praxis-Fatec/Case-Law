@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import psycopg
@@ -20,6 +21,13 @@ SEALED = {"9000004", "9000005"}
 OPEN = {"9000001", "9000002", "9000003", "9000006"}
 
 
+# The model is built one date range at a time, so its query carries SQLMesh's
+# window macros. These tests are not about the window — they are about what the
+# query keeps and drops — so the range is opened wide enough to hold every
+# fixture, which is what a full rebuild does anyway.
+WIDE_OPEN = {"@start_ds": "'1900-01-01'", "@end_ds": "'2999-12-31'"}
+
+
 def transformation() -> str:
     """
     The SELECT the model builds `core.decisao` from, read from the model itself.
@@ -29,8 +37,14 @@ def transformation() -> str:
     removed the real one.
     """
     text = MODEL.read_text(encoding="utf-8")
-    body = text.split("JINJA_STATEMENT_BEGIN", 1)[0]
+    # Every Jinja block goes, not everything after the first one: the model
+    # carries them on both sides of the SELECT now — statistics for the date
+    # window before it, indexes after it — and cutting at the first left the
+    # query empty.
+    body = re.sub(r"JINJA_STATEMENT_BEGIN;.*?JINJA_END;", "", text, flags=re.DOTALL)
     body = body.split("\n);\n", 1)[1]
+    for macro, literal in WIDE_OPEN.items():
+        body = body.replace(macro, literal)
     return body.strip().rstrip(";").strip()
 
 

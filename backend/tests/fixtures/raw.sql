@@ -98,3 +98,80 @@ INSERT INTO raw.espelho_stj VALUES
 ('8000004', '202600611244', '20260313', 'DJe DATA:18/03/2026 Pág. 12',
  '2106103', 'QUINTA TURMA', 'ANTONIO SALDANHA PALHEIRO', 'CLASSE QUE NAO EXISTE',
  '', 'DECISAO SEM EMENTA PUBLICADA.', '1789000000.0');
+
+CREATE TABLE raw.acordao_stf (
+    "_id"                                        TEXT,
+    id                                           TEXT,
+    titulo                                       TEXT,
+    ementa_texto                                 TEXT,
+    inteiro_teor_url                             TEXT,
+    julgamento_data                              TEXT,
+    publicacao_data                              TEXT,
+    orgao_julgador                               TEXT,
+    relator_processo_nome                        TEXT,
+    relator_acordao_nome                         TEXT,
+    processo_codigo_completo                     TEXT,
+    processo_classe_processual_unificada_extenso TEXT,
+    acordao_ata                                  TEXT,
+    _dlt_load_id                                 TEXT
+);
+
+-- O STF escreve a classe pela escada inteira e abreviada, e grava
+-- "Acórdão sem ementa." quando não tem ementa — que não é campo vazio e por
+-- isso precisa de regra própria. O acórdão de 1961 está aqui porque metade do
+-- acervo do Tribunal é anterior a 1989, que era onde o modelo começava.
+INSERT INTO raw.acordao_stf VALUES
+('sjur900001', 'sjur900001', 'HC 41000',
+ 'HABEAS CORPUS. Prisão preventiva. Constrangimento ilegal reconhecido.',
+ 'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?numero=41000&classe=HC',
+ '1961-03-14', NULL, NULL, NULL, NULL, 'HC 41000', 'HABEAS CORPUS',
+ NULL, '1789000000.0'),
+
+('sjur900002', 'sjur900002', 'AI 800000 AgR-ED',
+ 'EMBARGOS DE DECLARAÇÃO. Omissão inexistente. Embargos rejeitados.',
+ 'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=800000',
+ '2026-03-20', '2026-03-28', 'Primeira Turma', 'MIN. ANTIGO RELATOR',
+ 'MIN. RELATOR DO ACÓRDÃO', 'AI 800000 AgR-ED',
+ 'EMB.DECL.NO AG.REG.NO AGRAVO DE INSTRUMENTO',
+ 'Rejeitaram os embargos.', '1789000000.0'),
+
+('sjur900003', 'sjur900003', 'RE 910000',
+ 'Acórdão sem ementa.',
+ 'https://portal.stf.jus.br/jurisprudencia/obterInteiroTeor.asp?idDocumento=910000',
+ '2026-03-21', '2026-03-29', 'Tribunal Pleno', NULL, 'MIN. RELATOR',
+ 'RE 910000', 'RECURSO EXTRAORDINÁRIO', NULL, '1789000000.0');
+
+-- The two sources that carry no decision. They are here because core.carga
+-- reads every raw table to work out which source a load belongs to, and a
+-- missing table is an error rather than an absent source. Empty is the honest
+-- state for an environment that only ever collected the two above.
+CREATE TABLE raw.precedente_stj (
+    tipo         TEXT,
+    numero       BIGINT,
+    _dlt_load_id TEXT
+);
+
+-- The same columns tests/test_doutrina_escopo.py declares. One definition, so
+-- its `CREATE TABLE IF NOT EXISTS` finds the table it expects instead of a
+-- narrower one created here first.
+CREATE TABLE raw.doutrina_bdjur (
+    repositorio       TEXT,
+    identificador_oai TEXT,
+    titulo            TEXT,
+    titulos           JSONB,
+    autores           JSONB,
+    assuntos          JSONB,
+    tipo              TEXT,
+    data              TEXT,
+    ano               BIGINT,
+    idioma            TEXT,
+    publicacao        TEXT,
+    resumo            TEXT,
+    referencia        TEXT,
+    url_fonte         TEXT,
+    direitos          TEXT,
+    conjuntos         JSONB,
+    arquivada_em      TIMESTAMPTZ,
+    alterada_em       TIMESTAMPTZ,
+    _dlt_load_id      TEXT
+);

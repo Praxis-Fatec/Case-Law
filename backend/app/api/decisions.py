@@ -121,6 +121,8 @@ def _filters_sql(
     reporting_judges: list[str] | None = None,
     procedural_classes: list[int] | None = None,
     outcomes: list[str] | None = None,
+    excluded_judging_bodies: list[str] | None = None,
+    excluded_reporting_judges: list[str] | None = None,
 ) -> str:
     """
     The optional narrowing, appended to the text match. The count and the page
@@ -142,6 +144,16 @@ def _filters_sql(
         clauses.append("classe_cnj = ANY(%(classe_cnj)s)")
     if outcomes:
         clauses.append("resultado = ANY(%(resultado)s)")
+    # A decision with no value recorded is outside every named group, so it
+    # stays: the concentration's "other" slice counts it, and this is the
+    # filter that opens that slice.
+    if excluded_judging_bodies:
+        clauses.append(
+            "(orgao_julgador IS NULL"
+            " OR orgao_julgador <> ALL(%(orgao_julgador_excluido)s))"
+        )
+    if excluded_reporting_judges:
+        clauses.append("(relator IS NULL OR relator <> ALL(%(relator_excluido)s))")
     if date_from is not None:
         clauses.append("data_referencia >= %(date_from)s")
     if date_to is not None:
@@ -176,6 +188,8 @@ def _narrowing(
     relator: list[str] | None = None,
     classe_cnj: list[int] | None = None,
     resultado: list[str] | None = None,
+    orgao_julgador_excluido: list[str] | None = None,
+    relator_excluido: list[str] | None = None,
 ) -> Narrowing:
     """
     Read the narrowing once, so nothing can describe a different set.
@@ -199,6 +213,8 @@ def _narrowing(
     )
     orgaos = _nonblank_unique_text(orgao_julgador)
     relatores = _nonblank_unique_text(relator)
+    excluded_bodies = _nonblank_unique_text(orgao_julgador_excluido)
+    excluded_judges = _nonblank_unique_text(relator_excluido)
     classes = list(dict.fromkeys(classe_cnj or []))
     outcomes = list(
         dict.fromkeys(value.strip() for value in resultado or [] if value.strip())
@@ -215,6 +231,10 @@ def _narrowing(
         parameters["classe_cnj"] = classes
     if outcomes:
         parameters["resultado"] = outcomes
+    if excluded_bodies:
+        parameters["orgao_julgador_excluido"] = excluded_bodies
+    if excluded_judges:
+        parameters["relator_excluido"] = excluded_judges
     if date_from is not None:
         parameters["date_from"] = date_from
     if date_to is not None:
@@ -235,6 +255,8 @@ def _narrowing(
             relatores,
             classes,
             outcomes,
+            excluded_bodies,
+            excluded_judges,
         ),
         parameters,
     )
@@ -244,8 +266,151 @@ def _count_sql(filters: str = "") -> str:
     return f"SELECT COUNT(*) AS total FROM core.decisao WHERE {MATCH}{filters}"
 
 
-def _page_sql(filters: str = "", ordering: str = "") -> str:
+# How deep `core.busca_ampla` goes for each frequent term: 1000 rows, 50 pages
+# of 20. A page that ends past it is served the slow way, correctly.
+BROAD_DEPTH = 1000
+
+# Whether this search is one `core.busca_ampla` already answered, and the exact
+# total if it is. Both come from the database rather than from Python because
+# the term has to go through the same stemmer the index used: deciding here
+# that "recursos" means `recurs` would be a second implementation of the search
+# configuration, free to disagree with the first.
+#
+# `numnode(q) = 1` is the whole test for "one word". A phrase comes back as
+# `'a' <-> 'b'`, two words as `'a' & 'b'`, a negation carries `!` — every one of
+# them has more than one node, and every one of them is already fast, because
+# the intersection of two common words is a small set. Measured on production:
+# `recurso` 765,840 matches and 95.3s, `dano moral` 29,783 and 0.6s.
+# `url_compartilhada` left `core.decisao` for a table of its own, so it is
+# joined rather than selected — and only where the table is there to join.
+# Until it is, a shared link reads as a link like any other, which is what the
+# screen said before the warning existed.
+SHARED_COLUMN = "COALESCE(compartilhada.url_compartilhada, FALSE)"
+SHARED_JOIN = """
+LEFT JOIN core.url_compartilhada AS compartilhada
+  ON compartilhada.fonte_codigo = decisao.fonte_codigo
+ AND compartilhada.identificador_fonte = decisao.identificador_fonte"""
+
+
+def _shared(published: bool) -> tuple[str, str]:
+    """The column and the join that read the shared-link table, or neither."""
+    return (SHARED_COLUMN, SHARED_JOIN) if published else ("FALSE", "")
+
+
+BROAD_TERM_SQL = f"""
+SELECT termo.lexema, termo.decisoes
+FROM (SELECT {QUERY} AS consulta) AS pesquisa
+JOIN core.termo_frequente AS termo
+  ON NUMNODE(pesquisa.consulta) = 1
+ AND termo.lexema = BTRIM(pesquisa.consulta::text, '''')
+"""
+
+
+def _broad_page_sql(published: bool) -> str:
+    shared, join = _shared(published)
+    return f"""
+WITH pagina AS (
+    SELECT rank, data_referencia, fonte_codigo, identificador_fonte
+    FROM core.busca_ampla
+    WHERE lexema = %(lexema)s
+    ORDER BY rank DESC, data_referencia DESC, fonte_codigo DESC, identificador_fonte DESC
+    LIMIT %(limit)s OFFSET %(offset)s
+)
+SELECT
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.data_referencia,
+    decisao.turma_recursal,
+    decisao.url_fonte,
+    decisao.link_valido,
+    {shared} AS url_compartilhada,
+    decisao.deliberacao,
+    decisao.ementa,
+    decisao.tese,
+    {SNIPPET} AS snippet
+FROM pagina
+JOIN core.decisao AS decisao
+  ON decisao.fonte_codigo = pagina.fonte_codigo
+ AND decisao.identificador_fonte = pagina.identificador_fonte{join}
+ORDER BY
+    pagina.rank DESC,
+    pagina.data_referencia DESC,
+    pagina.fonte_codigo DESC,
+    pagina.identificador_fonte DESC
+"""
+
+
+# Which of the tables the search reads are in front of this server yet.
+#
+# A deploy can land before the base that goes with it — it happened once this
+# sprint already. Without this check a search would name a table that does not
+# exist and answer 500 instead of answering slowly, or without the warning
+# about a shared link. Both are right answers while the data is on its way; an
+# error page is not.
+#
+# Two tables, one statement. They are published by the same run and can still
+# be absent one without the other, and asking twice would double a probe that
+# exists precisely because it is cheap.
+#
+# Asked every time rather than remembered. The statement reads two catalog rows
+# and costs a tenth of a millisecond against a page that costs thirty-six, and
+# a server that started before the base was published starts using it the
+# moment it appears, with nobody having to restart anything.
+PUBLISHED_SQL = """
+SELECT TO_REGCLASS('core.busca_ampla') IS NOT NULL       AS ranking,
+       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada
+"""
+
+
+class Published(NamedTuple):
+    ranking: bool
+    shared: bool
+
+
+def _published(cursor: Any) -> Published:
+    cursor.execute(PUBLISHED_SQL)
+    row = cursor.fetchone() or {}
+    return Published(bool(row.get("ranking")), bool(row.get("compartilhada")))
+
+
+def _broad_term(
+    cursor: Any,
+    parameters: dict[str, Any],
+    filters: str,
+    order: Order,
+    offset: int,
+    page_size: int,
+    ranking_published: bool,
+) -> DictRow | None:
+    """
+    The pre-ranked term behind this search, when there is one.
+
+    Four conditions, and all of them have to hold. Relevance order, because
+    that is the order the table stores. No filter, because a filter can push a
+    decision from page 400 onto page 1 and the stored order would no longer be
+    the order of the filtered set. A page inside the stored depth. And a term
+    the table actually carries.
+
+    Returning `None` is not a failure: it means this search was already fast
+    enough to answer the way it always has.
+    """
+    if filters or order != "relevance" or offset + page_size > BROAD_DEPTH:
+        return None
+
+    if not ranking_published:
+        return None
+
+    cursor.execute(BROAD_TERM_SQL, parameters)
+    return cursor.fetchone()
+
+
+def _page_sql(filters: str = "", ordering: str = "", published: bool = True) -> str:
     ordering = ordering or ORDERINGS[DEFAULT_ORDER]
+    shared, join = _shared(published)
     return f"""
 WITH pagina AS (
     SELECT fonte_codigo, identificador_fonte
@@ -265,13 +430,13 @@ SELECT
     decisao.turma_recursal,
     decisao.url_fonte,
     decisao.link_valido,
-    decisao.url_compartilhada,
+    {shared} AS url_compartilhada,
     decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
     {SNIPPET} AS snippet
 FROM pagina
-JOIN core.decisao USING (fonte_codigo, identificador_fonte)
+JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
 {ordering}
 """
 
@@ -281,30 +446,35 @@ JOIN core.decisao USING (fonte_codigo, identificador_fonte)
 COUNT_SQL = _count_sql()
 PAGE_SQL = _page_sql()
 
-DETAIL_SQL = """
+
+def _detail_sql(published: bool) -> str:
+    shared, join = _shared(published)
+    return f"""
 SELECT
-    fonte_codigo,
-    identificador_fonte,
-    tribunal_sigla,
-    processo,
-    orgao_julgador,
-    relator,
-    classe_cnj,
-    data_julgamento,
-    data_publicacao,
-    data_referencia,
-    ementa,
-    decisao_texto,
-    tese,
-    deliberacao,
-    turma_recursal,
-    possui_inteiro_teor,
-    url_fonte,
-    link_valido,
-    url_compartilhada
-FROM core.decisao
-WHERE fonte_codigo = %(source)s AND identificador_fonte = %(identifier)s
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.classe_cnj,
+    decisao.data_julgamento,
+    decisao.data_publicacao,
+    decisao.data_referencia,
+    decisao.ementa,
+    decisao.decisao_texto,
+    decisao.tese,
+    decisao.deliberacao,
+    decisao.turma_recursal,
+    decisao.possui_inteiro_teor,
+    decisao.url_fonte,
+    decisao.link_valido,
+    {shared} AS url_compartilhada
+FROM core.decisao AS decisao{join}
+WHERE decisao.fonte_codigo = %(source)s
+  AND decisao.identificador_fonte = %(identifier)s
 """
+
 
 HIGHLIGHT_SQL = f"""
 SELECT {FULL_HIGHLIGHT} AS highlighted
@@ -911,6 +1081,29 @@ def search_decisions(
             examples=[["FABRÍCIO FONTOURA BEZERRA"]],
         ),
     ] = None,
+    orgao_julgador_excluido: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Judging bodies to leave out, compared exactly. Decisions with "
+                "no judging body recorded are kept. This is how the `other` "
+                "group of `/indicators/concentration` is opened: the cut minus "
+                "the groups ranked above it."
+            ),
+            examples=[["1ª TURMA CÍVEL", "CÂMARA CRIMINAL"]],
+        ),
+    ] = None,
+    relator_excluido: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Reporting judges to leave out, compared exactly. Decisions with "
+                "no reporting judge recorded are kept. Opens the `other` group "
+                "of `/indicators/concentration`."
+            ),
+            examples=[["ANA CANTARINO"]],
+        ),
+    ] = None,
     classe_cnj: Annotated[
         list[int] | None,
         Query(
@@ -1102,6 +1295,8 @@ def search_decisions(
         relator,
         classe_cnj,
         resultado,
+        orgao_julgador_excluido,
+        relator_excluido,
     )
     parameters: dict[str, Any] = {
         **narrowed,
@@ -1111,14 +1306,34 @@ def search_decisions(
         "offset": offset,
     }
 
-    with connection.cursor() as cursor:
-        cursor.execute(_count_sql(filters), parameters)
-        total = int((cursor.fetchone() or {"total": 0})["total"])
+    rows: list[DictRow] = []
 
-        rows: list[DictRow] = []
-        if offset < total:
-            cursor.execute(_page_sql(filters, ORDERINGS[order]), parameters)
+    with connection.cursor() as cursor:
+        publicado = _published(cursor)
+        broad = _broad_term(
+            cursor, parameters, filters, order, offset, page_size, publicado.ranking
+        )
+
+        if broad is not None:
+            # Both the page and the total are read, not computed. The total is
+            # the exact number of decisions carrying the term, counted once
+            # when the base was built.
+            total = int(broad["decisoes"])
+            cursor.execute(
+                _broad_page_sql(publicado.shared),
+                {**parameters, "lexema": broad["lexema"]},
+            )
             rows = cursor.fetchall()
+        else:
+            cursor.execute(_count_sql(filters), parameters)
+            total = int((cursor.fetchone() or {"total": 0})["total"])
+
+            if offset < total:
+                cursor.execute(
+                    _page_sql(filters, ORDERINGS[order], publicado.shared),
+                    parameters,
+                )
+                rows = cursor.fetchall()
 
     return SearchResults(
         total=total,
@@ -1201,7 +1416,7 @@ def read_decision(
     parameters = {"source": source, "identifier": identifier}
 
     with connection.cursor() as cursor:
-        cursor.execute(DETAIL_SQL, parameters)
+        cursor.execute(_detail_sql(_published(cursor).shared), parameters)
         row = cursor.fetchone()
 
         if row is None:

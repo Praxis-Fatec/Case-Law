@@ -135,3 +135,62 @@ def test_a_link_that_could_not_be_built_never_reaches_a_server(
     assert "not_null" in audits
     assert "url_fonte" in audits
     assert "identificador_fonte" in audits
+
+
+SHARED_MODEL = MODEL.parent / "core_url_compartilhada.sql"
+
+
+def shared_transformation() -> str:
+    """The SELECT behind `core.url_compartilhada`, read from the model itself."""
+    text = SHARED_MODEL.read_text(encoding="utf-8")
+    body = text.split("JINJA_STATEMENT_BEGIN", 1)[0]
+    body = body.split("\n);\n", 1)[1]
+    return body.strip().rstrip(";").strip()
+
+
+class TestOLinkDividido:
+    """
+    Whether a source link still reaches more than one of our decisions.
+
+    It used to be a column of `core.decisao`, computed with a window over the
+    whole table. That is what kept the model from being built by date range: a
+    decision from 2019 becomes shared the day a 2026 one arrives under the same
+    link, and no window that holds only 2026 can know it. The answer moved to a
+    model of its own, which is rebuilt whole precisely because it is cheap —
+    it reads the key and the address, never a line of text.
+    """
+
+    def test_a_coluna_saiu_do_modelo_grande(self) -> None:
+        """
+        Left behind, the window function would be computed per date range and
+        would answer confidently with the wrong number.
+        """
+        assert "url_compartilhada" not in transformation()
+        assert "url_compartilhada" in shared_transformation()
+
+    def test_duas_decisoes_sob_o_mesmo_link_saem_as_duas_marcadas(
+        self, transformed: psycopg.Connection[DictRow]
+    ) -> None:
+        transformed.execute("DROP TABLE IF EXISTS core.decisao_compartilhada")
+        transformed.execute(
+            "CREATE TABLE core.decisao_compartilhada AS "
+            + shared_transformation().replace("core.decisao", "core.decisao_com_url")
+        )
+
+        with transformed.cursor() as cursor:
+            cursor.execute(
+                "SELECT url_fonte, COUNT(*) AS decisoes,"
+                "       BOOL_AND(url_compartilhada) AS todas_marcadas"
+                " FROM core.decisao_compartilhada"
+                " WHERE url_fonte IS NOT NULL"
+                " GROUP BY url_fonte"
+            )
+            por_link = cursor.fetchall()
+
+        assert por_link, "a fixture não produziu nenhum link"
+        for linha in por_link:
+            esperado = linha["decisoes"] > 1
+            assert linha["todas_marcadas"] is esperado, (
+                f"{linha['url_fonte']} alcança {linha['decisoes']} decisão(ões) "
+                f"e foi marcada como compartilhada={linha['todas_marcadas']}"
+            )

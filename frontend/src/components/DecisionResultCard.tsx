@@ -3,6 +3,9 @@ import { Link, type To } from 'react-router-dom';
 import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { readThesis } from '../api/decisions';
+import IdentifiedThesis from './IdentifiedThesis';
+import SaveDecisionButton from './SaveDecisionButton';
+import ReportClassification from './ReportClassification';
 import type { Highlight, SearchDecisionMatch } from '../api/search';
 import {
   DELIBERATION_LABELS,
@@ -28,6 +31,11 @@ type DecisionCardData = Pick<
   | 'thesis'
 > & {
   published_on?: string | null;
+  // Where the decision lives, which is how the API is asked about it: for the
+  // thesis, and for a report about what was inferred. Optional because a card
+  // can be drawn from less than a search match, and then neither is offered.
+  source?: string;
+  identifier?: string;
 };
 
 type DecisionResultCardProps = {
@@ -203,10 +211,19 @@ function DecisionResultCard({
               /* No thesis written, so the evidence is the snippet above —
                  which this list cut around the dispositive or the citation,
                  not around what was typed. */
-              <p className="decision-result-card__thesis-origin">
-                O tribunal não escreveu tese. O trecho acima é a passagem que produziu a
-                classificação.
-              </p>
+              <>
+                <p className="decision-result-card__thesis-origin">
+                  O tribunal não escreveu tese. O trecho acima é a passagem que produziu a
+                  classificação.
+                </p>
+                {/* The court wrote none, so the reader may ask this tool to
+                    read one out of the ementa. Behind a press, never on
+                    render: the call costs money and most cards are scrolled
+                    past. */}
+                {decision.source && decision.identifier && (
+                  <IdentifiedThesis source={decision.source} identifier={decision.identifier} />
+                )}
+              </>
             ) : (
               <p className="decision-result-card__thesis-origin">
                 O tribunal não escreveu tese nem dispositivo para esta decisão.
@@ -217,6 +234,14 @@ function DecisionResultCard({
                 ? 'O resultado é leitura automática desta ferramenta, a partir do texto acima.'
                 : 'A aderência é leitura automática desta ferramenta, a partir do texto acima.'}
             </p>
+            {/* Here, where the tool owns its reading, and nowhere else: this is
+                where disagreeing with it means something. */}
+            {decision.source && decision.identifier && (
+              <ReportClassification
+                decision={{ source: decision.source, identifier: decision.identifier }}
+                contested={justifies}
+              />
+            )}
           </details>
         )}
 
@@ -232,6 +257,9 @@ function DecisionResultCard({
         </dl>
 
         <div className="decision-result-card__actions" aria-live="polite">
+          {decision.source && decision.identifier && (
+            <SaveDecisionButton source={decision.source} identifier={decision.identifier} />
+          )}
           {onSelect && (
             <button type="button" className="indicator-document__open" onClick={onSelect}>
               Abrir decisão

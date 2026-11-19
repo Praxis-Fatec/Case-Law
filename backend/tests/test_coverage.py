@@ -128,6 +128,7 @@ def test_the_endpoint_is_documented(client: TestClient) -> None:
         "courts",
         "state",
         "updated_at",
+        "vocabulary_updated_at",
     }
 
 
@@ -213,3 +214,45 @@ def test_the_four_values_answer_a_base_of_known_content(
     assert (body["first"], body["last"]) == ("1998-04-02", "2026-09-17")
     assert body["state"] in {"loaded", "never_loaded", "all_loads_failed"}
     assert (body["updated_at"] is None) == (body["state"] != "loaded")
+
+
+class TestADataDoVocabulario:
+    """
+    The doctrine vocabulary has a monthly schedule of its own, so the screen
+    carries its date beside the collection's.
+
+    Being older than the collection is the normal case, not a fault: the weight
+    is an IDF over every ementa, too expensive to redo with each ingestion and
+    too stable to need it. A reader who sees one date for the base and nothing
+    for the vocabulary has no way to tell a suggestion built last month from
+    one built today.
+    """
+
+    def test_a_data_do_vocabulario_vem_da_propria_tabela(
+        self, client: TestClient, db_rolled_back: psycopg.Connection[DictRow]
+    ) -> None:
+        db_rolled_back.execute("DELETE FROM core.doutrina_termo")
+        db_rolled_back.execute(
+            "INSERT INTO core.doutrina_termo"
+            " (repositorio, identificador_oai, termo, decisoes, peso, carregado_em)"
+            " VALUES ('bdjur', 'oai:1', 'usucapiao', 10, 3.2, '2026-09-01T03:14:09Z'),"
+            "        ('bdjur', 'oai:2', 'servidao', 4, 4.1, '2026-08-01T03:02:51Z')"
+        )
+
+        assert coverage(client)["vocabulary_updated_at"] == "2026-09-01T03:14:09Z"
+
+    def test_sem_vocabulario_a_data_e_nula_e_nao_a_da_coleta(
+        self, client: TestClient, db_rolled_back: psycopg.Connection[DictRow]
+    ) -> None:
+        """
+        An environment with decisions and no doctrine answers null here.
+
+        Falling back to the collection's own date would claim a vocabulary was
+        calculated when none was, which is the one thing this field exists to
+        tell apart.
+        """
+        db_rolled_back.execute("DELETE FROM core.doutrina_termo")
+
+        answer = coverage(client)
+
+        assert answer["vocabulary_updated_at"] is None

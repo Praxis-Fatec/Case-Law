@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Decision } from '../api/decisions';
@@ -57,7 +58,11 @@ function renderDetail(overrides: Partial<Decision> = {}) {
         }),
     ),
   );
-  render(<DecisionDetail id="detail" source={decision.source} identifier={decision.identifier} />);
+  render(
+    <MemoryRouter>
+      <DecisionDetail id="detail" source={decision.source} identifier={decision.identifier} />
+    </MemoryRouter>,
+  );
   return screen.findByRole('heading', { level: 2 });
 }
 

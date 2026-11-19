@@ -88,6 +88,7 @@ function installApi(total: number, answer?: Answer) {
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
+      if (url.pathname === '/saved-decisions') return json({ decisions: [] });
       if (url.pathname === '/exports/options') {
         return json({ max_decisions: 1000 });
       }
@@ -97,10 +98,17 @@ function installApi(total: number, answer?: Answer) {
       if (url.pathname === '/courts') {
         return json({ courts: COURTS });
       }
-      // O bloco de doutrina do detalhe também não é busca: ele pede por
-      // decisão aberta, e contá-lo como página faria a conta de requisições
-      // desta suíte dobrar sem que nada tivesse mudado na paginação.
-      if (url.pathname.endsWith('/doctrine')) {
+      // Os blocos do detalhe que pedem por conta própria — doutrina, legislação,
+      // decisões próximas e decisões contrárias — também não são busca: eles
+      // pedem por decisão aberta, e contá-los como página faria a conta de
+      // requisições desta suíte crescer sem que nada tivesse mudado na
+      // paginação.
+      if (
+        url.pathname.endsWith('/doctrine') ||
+        url.pathname.endsWith('/legislation') ||
+        url.pathname.endsWith('/related') ||
+        url.pathname.endsWith('/opposing')
+      ) {
         return json({ results: [] });
       }
       const found = url.pathname.match(/^\/decisions\/[^/]+\/([^/]+)$/);

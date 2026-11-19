@@ -19,9 +19,19 @@ TABLES = (
     "fonte",
     "classe_processual",
     "carga",
+    "cobertura_fonte",
     "decisao",
+    "url_compartilhada",
+    "termo_frequente",
+    "termo_judicial",
+    "precedente_judicial",
+    "decisao_norma",
+    "decisao_contraria_candidata",
+    "decisao_contraria",
+    "busca_ampla",
     "precedente",
     "decisao_precedente",
+    "referencia_legislativa",
     "doutrina",
     "doutrina_termo",
     "decisao_doutrina",
@@ -42,6 +52,32 @@ INDEXES = (
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (tribunal_sigla, relator)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (processo)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (classe_cnj)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.url_compartilhada "
+        "(fonte_codigo, identificador_fonte)"
+    ),
+    # The first page of a broad search is served from here and nowhere else, so
+    # this index is the story: it carries every column the page asks for, in
+    # the order it asks for them, which is what turns 95 seconds into a single
+    # index read. Without it the table is a second copy of the slow path.
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.busca_ampla "
+        "(lexema, rank DESC, data_referencia DESC, "
+        "fonte_codigo DESC, identificador_fonte DESC)"
+    ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.busca_ampla "
+        "(lexema, fonte_codigo, identificador_fonte)"
+    ),
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_frequente (lexema)",
+    # O vocabulário é lido por termo, uma vez por termo da decisão aberta;
+    # a norma, uma vez por candidato. Sem estes dois a sugestão de decisões
+    # próximas varre as duas tabelas inteiras a cada leitura.
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_judicial (termo)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_norma "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The copy is a plain SELECT, so no index comes with it. These mirror what
     # the models declare: without them the detail screen reads 28 thousand
     # suggestions sequentially on every decision opened.
@@ -53,6 +89,19 @@ INDEXES = (
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (corte, tipo, numero)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (resolvida)",
+    # The legislation block reads by the decision and nothing else, and the
+    # unique key already starts with that pair. The partial index is for the
+    # minority the audit counts — 0,61% of 1,59 million rows — so that reading
+    # what the court wrote in a form this parser does not know is a lookup
+    # rather than a scan of the whole table.
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte, ordem, sequencia)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte) WHERE NOT reconhecida"
+    ),
     (
         f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.doutrina "
         "(repositorio, identificador_oai)"
@@ -73,6 +122,19 @@ INDEXES = (
         "(fonte_codigo, identificador_fonte, nota DESC)"
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_doutrina (repositorio, identificador_oai)",
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.cobertura_fonte (fonte_codigo)",
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria "
+        "(fonte_codigo, identificador_fonte, semelhanca DESC)"
+    ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.precedente_judicial "
+        "(corte, tipo, numero)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria_candidata "
+        "(fonte_codigo, identificador_fonte)"
+    ),
 )
 
 SEARCH_CONFIGURATION = """
@@ -207,7 +269,13 @@ def stage() -> int:
     for statement in INDEXES:
         _local_psql(["-c", statement])
 
-    _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.decisao"])
+    # Era só `decisao`, e isso bastava enquanto só ela era grande. A cópia é um
+    # `CREATE TABLE AS`, então toda tabela encenada chega sem estatística: a
+    # primeira leitura de cada tela planeja contra a estimativa padrão e pode
+    # varrer 411 MB de `decisao_contraria` por índice que existe. Analisar
+    # todas custa segundos e tira a lista de manutenção manual do caminho.
+    for table in TABLES:
+        _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.{table}"])
 
     return int(
         _local_psql(["-tA", "-c", f"SELECT COUNT(*) FROM {STAGING_SCHEMA}.decisao"])

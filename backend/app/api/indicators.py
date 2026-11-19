@@ -724,6 +724,17 @@ GROUP BY d.tribunal_sigla, t.nome
 ORDER BY COUNT(*) DESC, d.tribunal_sigla
 """
 
+# The doctrine vocabulary is rebuilt on its own monthly schedule, not with
+# every ingestion: its weight is an IDF over the whole collection, which means
+# tokenising every ementa. So its age is not the collection's age, and a reader
+# comparing a suggestion against a decision from last week deserves to know
+# which of the two is older. Asked apart from `COVERAGE_SQL` because an
+# environment can hold decisions before any doctrine has been published to it.
+VOCABULARY_SQL = """
+SELECT MAX(carregado_em) AS recalculado_em
+FROM core.doutrina_termo
+"""
+
 
 class CourtCoverage(BaseModel):
     abbreviation: str = Field(description="The court's abbreviation.", examples=["STJ"])
@@ -776,6 +787,16 @@ class Coverage(BaseModel):
         ),
         examples=["2026-09-25T17:12:44Z"],
     )
+    vocabulary_updated_at: datetime | None = Field(
+        description=(
+            "When the doctrine vocabulary was last recalculated. It runs on a "
+            "monthly schedule of its own rather than with every ingestion, so "
+            "it is normally older than `updated_at`, and that is expected "
+            "rather than a fault. `null` when no doctrine has been published "
+            "to this environment."
+        ),
+        examples=["2026-09-01T03:14:09Z"],
+    )
 
 
 @router.get(
@@ -801,6 +822,8 @@ def read_coverage(
     with connection.cursor() as cursor:
         cursor.execute(COVERAGE_SQL)
         rows = cursor.fetchall()
+        cursor.execute(VOCABULARY_SQL)
+        vocabulary = (cursor.fetchone() or {}).get("recalculado_em")
 
     courts = [
         CourtCoverage(
@@ -824,7 +847,206 @@ def read_coverage(
         courts=courts,
         state=fresh.state,
         updated_at=fresh.updated_at,
+        vocabulary_updated_at=vocabulary,
     )
+
+
+# One row per source in the catalogue, whatever it has delivered. The join to
+# `core.carga` is a LEFT JOIN for exactly that reason: a source with no load is
+# the state RF16 asks to be stated, and an inner join would hide it.
+#
+# `ultima` reads the last attempt whatever its outcome; `bem_sucedida` reads the
+# last one that finished. The two apart are what lets the answer say "collected
+# on the 10th, tried again on the 21st and failed" — a single date cannot.
+SOURCES_SQL = """
+WITH ultima AS (
+    SELECT DISTINCT ON (fonte_codigo)
+           fonte_codigo, concluida_em, status
+    FROM core.carga
+    WHERE fonte_codigo IS NOT NULL
+    ORDER BY fonte_codigo, concluida_em DESC
+),
+bem_sucedida AS (
+    SELECT fonte_codigo, MAX(concluida_em) AS concluida_em
+    FROM core.carga
+    WHERE fonte_codigo IS NOT NULL AND status = 'concluida'
+    GROUP BY fonte_codigo
+)
+SELECT
+    f.codigo                          AS codigo,
+    f.nome                            AS nome,
+    f.conteudo                        AS conteudo,
+    f.status                          AS disponibilidade,
+    COALESCE(c.itens, 0)              AS itens,
+    COALESCE(c.itens_sem_data, 0)     AS itens_sem_data,
+    c.cobertura_inicio                AS inicio,
+    c.cobertura_fim                   AS fim,
+    COALESCE(c.precisao, 'nenhuma')   AS precisao,
+    b.concluida_em                    AS ultima_coleta,
+    u.concluida_em                    AS ultima_tentativa,
+    u.status                          AS desfecho
+FROM core.fonte AS f
+LEFT JOIN core.cobertura_fonte AS c ON c.fonte_codigo = f.codigo
+LEFT JOIN ultima AS u ON u.fonte_codigo = f.codigo
+LEFT JOIN bem_sucedida AS b ON b.fonte_codigo = f.codigo
+ORDER BY COALESCE(c.itens, 0) DESC, f.codigo
+"""
+
+Precision = Literal["dia", "ano", "nenhuma"]
+Availability = Literal["ativa", "bloqueada"]
+
+
+class SourceStatus(BaseModel):
+    code: str = Field(
+        description="The literal that ties connector, seed and data together.",
+        examples=["stj-espelhos"],
+    )
+    name: str = Field(
+        description="The source's name, as it is written on the screen.",
+        examples=["STJ Espelhos de Acórdãos"],
+    )
+    content: str = Field(
+        description=(
+            "What this source carries: `decisao`, `precedente` or `doutrina`. "
+            "The period below counts items of this kind, so the two are read "
+            "together."
+        ),
+        examples=["decisao"],
+    )
+    availability: Availability = Field(
+        description=(
+            "Whether collection from this source is possible at all. "
+            "`bloqueada` is a decision of the source's, not a fault of ours: "
+            "the BDJur began refusing automated access in October 2026. A "
+            "blocked source keeps whatever it delivered before."
+        ),
+        examples=["ativa"],
+    )
+    state: State = Field(
+        description=(
+            "The same three states the collection as a whole answers, asked of "
+            "one source. `never_loaded` means no load was ever attributed to "
+            "it; `all_loads_failed` means every attempt failed."
+        ),
+        examples=["loaded"],
+    )
+    last_collection: datetime | None = Field(
+        description=(
+            "When the last collection that finished for this source finished, "
+            "in UTC. `null` whenever `state` is not `loaded` — never a "
+            "substitute drawn from another source or from an attempt that "
+            "failed."
+        ),
+        examples=["2026-01-10T02:00:00Z"],
+    )
+    last_attempt: datetime | None = Field(
+        description=(
+            "When the most recent attempt finished, whatever its outcome. "
+            "Equal to `last_collection` when the last attempt succeeded, later "
+            "when it failed."
+        ),
+        examples=["2026-01-21T02:00:00Z"],
+    )
+    last_attempt_failed: bool = Field(
+        description=(
+            "Whether that most recent attempt failed. `false` when there has "
+            "been no attempt at all: nothing has failed, and the absence is "
+            "reported by `state` rather than by this flag."
+        ),
+        examples=[True],
+    )
+    items: int = Field(
+        description="How many items of `content` this source has contributed.",
+        examples=[876996],
+    )
+    undated_items: int = Field(
+        description=(
+            "How many of them carry no date. The period below is computed over "
+            "the dated ones, so without this number a collection half of which "
+            "is undated would show a period of apparently full coverage."
+        ),
+        examples=[0],
+    )
+    first: date | None = Field(
+        description=(
+            "The oldest item this source delivered. `null` when it has "
+            "delivered none, or when none of them carries a date."
+        ),
+        examples=["1989-02-19"],
+    )
+    last: date | None = Field(
+        description="The most recent item, on the same condition.",
+        examples=["2026-08-26"],
+    )
+    precision: Precision = Field(
+        description=(
+            "The granularity the source's own data supports. `ano` means only "
+            "the year was published and the day in `first` and `last` is "
+            "padding — write the year, never the date. `nenhuma` means there "
+            "is no period to read."
+        ),
+        examples=["dia"],
+    )
+
+
+def _state(row: dict[str, Any]) -> State:
+    """
+    Three states from two dates, for one source.
+
+    A source whose only load failed is not a source nobody collected: the first
+    is a connector to go and look at, the second is a connector nobody has
+    turned on yet, and the screen says different things about them.
+    """
+    if row["ultima_coleta"] is not None:
+        return "loaded"
+
+    return "all_loads_failed" if row["ultima_tentativa"] is not None else "never_loaded"
+
+
+@router.get(
+    "/indicators/sources",
+    summary="The state of each source and when it was last collected",
+    responses=RESPONSES,
+)
+def read_sources(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+) -> list[SourceStatus]:
+    """
+    Where the data comes from, and how long ago it came.
+
+    This is asked apart from `/indicators/coverage` so that the two fail apart.
+    The per-source answer reads `core.cobertura_fonte`, which a publication
+    older than this code does not have; answered inside coverage, a server
+    mid-publication would stop reporting the scope it can still report
+    perfectly well.
+
+    Every source in the catalogue is here, including one that has delivered
+    nothing and one that can no longer be collected. Leaving either out would
+    make the list read as the sources that work rather than as the sources
+    there are, and the difference is the whole point of the question.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(SOURCES_SQL)
+        rows = cursor.fetchall()
+
+    return [
+        SourceStatus(
+            code=row["codigo"],
+            name=row["nome"],
+            content=row["conteudo"],
+            availability=row["disponibilidade"],
+            state=_state(row),
+            last_collection=row["ultima_coleta"],
+            last_attempt=row["ultima_tentativa"],
+            last_attempt_failed=row["desfecho"] == "falhou",
+            items=row["itens"],
+            undated_items=row["itens_sem_data"],
+            first=row["inicio"],
+            last=row["fim"],
+            precision=row["precisao"],
+        )
+        for row in rows
+    ]
 
 
 # `indeterminado` is not here: it travels as its own field, the way
@@ -1119,3 +1341,455 @@ def read_most_cited(
         )
         for row in rows
     ]
+
+
+# One scan, two groupings: GROUPING SETS answers the judging bodies and the
+# reporting judges from the same matched rows, so the two cannot describe
+# different cuts. The value is kept exactly as the source wrote it — that is
+# what the search's own filter compares against, so a group opens onto exactly
+# its decisions. Only a missing or blank value is folded, into NULL.
+CONCENTRATION_SQL = f"""
+SELECT
+    GROUPING(s.orgao) AS por_relator,
+    s.orgao           AS orgao,
+    s.relator         AS relator,
+    COUNT(*)          AS decisoes
+FROM (
+    SELECT
+        CASE WHEN BTRIM(d.orgao_julgador) <> '' THEN d.orgao_julgador END AS orgao,
+        CASE WHEN BTRIM(d.relator) <> '' THEN d.relator END               AS relator
+    FROM core.decisao AS d
+    WHERE {MATCH}{{filters}}
+) AS s
+GROUP BY GROUPING SETS ((s.orgao), (s.relator))
+"""
+
+DEFAULT_CONCENTRATION_LIMIT = 5
+
+
+class ConcentrationGroup(BaseModel):
+    name: str = Field(
+        description=(
+            "The value exactly as the source wrote it, never normalised. It is "
+            "the value the search's `orgao_julgador` or `relator` filter takes, "
+            "so passing it back opens exactly these decisions."
+        ),
+        examples=["CORTE ESPECIAL"],
+    )
+    decisions: int = Field(description="Decisions of the cut in this group.")
+    share: float = Field(
+        description="Percentage of `total`, to one decimal.", examples=[31.4]
+    )
+
+
+class ConcentrationOther(BaseModel):
+    groups: int = Field(
+        description=(
+            "How many named groups were folded in here, beyond the ranked ones."
+        ),
+        examples=[37],
+    )
+    decisions: int = Field(
+        description=(
+            "Every decision of the cut outside the ranked groups, `missing` "
+            "included. Opened by sending the ranked names as "
+            "`orgao_julgador_excluido` or `relator_excluido` to `/decisions`."
+        ),
+        examples=[412],
+    )
+    share: float = Field(description="Percentage of `total`, to one decimal.")
+
+
+class ConcentrationDimension(BaseModel):
+    groups: list[ConcentrationGroup] = Field(
+        description=(
+            "The largest groups, at most `limit`, largest first; ties by name. "
+            "Empty when the search matches nothing."
+        )
+    )
+    other: ConcentrationOther | None = Field(
+        description=(
+            "Everything beyond the ranked groups as one, so the slices add up "
+            "to `total`. `null` when nothing is left over."
+        )
+    )
+    missing: int = Field(
+        description=(
+            "Decisions with no value recorded for this field. Never a group of "
+            "their own and never dropped: they are counted inside `other`."
+        ),
+        examples=[0],
+    )
+
+
+class Concentration(BaseModel):
+    total: int = Field(
+        description=(
+            "Every decision the same search matches. Each dimension's groups "
+            "plus its `other` add up to it."
+        ),
+        examples=[1788],
+    )
+    limit: int = Field(
+        description="How many groups are ranked before the rest is folded.",
+        examples=[DEFAULT_CONCENTRATION_LIMIT],
+    )
+    judging_bodies: ConcentrationDimension
+    reporting_judges: ConcentrationDimension
+
+
+def _share(part: int, whole: int) -> float:
+    return round(part / whole * 100, 1) if whole else 0.0
+
+
+def _concentrate(
+    counted: dict[str | None, int], total: int, limit: int
+) -> ConcentrationDimension:
+    """
+    Rank the named groups and fold the rest, missing values included.
+
+    The order is fixed — count, then the name — so the same cut ranks the same
+    way twice, and the "other" slice, which is defined by what is above it,
+    always opens onto the same decisions.
+    """
+    named = sorted(
+        ((name, count) for name, count in counted.items() if name is not None),
+        key=lambda item: (-item[1], item[0]),
+    )
+    missing = counted.get(None, 0)
+    ranked = named[:limit]
+    rest = named[limit:]
+    rest_decisions = sum(count for _, count in rest) + missing
+
+    return ConcentrationDimension(
+        groups=[
+            ConcentrationGroup(name=name, decisions=count, share=_share(count, total))
+            for name, count in ranked
+        ],
+        other=ConcentrationOther(
+            groups=len(rest),
+            decisions=rest_decisions,
+            share=_share(rest_decisions, total),
+        )
+        if rest_decisions
+        else None,
+        missing=missing,
+    )
+
+
+@router.get(
+    "/indicators/concentration",
+    summary="Which judging bodies and reporting judges decide the search's cut",
+    responses=SEARCH_RESPONSES,
+)
+def read_concentration(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[
+        str,
+        Query(
+            min_length=2,
+            description="The same expression the search takes.",
+            examples=["dano moral"],
+        ),
+    ],
+    tribunal: Annotated[
+        list[str] | None,
+        Query(description="The same court filter the search takes."),
+    ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable judging-body filter the search takes.",
+            examples=[["CORTE ESPECIAL"]],
+        ),
+    ] = None,
+    relator: Annotated[
+        list[str] | None,
+        Query(
+            description="The same repeatable reporting-judge filter the search takes.",
+            examples=[["ANA CANTARINO"]],
+        ),
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None,
+        Query(
+            description="The same repeatable CNJ class filter the search takes.",
+            examples=[[198], [198, 213]],
+        ),
+    ] = None,
+    resultado: Annotated[
+        list[str] | None,
+        Query(
+            description=(
+                "Exact outcome values recorded by `/indicators/outcome-share`: "
+                "`negado`, `provido`, or `parcialmente_provido`. Repeat for OR "
+                "within this field; other filters combine using AND. Blank and "
+                "repeated values are ignored. Decisions without an outcome do "
+                "not match; unknown values return no matches."
+            ),
+            examples=[["negado"], ["provido", "parcialmente_provido"]],
+        ),
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+    limit: Annotated[
+        int,
+        Query(
+            ge=1,
+            le=20,
+            description=(
+                "How many groups to rank in each dimension. The rest is answered "
+                "as one `other` group, with its count."
+            ),
+        ),
+    ] = DEFAULT_CONCENTRATION_LIMIT,
+) -> Concentration:
+    """
+    The same decisions the search would return, counted by judging body and by
+    reporting judge.
+
+    It narrows from the builder the search uses, so the counts and the list
+    cannot describe different sets. Names travel exactly as the source wrote
+    them: two spellings of one judge are two groups here, as they are two
+    options in the search's filter, and merging them would open onto decisions
+    the filter would not return.
+
+    Past `limit`, the groups are folded into one `other`, which also holds the
+    decisions with no value recorded. Every dimension's slices therefore add up
+    to `total`. A search that matches nothing answers zero and empty lists.
+    """
+    filters, parameters = _narrowing(
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
+    )
+
+    with connection.cursor() as cursor:
+        cursor.execute(CONCENTRATION_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    bodies = {row["orgao"]: row["decisoes"] for row in rows if row["por_relator"] == 0}
+    judges = {
+        row["relator"]: row["decisoes"] for row in rows if row["por_relator"] == 1
+    }
+    total = sum(bodies.values())
+
+    return Concentration(
+        total=total,
+        limit=limit,
+        judging_bodies=_concentrate(bodies, total, limit),
+        reporting_judges=_concentrate(judges, total, limit),
+    )
+
+
+# Aggregate decisions before joining citations: multiple precedents must never
+# inflate a court's denominator, outcomes or deliberations. One statement keeps
+# all three indicators in the same PostgreSQL snapshot.
+COMPARISON_SQL = f"""
+WITH recorte AS MATERIALIZED (
+    SELECT d.fonte_codigo, d.identificador_fonte, d.tribunal_sigla,
+           d.resultado, d.deliberacao
+    FROM core.decisao AS d
+    WHERE {MATCH}{{filters}}
+),
+tribunais AS (
+    SELECT sigla FROM core.tribunal
+    UNION
+    SELECT DISTINCT tribunal_sigla FROM core.decisao
+    UNION
+    SELECT unnest(%(comparison_courts)s::text[])
+),
+totais AS (
+    SELECT tribunal_sigla, COUNT(*) AS total
+    FROM recorte GROUP BY tribunal_sigla
+),
+categorias AS (
+    SELECT tribunal_sigla, 'outcomes' AS indicator,
+           resultado AS value, COUNT(*) AS decisions
+    FROM recorte GROUP BY tribunal_sigla, resultado
+    UNION ALL
+    SELECT tribunal_sigla, 'deliberations', deliberacao, COUNT(*)
+    FROM recorte GROUP BY tribunal_sigla, deliberacao
+    UNION ALL
+    SELECT r.tribunal_sigla, 'adherences', dp.aderencia,
+           COUNT(DISTINCT (r.fonte_codigo, r.identificador_fonte))
+    FROM recorte AS r
+    LEFT JOIN core.decisao_precedente AS dp
+      ON dp.fonte_codigo = r.fonte_codigo
+     AND dp.identificador_fonte = r.identificador_fonte
+    GROUP BY r.tribunal_sigla, dp.aderencia
+)
+SELECT t.sigla, COALESCE(n.nome, t.sigla) AS nome,
+       COALESCE(totais.total, 0) AS total,
+       c.indicator, c.value, c.decisions
+FROM tribunais AS t
+LEFT JOIN core.tribunal AS n ON n.sigla = t.sigla
+LEFT JOIN totais ON totais.tribunal_sigla = t.sigla
+LEFT JOIN categorias AS c ON c.tribunal_sigla = t.sigla
+WHERE cardinality(%(comparison_courts)s::text[]) = 0
+   OR t.sigla = ANY(%(comparison_courts)s::text[])
+ORDER BY t.sigla, c.indicator, c.value NULLS LAST
+"""
+
+
+class ComparisonCount(BaseModel):
+    value: str | None = Field(
+        description=(
+            "The recorded category. Null means an unclassified outcome or "
+            "deliberation, or a decision citing no precedent for adherence. "
+            "Undetermined citations are reported as `indeterminado`."
+        )
+    )
+    decisions: int = Field(description="Distinct decisions in this category.")
+    share: float = Field(
+        description="Percentage of this court's `total`, rounded to one decimal."
+    )
+
+
+class CourtComparison(BaseModel):
+    abbreviation: str = Field(description="The court's abbreviation.")
+    name: str = Field(description="The court's full name, or its abbreviation.")
+    total: int = Field(
+        description="Decisions from this court in the cut; every share uses this denominator."
+    )
+    outcomes: list[ComparisonCount]
+    deliberations: list[ComparisonCount]
+    adherences: list[ComparisonCount] = Field(
+        description=(
+            "Distinct decisions per adherence. A decision citing several "
+            "precedents in one category counts once. It may occur in several "
+            "categories, so these shares can add up to more than 100%."
+        )
+    )
+
+
+class CourtComparisons(BaseModel):
+    total: int = Field(description="Sum of the courts' decision counts in the cut.")
+    courts: list[CourtComparison] = Field(
+        description=(
+            "Alphabetical by abbreviation. Includes registered courts and courts "
+            "present in the collection, even without matches. A court filter "
+            "restricts this list to the requested courts, including unknown ones."
+        )
+    )
+
+
+@router.get(
+    "/indicators/comparison",
+    summary="Compare outcomes, deliberations and adherence between courts",
+    responses=SEARCH_RESPONSES,
+)
+def read_comparison(
+    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    q: Annotated[str, Query(min_length=2, description="The search expression.")],
+    tribunal: Annotated[
+        list[str] | None, Query(description="Courts to compare.")
+    ] = None,
+    orgao_julgador: Annotated[
+        list[str] | None, Query(description="The search's judging-body filter.")
+    ] = None,
+    relator: Annotated[
+        list[str] | None, Query(description="The search's reporting-judge filter.")
+    ] = None,
+    classe_cnj: Annotated[
+        list[int] | None, Query(description="The search's CNJ class filter.")
+    ] = None,
+    resultado: Annotated[
+        list[str] | None, Query(description="The search's outcome filter.")
+    ] = None,
+    date_from: Annotated[date | None, Query(description="Judged on or after.")] = None,
+    date_to: Annotated[date | None, Query(description="Judged on or before.")] = None,
+    published_from: Annotated[
+        date | None, Query(description="Published on or after.")
+    ] = None,
+    published_to: Annotated[
+        date | None, Query(description="Published on or before.")
+    ] = None,
+    orgao_julgador_excluido: Annotated[
+        list[str] | None, Query(description="The search's excluded judging bodies.")
+    ] = None,
+    relator_excluido: Annotated[
+        list[str] | None, Query(description="The search's excluded reporting judges.")
+    ] = None,
+) -> CourtComparisons:
+    """Three indicators over the same search, with a denominator per court.
+
+    Unlike outcome-share and adherence, all percentages here are over the
+    court's complete cut, including unclassified decisions. Zero-count courts
+    and categories remain present even when the whole search matches nothing.
+    """
+    filters, parameters = _narrowing(
+        q,
+        tribunal,
+        date_from,
+        date_to,
+        published_from,
+        published_to,
+        orgao_julgador,
+        relator,
+        classe_cnj,
+        resultado,
+        orgao_julgador_excluido,
+        relator_excluido,
+    )
+    parameters["comparison_courts"] = parameters.get("tribunais", [])
+    with connection.cursor() as cursor:
+        cursor.execute(COMPARISON_SQL.format(filters=filters), parameters)
+        rows = cursor.fetchall()
+
+    courts: dict[str, CourtComparison] = {}
+    counted: dict[str, dict[str, dict[str | None, int]]] = {}
+    for row in rows:
+        abbreviation = row["sigla"]
+        if abbreviation not in courts:
+            courts[abbreviation] = CourtComparison(
+                abbreviation=abbreviation,
+                name=row["nome"],
+                total=row["total"],
+                outcomes=[],
+                deliberations=[],
+                adherences=[],
+            )
+            counted[abbreviation] = {
+                "outcomes": {},
+                "deliberations": {},
+                "adherences": {},
+            }
+        if row["indicator"] is not None:
+            counted[abbreviation][row["indicator"]][row["value"]] = row["decisions"]
+
+    categories: dict[str, tuple[str | None, ...]] = {
+        "outcomes": (*OUTCOMES, None),
+        "deliberations": ("unanime", "maioria", None),
+        "adherences": (*DECIDED, UNDETERMINED, None),
+    }
+    for abbreviation, court in courts.items():
+        for indicator, values in categories.items():
+            counts = counted[abbreviation][indicator]
+            items = [
+                ComparisonCount(
+                    value=value,
+                    decisions=counts.get(value, 0),
+                    share=round(counts.get(value, 0) / court.total * 100, 1)
+                    if court.total
+                    else 0.0,
+                )
+                for value in values
+            ]
+            setattr(court, indicator, items)
+    return CourtComparisons(
+        total=sum(c.total for c in courts.values()), courts=list(courts.values())
+    )

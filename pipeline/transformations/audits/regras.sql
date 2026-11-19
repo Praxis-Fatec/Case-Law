@@ -94,19 +94,6 @@ WHERE deliberacao IS NOT NULL
   AND deliberacao NOT IN ('unanime', 'maioria');
 
 AUDIT (
-  name deliberacao_com_cobertura,
-  dialect postgres
-);
-/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
-   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
-   linhas, senão todo ambiente de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-WHERE decisao_texto IS NOT NULL
-HAVING COUNT(*) > 100000
-   AND COUNT(deliberacao) < COUNT(*) * 0.95;
-
-AUDIT (
   name resultado_de_valor_conhecido,
   dialect postgres
 );
@@ -115,19 +102,6 @@ SELECT *
 FROM @this_model
 WHERE resultado IS NOT NULL
   AND resultado NOT IN ('provido', 'parcialmente_provido', 'negado');
-
-AUDIT (
-  name resultado_com_cobertura,
-  dialect postgres
-);
-/* Se o tribunal mudar a redação a expressão para de casar e a coluna fica nula
-   em silêncio. O piso é sobre quem TEM dispositivo, e só a partir de 100 mil
-   linhas, senão todo ambiente de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-WHERE decisao_texto IS NOT NULL
-HAVING COUNT(*) > 100000
-   AND COUNT(resultado) < COUNT(*) * 0.90;
 
 AUDIT (
   name resultado_sem_contradicao,
@@ -160,19 +134,6 @@ FROM @this_model AS d
 LEFT JOIN core.classe_processual AS c ON c.codigo_cnj = d.classe_cnj
 WHERE d.classe_cnj IS NOT NULL
   AND c.codigo_cnj IS NULL;
-
-AUDIT (
-  name classe_com_cobertura,
-  dialect postgres
-);
-/* O STJ escreve a classe por extenso e já manda quebra de linha no meio. Se a
-   grafia mudar, o join para de casar e a coluna fica nula em silêncio: o filtro
-   encolhe sem avisar. Só vale a partir de 100 mil linhas, senão todo ambiente
-   de amostra reprova. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(classe_cnj) < COUNT(*) * 0.95;
 
 AUDIT (
   name precedente_de_corte_conhecida,
@@ -221,11 +182,19 @@ WHERE tipo NOT IN ('sumula', 'tema')
 
 AUDIT (
   name citacao_com_volume,
+  standalone true,
   dialect postgres
 );
-/* Redação muda, extração encolhe calada: o indicador mediria menos acervo. */
+/* Redação muda, extração encolhe calada: o indicador mediria menos acervo.
+
+   `standalone` pelo mesmo motivo de referencia_reconhecida_no_limite: é
+   afirmação sobre a tabela inteira. Presa ao modelo, o SQLMesh a aplicava à
+   janela recém-escrita, e nenhuma janela de carga tem trezentas mil citações —
+   uma semana tem algumas centenas. Reprovava toda carga incremental, e só
+   passava quando a janela era o histórico todo. Medido: 459.800 ligações em
+   18/11/2026, 53% de folga sobre o piso. */
 SELECT 1 AS falha
-FROM @this_model
+FROM core.decisao_precedente
 HAVING COUNT(*) < 300000;
 
 AUDIT (
@@ -251,17 +220,6 @@ WHERE aderencia IN ('seguiu', 'distinguiu')
   AND trecho ~ 'nao\s+(se\s+)?(aplica|incid|atrai)|inaplica|superad[oa]|nao\s+obsta|nao\s+ha\s+falar\s+em\s+(aplicacao|incidencia)|afastad\w*\s+(a\s+|o\s+)?(incidencia|aplicacao|obice)';
 
 AUDIT (
-  name aderencia_com_cobertura,
-  dialect postgres
-);
-/* Conta quem foi decidido, não quem tem valor: toda linha tem valor desde que
-   `indeterminado` virou categoria, e contar não-nulo daria sempre 100%. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(*) FILTER (WHERE aderencia <> 'indeterminado') < COUNT(*) * 0.65;
-
-AUDIT (
   name citacao_resolvida_com_precedente,
   dialect postgres
 );
@@ -278,15 +236,41 @@ WHERE dp.resolvida AND p.corte IS NULL;
 
 AUDIT (
   name citacao_com_alcance,
+  standalone true,
   dialect postgres
 );
 /* Se a redação das citações mudar, a extração encolhe calada e a tela diz
    "nenhum precedente citado" para o acervo inteiro, com aparência de normal.
-   O piso é sobre a proporção de decisões, não de ligações: hoje 30,2%. */
+   O piso é sobre a proporção de decisões, não de ligações.
+
+   `standalone` porque compara a contagem com o acervo todo: presa ao modelo,
+   media as decisões da janela contra 24% da coleção inteira, e nenhuma janela
+   de carga é um quarto da coleção. Não havia como passar incrementalmente.
+
+   O piso desceu de 0,24 para 0,15 quando o STF entrou, e a razão é a mistura
+   de fontes, não perda de extração. Medido em 18/11/2026:
+
+   | fonte | decisões  | citam precedente |
+   |-------|-----------|------------------|
+   | STJ   |   876.996 | 30,9%            |
+   | TJDFT |   114.167 | 24,7%            |
+   | STF   |   369.545 | 11,2%            |
+   | acervo| 1.360.708 | 25,04%           |
+
+   O STF cita menos porque o acervo dele começa em 1892 e citar súmula é
+   prática recente — não é o recorte falhando. Com 0,24 a regra ficava com 1,04
+   ponto de folga e reprovaria na próxima carga por nada.
+
+   0,15 continua pegando o que a regra existe para pegar. Se o recorte quebrar
+   para todas as fontes a taxa vai a zero; se quebrar só para o STJ, que carrega
+   59% das ligações, cai para 5,1%. E sobrevive à mistura que já está à vista:
+   as 762.031 monocráticas do STF estão ao alcance do mesmo coletor, e com elas
+   a taxa do acervo desceria sozinha para perto de 18%. Um piso que precisa ser
+   recalibrado a cada fonte nova é um piso que deixa de guardar. */
 SELECT 1 AS falha
-FROM @this_model
+FROM core.decisao_precedente
 HAVING COUNT(DISTINCT (fonte_codigo, identificador_fonte))
-     < (SELECT COUNT(*) FROM core.decisao) * 0.24;
+     < (SELECT COUNT(*) FROM core.decisao) * 0.15;
 
 AUDIT (
   name citacao_com_corte_do_texto,
@@ -308,6 +292,83 @@ WHERE dp.corte_declarada
       !~ 'stf|supremo|repercussao geral';
 
 AUDIT (
+  name referencia_reconhecida_tem_esfera_e_tipo,
+  dialect postgres
+);
+/* `reconhecida` é a promessa de que a tela consegue nomear a referência. Linha
+   marcada como reconhecida sem esfera ou sem tipo de ato não tem nome, e a tela
+   escreveria "3.365/1941" sem dizer de que ato se trata. O contrário esconde do
+   leitor uma referência que o parser leu inteira. */
+SELECT *
+FROM @this_model
+WHERE reconhecida <> (esfera IS NOT NULL AND tipo_ato IS NOT NULL);
+
+AUDIT (
+  name referencia_guarda_a_esfera_crua,
+  dialect postgres
+);
+/* A esfera fica como o tribunal escreveu, sempre. FED, EST e DIS a tela traduz;
+   MUN, INT e IES — 0,426% das linhas — não traduzem para nenhuma das três, e o
+   dia em que esta coluna guardar 'federal' em vez de 'FED' alguém terá fechado
+   a lacuna por chute, apresentando lei municipal como estadual. A regra é a
+   forma do código: duas a quatro maiúsculas, ou nulo. */
+SELECT *
+FROM @this_model
+WHERE esfera IS NOT NULL AND esfera !~ '^[A-Z]{2,4}$';
+
+AUDIT (
+  name referencia_com_artigo_legivel,
+  dialect postgres
+);
+/* `ART:0543B` é o art. 543-B e `ART:00026` é o art. 26; 24.222 tokens são da
+   primeira forma. Lidos do mesmo jeito, 543-B viraria o artigo 5.434 — número
+   plausível, de artigo que não foi citado. */
+SELECT *
+FROM @this_model
+WHERE artigo IS NOT NULL AND artigo !~ '^[0-9]+(-[A-Z])?$';
+
+AUDIT (
+  name referencia_sem_art_colado,
+  dialect postgres
+);
+/* O recorte por artigo usa `ART:` como sentinela. Hoje nenhuma das 1.243.281
+   linhas da origem traz `ART:` colado a outra palavra; o dia em que trouxer, o
+   recorte parte a referência no lugar errado e a tela mostra artigo que não
+   existe — e nada falha sozinho, porque o número continua plausível. */
+SELECT *
+FROM @this_model
+WHERE texto_bruto ~ '[A-Z]ART:';
+
+AUDIT (
+  name referencia_reconhecida_no_limite,
+  standalone true,
+  dialect postgres
+);
+/* O limite da história: acima de 1% de referências não reconhecidas, a carga
+   reprova. Medido em 0,6074% sobre 1.591.067 linhas em 14/11/2026, com as
+   contas em documentation/architecture/legislative-references.md.
+
+   1% dá 65% de folga sobre hoje — nenhuma semana de coleta nova derruba a regra
+   por volume — e é apertado o bastante para não esconder mudança de formato no
+   tribunal: as famílias que desviam hoje têm de 267 a 3.823 linhas, e perder o
+   código de ato de verdade moveria a taxa em pontos inteiros de uma vez.
+
+   `standalone` porque a taxa não é uniforme no tempo: 2003 fecha em 7,2329% e
+   2002 em 5,4594%, contra 0,02% nos anos recentes. Presa ao modelo, a regra
+   leria só a janela recém-escrita e reprovaria uma reconstrução de 2003 por
+   algo que já está medido e documentado. Fora dele lê a tabela inteira, que é
+   onde 1% quer dizer alguma coisa.
+
+   A taxa, e não a contagem: a coleção cresce toda semana, e um teto em número
+   de linhas teria que ser levantado à mão a cada carga — que é como uma guarda
+   deixa de guardar. O piso de cem mil linhas é para o ambiente de amostra, onde
+   proporção nenhuma significa nada. */
+SELECT 1 AS falha
+FROM core.referencia_legislativa
+HAVING COUNT(*) > 100000
+   AND COUNT(*) FILTER (WHERE NOT reconhecida) > COUNT(*) * 0.01;
+
+AUDIT (
   name tese_sem_secao_seguinte,
   dialect postgres
 );
@@ -318,25 +379,6 @@ SELECT *
 FROM @this_model
 WHERE tese IS NOT NULL
   AND tese ~* '(Dispositivos?[[:space:]]+relevantes?|Jurisprud[eê]ncia[[:space:]]+relevante)';
-
-AUDIT (
-  name tese_com_cobertura,
-  dialect postgres
-);
-/* No dia em que o rótulo mudar de redação, a extração para de casar e a coluna
-   fica nula em silêncio — a tela mostra "sem tese" para a coleção inteira, com
-   aparência de funcionamento normal. O piso é 4%: medido em 5,6% sobre
-   984.824 decisões, e a tendência sobe porque o padrão do CNJ é de 2024.
-
-   O piso só vale a partir de 100 mil linhas. Porcentagem não distingue "a
-   extração quebrou" de "esta tabela é uma amostra": num ambiente com dez
-   registros de desenvolvimento a cobertura é zero e isso é o esperado, não
-   defeito. Sem essa condição a auditoria reprova todo ambiente que não seja o
-   de produção, e quem a vê falhar aprende a ignorá-la. */
-SELECT 1 AS falha
-FROM @this_model
-HAVING COUNT(*) > 100000
-   AND COUNT(*) FILTER (WHERE tese IS NOT NULL) < COUNT(*) * 0.04;
 
 AUDIT (
   name doutrina_de_acesso_aberto,
@@ -564,3 +606,226 @@ FROM @this_model
 HAVING COUNT(*) FILTER (WHERE url_fonte IS NOT NULL) > 10000
    AND COUNT(*) FILTER (WHERE url_compartilhada)
        > COUNT(*) FILTER (WHERE url_fonte IS NOT NULL) * 0.02;
+
+AUDIT (
+  name termo_frequente_acima_do_teto,
+  dialect postgres
+);
+/* O piso de 16.000 decisões não é número redondo: é o teto de 2 s dividido
+   pelos 12,5 MB/s que o disco da produção entrega, convertido em decisões a
+   1.574 bytes de tsvector cada. Se alguém baixar o piso sem refazer a conta, a
+   tabela cresce para servir buscas que já eram rápidas; se subir, buscas
+   lentas ficam de fora e a história volta a falhar em silêncio. */
+SELECT *
+FROM @this_model
+WHERE decisoes < 16000;
+
+AUDIT (
+  name busca_ampla_cobre_todo_termo_frequente,
+  dialect postgres
+);
+/* Termo que passou do piso e não tem página materializada é uma busca que
+   continua levando 95 s, e nada na tela diria isso: a resposta é a mesma, só
+   demora. Cada termo tem mil linhas, ou todas as suas decisões se forem menos
+   de mil — o que não acontece acima do piso, mas o LEAST deixa a regra
+   verdadeira em ambiente de amostra. */
+SELECT t.lexema, t.decisoes, COALESCE(b.linhas, 0) AS linhas
+FROM core.termo_frequente AS t
+LEFT JOIN (
+  SELECT lexema, COUNT(*) AS linhas
+  FROM @this_model
+  GROUP BY lexema
+) AS b
+  ON b.lexema = t.lexema
+WHERE COALESCE(b.linhas, 0) <> LEAST(t.decisoes, 1000);
+
+AUDIT (
+  name busca_ampla_na_mesma_ordem,
+  dialect postgres
+);
+/* O valor guardado tem que ser o `ts_rank` de verdade, não um parecido. Esta é
+   a regra que pega o erro que destruiria a história sem derrubar nada: se a
+   configuração de busca mudar, ou se o lexema for radicalizado de novo na
+   construção, o ranking continua existindo e continua rápido — só deixa de ser
+   o ranking da busca, e a primeira página passa a mostrar outra coisa.
+
+   Confere a primeira posição de cada termo, não as mil: um erro desses é
+   sistêmico, aparece na primeira linha, e conferir 1.183 linhas custa
+   segundos enquanto conferir 1,2 milhão custa uma reconstrução. */
+SELECT b.lexema, b.rank, TS_RANK(d.ementa_busca, QUOTE_LITERAL(b.lexema)::TSQUERY) AS rank_recalculado
+FROM @this_model AS b
+JOIN core.decisao AS d
+  ON d.fonte_codigo = b.fonte_codigo
+ AND d.identificador_fonte = b.identificador_fonte
+WHERE b.posicao = 1
+  AND b.rank IS DISTINCT FROM TS_RANK(d.ementa_busca, QUOTE_LITERAL(b.lexema)::TSQUERY)::REAL;
+
+AUDIT (
+  name cobertura_preenchida,
+  dialect postgres
+);
+/* Fonte que entregou item datado tem que ter período, e período tem que ter
+   precisão declarada. Vazio aqui não dá erro: a tela de cobertura mostra a
+   fonte sem data, e quem lê conclui que a fonte é nova em vez de concluir que
+   a nossa medição falhou. É a regressão que o SCRUM-156 descreve — as duas
+   colunas ficaram vazias por uma sprint inteira sem nada reclamar.
+
+   A comparação é com `itens_sem_data`, não com zero: fonte cujos itens não
+   têm data nenhuma — as súmulas reconstruídas são o caso — fica sem período
+   legitimamente, e exigir um aqui obrigaria a inventá-lo. */
+SELECT *
+FROM @this_model
+WHERE (itens > itens_sem_data AND (cobertura_inicio IS NULL OR cobertura_fim IS NULL))
+   OR (itens = 0 AND precisao <> 'nenhuma')
+   OR itens_sem_data > itens
+   OR cobertura_fim < cobertura_inicio
+   OR precisao NOT IN ('dia', 'ano', 'nenhuma');
+
+AUDIT (
+  name carga_de_fonte_conhecida,
+  standalone true,
+  dialect postgres
+);
+/* Carga atribuída a código que não está em core.fonte fica órfã: não aparece
+   em nenhuma fonte na tela de cobertura, não dá erro, e a fonte de verdade
+   passa a parecer nunca coletada. Fonte nula é permitida de propósito — é a
+   execução que terminou sem gravar nada, e o dlt não diz qual fonte rodou.
+
+   `standalone` porque o SQLMesh só remapeia, dentro de uma auditoria, os
+   modelos que são dependência do modelo auditado — e `core.carga` não lê
+   `core.fonte`. Presa ao modelo, esta regra conferia as cargas recém-escritas
+   contra a view `core.fonte` ANTERIOR, que a promoção ainda não trocou.
+
+   O efeito era impedir qualquer fonte nova de entrar no acervo: a carga do STF
+   trazia 'stf-jurisprudencia', o catálogo publicado ainda tinha quatro códigos,
+   e o plano reprovava. Reprovava também no replan, porque a promoção depende do
+   plano passar — um impasse que não aparece em nenhuma mensagem de erro.
+   Standalone, a regra é nó próprio, as duas tabelas são dependências dela, e as
+   duas vêm da mesma construção. */
+SELECT c.*
+FROM core.carga AS c
+LEFT JOIN core.fonte AS f
+  ON f.codigo = c.fonte_codigo
+WHERE c.fonte_codigo IS NOT NULL
+  AND f.codigo IS NULL;
+
+AUDIT (
+  name termo_judicial_acima_do_piso,
+  dialect postgres
+);
+/* Os mesmos dois cortes do vocabulário da doutrina, pelas mesmas razões: peso
+   abaixo de 2,0 é palavra que aparece em mais de 134.133 decisões e não
+   distingue uma da outra; radical de três letras é acidente do radicalizador,
+   e `via` ligaria "via adequada" a "terceira via". */
+SELECT *
+FROM @this_model
+WHERE peso < 2.0
+   OR LENGTH(termo) < 4;
+
+AUDIT (
+  name termo_judicial_com_cobertura,
+  dialect postgres
+);
+/* Esta tabela nasce de `ementa_busca`. Se a construção daquele tsvector
+   quebrar, ela encolhe em silêncio e a tela deixa de sugerir decisões
+   próximas, com cara de acervo sem nada parecido. Medido em 11/11/2026:
+   540.103 termos para 991.163 decisões; em 18/11/2026, com o STF no acervo,
+   592.962 para 1.360.708. O piso é de um décimo de termo por
+   decisão — longe do medido, porque o que ele precisa pegar é o colapso, não
+   a variação — e só vale a partir de 100 mil decisões, para não reprovar um
+   ambiente de desenvolvimento com uma amostra. */
+SELECT 1 AS falha
+FROM @this_model
+HAVING (SELECT COUNT(*) FROM core.decisao) > 100000
+   AND COUNT(*) < (SELECT COUNT(*) FROM core.decisao) / 10;
+
+AUDIT (
+  name norma_positiva,
+  dialect postgres
+);
+/* Norma zero ou negativa quebraria o cosseno — a primeira por divisão por
+   zero, a segunda invertendo a ordem das sugestões sem erro nenhum. Nenhuma
+   das duas é possível pela fórmula, que soma quadrados: esta regra existe
+   para que, se alguém mudar a fórmula, a mudança apareça aqui e não na tela. */
+SELECT *
+FROM @this_model
+WHERE norma <= 0;
+AUDIT (
+  name contraria_tem_motivo,
+  dialect postgres
+);
+/* Par sem motivo é a falha que esta história existe para evitar: uma lista de
+   "contrárias" sem dizer em que divergem é ruído com cara de análise. O motivo
+   é o precedente disputado mais as duas aderências, e elas têm que ser de fato
+   opostas — uma seguiu, a outra afastou ou distinguiu. Aderências iguais, ou
+   `mencionou` e `indeterminado` de qualquer lado, não são discordância. */
+SELECT *
+FROM @this_model
+WHERE corte IS NULL
+   OR tipo IS NULL
+   OR numero IS NULL
+   OR NOT (
+        (aderencia = 'seguiu' AND contraria_aderencia IN ('afastou', 'distinguiu'))
+     OR (contraria_aderencia = 'seguiu' AND aderencia IN ('afastou', 'distinguiu'))
+      );
+
+AUDIT (
+  name contraria_nao_e_ela_mesma,
+  dialect postgres
+);
+/* Decisão contrária a si mesma passaria despercebida na tela — apareceria como
+   uma sugestão a mais, com semelhança 1,0 e o mesmo processo dos dois lados. */
+SELECT *
+FROM @this_model
+WHERE fonte_codigo = contraria_fonte
+  AND identificador_fonte = contraria_identificador;
+
+AUDIT (
+  name contraria_e_simetrica,
+  dialect postgres
+);
+/* Quem lê a decisão que seguiu o precedente e quem lê a que o afastou têm que
+   receber a mesma resposta. Uma direção faltando não dá erro em lugar nenhum:
+   a tela simplesmente diz que não há contrária conhecida, que é a resposta
+   normal em cinco de cada seis decisões e por isso não chama atenção. */
+SELECT a.*
+FROM @this_model AS a
+LEFT JOIN @this_model AS b
+  ON b.fonte_codigo = a.contraria_fonte
+ AND b.identificador_fonte = a.contraria_identificador
+ AND b.contraria_fonte = a.fonte_codigo
+ AND b.contraria_identificador = a.identificador_fonte
+ AND b.corte = a.corte AND b.tipo = a.tipo AND b.numero = a.numero
+WHERE b.fonte_codigo IS NULL;
+
+AUDIT (
+  name contraria_acima_do_piso,
+  dialect postgres
+);
+/* O piso de peso é o que separa um precedente de assunto de uma súmula de
+   admissibilidade citada por todo o acervo. Se ele cair, a tabela incha com
+   pares que dividem só a postura processual — e incha calada, porque cada
+   linha continua tendo precedente e aderências opostas.
+
+   Lê `peso_precedente` da própria linha, e não `core.precedente_judicial`. A
+   primeira versão consultava a tabela de pesos e falhou na estreia: auditoria
+   roda antes da promoção, então a view do modelo novo ainda não existe. Pior
+   que falhar, se existisse: ela seria a view publicada, de uma carga anterior,
+   conferindo os pares de hoje contra os pesos de antes. Quem confere o peso na
+   fonte é `precedente_judicial_com_peso`. */
+SELECT *
+FROM @this_model
+WHERE peso_precedente IS NULL OR peso_precedente < 6.0;
+
+AUDIT (
+  name precedente_judicial_com_peso,
+  dialect postgres
+);
+/* Precedente sem peso, ou com peso zero, passa calado: ele simplesmente nunca
+   alcança o piso de nenhum consumidor e desaparece da conta. Peso zero quer
+   dizer citado por todas as decisões do acervo, o que nenhum precedente real
+   é — na prática significa que a contagem do acervo e a de citações vieram de
+   versões diferentes da tabela. */
+SELECT *
+FROM @this_model
+WHERE peso IS NULL OR peso <= 0 OR decisoes < 1;

@@ -18,5 +18,9 @@ pythonpath = ["."]
 
 [dependency-groups]
 dev = [
+    # Only the tests use it. The pipeline itself talks to PostgreSQL through
+    # dlt and SQLMesh, which bring psycopg2; the tests build models and compare
+    # the rows, and psycopg3's connection reads better for that.
+    "psycopg[binary]>=3.2.0",
     "pytest>=9.1.1",
 ]

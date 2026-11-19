@@ -6,14 +6,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.decisions import (
+    BROAD_TERM_SQL,
     COUNT_SQL,
-    DETAIL_SQL,
     HIGHLIGHT_SQL,
     MAX_SNIPPET_WORDS,
     PAGE_SQL,
     PRECEDENTS_SQL,
+    PUBLISHED_SQL,
+    _broad_page_sql,
+    _detail_sql,
     _fallback_ementa_start,
     _normalize_highlighted_text,
+    _page_sql,
     _safe_snippet,
 )
 from app.db import get_connection
@@ -73,10 +77,20 @@ class FakeCursor:
     def __exit__(self, *_: object) -> None:
         return None
 
-    def execute(self, statement: str, parameters: dict[str, Any]) -> None:
+    def execute(self, statement: str, parameters: dict[str, Any] | None = None) -> None:
+        # Optional, as psycopg has it: a statement with nothing to fill in is
+        # executed with one argument.
+        parameters = parameters or {}
         self.database.statements.append(statement)
         self.database.parameters.append(parameters)
-        self.result = self.database.answer(statement, parameters)
+        # Always answered, even where a test installs its own answers: this is
+        # what decides which SQL the code then builds, and a test that left it
+        # unanswered would exercise a shape no real environment has.
+        self.result = (
+            self.database.published()
+            if statement == PUBLISHED_SQL
+            else self.database.answer(statement, parameters)
+        )
 
     def fetchone(self) -> dict[str, Any] | None:
         return self.result[0] if self.result else None
@@ -89,6 +103,16 @@ class FakeDatabase:
     def __init__(self, total: int = 1, found: bool = True) -> None:
         self.total = total
         self.found = found
+        # No pre-ranked term unless a test asks for one, so every test written
+        # before `core.busca_ampla` existed still describes the path it was
+        # written about.
+        self.broad_term: str | None = None
+        # The base in front of the server carries the ranking unless a test
+        # says it does not.
+        self.ranking_published = True
+        # Same for the shared-link table, which is published by the same hand
+        # and can equally be absent while the application is already up.
+        self.shared_published = True
         self.precedents: list[dict[str, Any]] = []
         self.statements: list[str] = []
         self.parameters: list[dict[str, Any]] = []
@@ -99,17 +123,31 @@ class FakeDatabase:
     def _default_answer(
         self, statement: str, parameters: dict[str, Any]
     ) -> list[dict[str, Any]]:
+        if statement == BROAD_TERM_SQL:
+            if self.broad_term is None:
+                return []
+            return [{"lexema": self.broad_term, "decisoes": self.total}]
+        if statement == _broad_page_sql(self.shared_published):
+            return [MATCHING_ROW] * min(self.total, parameters["limit"])
         if statement == COUNT_SQL:
             return [{"total": self.total}]
-        if statement == PAGE_SQL:
+        if statement == _page_sql(published=self.shared_published):
             return [MATCHING_ROW] * min(self.total, parameters["limit"])
-        if statement == DETAIL_SQL:
+        if statement == _detail_sql(self.shared_published):
             return [DETAIL_ROW] if self.found else []
         if statement == HIGHLIGHT_SQL:
             return [{"highlighted": "Ementa: <mark>Dano</mark> moral configurado."}]
         if statement == PRECEDENTS_SQL:
             return self.precedents
         raise AssertionError(f"unexpected statement: {statement}")
+
+    def published(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "ranking": self.ranking_published,
+                "compartilhada": self.shared_published,
+            }
+        ]
 
     def cursor(self) -> FakeCursor:
         return FakeCursor(self)
@@ -257,8 +295,119 @@ def test_search_without_filter_runs_the_statements_it_ran_before(
 ) -> None:
     client.get("/decisions", params={"q": "dano moral"})
 
-    assert database.statements == [COUNT_SQL, PAGE_SQL]
+    assert database.statements == [
+        PUBLISHED_SQL,
+        BROAD_TERM_SQL,
+        COUNT_SQL,
+        PAGE_SQL,
+    ]
     assert not {"tribunais", "date_from", "date_to"} & set(database.parameters[0])
+
+
+def test_a_pre_ranked_term_never_runs_the_count(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    """
+    The count is the other half of the 95 seconds: counting 765,840 matches
+    needs the same scan as ranking them. A term that has a stored page has a
+    stored total too, so neither statement runs.
+    """
+    database.broad_term = "recurs"
+    database.total = 765840
+
+    body = client.get("/decisions", params={"q": "recurso"}).json()
+
+    assert database.statements == [
+        PUBLISHED_SQL,
+        BROAD_TERM_SQL,
+        _broad_page_sql(True),
+    ]
+    assert COUNT_SQL not in database.statements
+    assert PAGE_SQL not in database.statements
+    assert body["total"] == 765840
+
+
+def test_a_base_without_the_ranking_answers_the_old_way(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    """
+    A deploy can land before the base that goes with it. The search then has to
+    be slow, not broken: naming a table that is not there would answer 500 to
+    every search in the product, while the path it replaced is still present
+    and still right.
+    """
+    database.ranking_published = False
+    database.broad_term = "recurs"
+    database.total = 765840
+
+    body = client.get("/decisions", params={"q": "recurso"}).json()
+
+    assert database.statements == [PUBLISHED_SQL, COUNT_SQL, PAGE_SQL]
+    assert BROAD_TERM_SQL not in database.statements
+    assert _broad_page_sql(True) not in database.statements
+    assert body["total"] == 765840
+
+
+def test_a_base_without_the_shared_table_still_answers(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    """
+    `url_compartilhada` left `core.decisao` for a table of its own, and the two
+    do not arrive together: the application deploys on merge, the treated data
+    is published afterwards by hand. In between, a query that named the table
+    would answer 500 to every search in the product.
+
+    The warning is what goes missing, not the search. A link that reaches two
+    decisions reads as an ordinary link until the table lands, which is exactly
+    what the screen said before the warning existed.
+    """
+    database.shared_published = False
+    database.total = 1
+
+    answer = client.get("/decisions", params={"q": "dano moral"})
+
+    assert answer.status_code == 200
+    assert answer.json()["results"][0]["source_url_shared"] is False
+    assert "LEFT JOIN core.url_compartilhada" not in "".join(database.statements)
+
+
+def test_the_detail_of_a_base_without_the_shared_table_still_answers(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.shared_published = False
+
+    answer = client.get("/decisions/tjdft-jurisdf/2084700")
+
+    assert answer.status_code == 200
+    assert answer.json()["source_url_shared"] is False
+    assert "LEFT JOIN core.url_compartilhada" not in "".join(database.statements)
+
+
+def test_the_shared_table_is_read_once_it_is_published(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    """The join appears the moment the table does, with nobody restarting."""
+    database.shared_published = True
+    database.total = 1
+
+    client.get("/decisions", params={"q": "dano moral"})
+
+    assert "LEFT JOIN core.url_compartilhada" in "".join(database.statements)
+
+
+def test_a_pre_ranked_term_asks_the_ranking_table_for_the_page(
+    client: TestClient, database: FakeDatabase
+) -> None:
+    database.broad_term = "recurs"
+    database.total = 765840
+
+    client.get("/decisions", params={"q": "recurso", "page": 3, "page_size": 20})
+
+    pagina = database.parameters[database.statements.index(_broad_page_sql(True))]
+
+    assert pagina["lexema"] == "recurs"
+    assert pagina["offset"] == 40
+    assert pagina["limit"] == 20
 
 
 def test_blank_and_repeated_tribunais_are_ignored(
@@ -271,7 +420,9 @@ def test_blank_and_repeated_tribunais_are_ignored(
         params={"q": "dano moral", "tribunal": ["TJDFT", " ", "STJ", "TJDFT"]},
     )
 
-    assert database.parameters[0]["tribunais"] == ["TJDFT", "STJ"]
+    narrowed = next(p for p in database.parameters if "tribunais" in p)
+
+    assert narrowed["tribunais"] == ["TJDFT", "STJ"]
 
 
 def test_search_filters_by_one_tribunal(
@@ -703,7 +854,13 @@ def test_the_range_ends_on_the_total_when_the_page_is_the_last_one(
     client: TestClient, database: FakeDatabase
 ) -> None:
     database.answer = lambda statement, parameters: (
-        [{"total": 3}] if statement.startswith(COUNT_SQL) else [MATCHING_ROW]
+        [{"publicado": True}]
+        if statement == PUBLISHED_SQL
+        else []
+        if statement == BROAD_TERM_SQL
+        else [{"total": 3}]
+        if statement.startswith(COUNT_SQL)
+        else [MATCHING_ROW]
     )
 
     body = client.get(
@@ -792,7 +949,6 @@ def test_detail_looks_the_decision_up_by_its_natural_key(
 ) -> None:
     client.get("/decisions/tjdft-jurisdf/2084700")
 
-    assert database.parameters[0] == {
-        "source": "tjdft-jurisdf",
-        "identifier": "2084700",
-    }
+    asked = next(p for p in database.parameters if "identifier" in p)
+
+    assert asked == {"source": "tjdft-jurisdf", "identifier": "2084700"}
