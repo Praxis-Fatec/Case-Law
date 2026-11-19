@@ -1,7 +1,9 @@
 name: Deploy — producao
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [producao]
   workflow_dispatch:
 
@@ -14,6 +16,9 @@ permissions:
   packages: write
 
 env:
+  # `workflow_run` runs in a context of its own, where `github.sha` is the
+  # default branch's head rather than the commit the checks passed on.
+  REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
   IMAGE: ghcr.io/praxis-fatec/case-law-backend
   FRONTEND_IMAGE: ghcr.io/praxis-fatec/case-law-frontend
   REMOTE_DIR: case-law-prod
@@ -22,9 +27,14 @@ jobs:
   build:
     name: Build the backend image
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REVISION }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -43,7 +53,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:producao
-            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:${{ env.REVISION }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -55,7 +65,7 @@ jobs:
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:producao
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:${{ env.REVISION }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -67,6 +77,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REVISION }}
 
       - name: Join the tailnet
         uses: tailscale/github-action@v3
@@ -116,4 +128,4 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           ssh -i ~/.ssh/deploy "$VPS_USER@$VPS_HOST" \
-            "BACKEND_IMAGE='$IMAGE:${{ github.sha }}' PRUNE_IMAGES=false bash ~/$REMOTE_DIR/release.sh"
+            "BACKEND_IMAGE='$IMAGE:${{ env.REVISION }}' PRUNE_IMAGES=false bash ~/$REMOTE_DIR/release.sh"
