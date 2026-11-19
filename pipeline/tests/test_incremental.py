@@ -151,6 +151,13 @@ SELECT 'stj-espelhos',
        )
 FROM raw.espelho_stj
 WHERE COALESCE(TRIM(ementa), '') <> ''
+UNION ALL
+SELECT 'stf-jurisprudencia',
+       "_id",
+       COALESCE(NULLIF(julgamento_data, '')::DATE, NULLIF(publicacao_data, '')::DATE)
+FROM raw.acordao_stf
+WHERE COALESCE(TRIM(ementa_texto), '') <> ''
+  AND UPPER(UNACCENT(TRIM(ementa_texto))) !~ '^ACORDAO SEM EMENTA\\.?$'
 """
 
 
@@ -169,9 +176,16 @@ def test_nenhuma_decisao_da_origem_fica_de_fora(
     """
     semana_a_semana(acervo, contexto, "core.decisao", "core.decisao_incremental")
 
+    # Bounded by the same range the windows cover. The collection reaches back
+    # to 1892 since the STF arrived, and walking it week by week here would be
+    # three thousand builds to prove something the 2026 rows already prove. The
+    # bound belongs to the comparison, never to the source rules above: moving
+    # it there is how a wrong date filter starts agreeing with itself.
     esperado = acervo.execute(
         f"SELECT fonte_codigo, identificador_fonte, data_referencia"
-        f" FROM ({ORIGEM_SQL}) AS origem ORDER BY 1, 2"
+        f" FROM ({ORIGEM_SQL}) AS origem"
+        f" WHERE data_referencia BETWEEN %s AND %s ORDER BY 1, 2",
+        (PRIMEIRA, ULTIMA),
     ).fetchall()
     construido = acervo.execute(
         "SELECT fonte_codigo, identificador_fonte, data_referencia"

@@ -20,7 +20,16 @@ MODEL (
     -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
     batch_concurrency 1
   ),
-  start '1989-01-01',
+  /* 1989 era a data de criação do STJ, e enquanto a coleção eram STJ e TJDFT
+     nada havia antes dela. O acervo do STF começa em 27/04/1892, e 189.435 dos
+     seus 373.178 acórdãos — 50,8% — são anteriores a 1989. Mantida a data, eles
+     entrariam no `raw` e desapareceriam aqui, sem erro e sem aviso: o SQLMesh
+     só processa intervalos a partir do `start`.
+
+     O custo é uma passada mais longa na reconstrução, não 97 anos de lotes
+     vazios: o modelo não declara `batch_size`, então os intervalos pendentes
+     saem numa execução só. */
+  start '1892-01-01',
   grain (fonte_codigo, identificador_fonte),
   audits (
     not_null(columns := (fonte_codigo, identificador_fonte, identificador_documento, tribunal_sigla, ementa, data_referencia, url_fonte)),
@@ -65,10 +74,15 @@ CREATE STATISTICS IF NOT EXISTS raw_espelho_stj_data_referencia
                TO_DATE((REGEXP_MATCH("dataPublicacao", '(\d{2}/\d{2}/\d{4})'))[1], 'DD/MM/YYYY')))
   FROM raw.espelho_stj;
 
+CREATE STATISTICS IF NOT EXISTS raw_acordao_stf_data_referencia
+  ON (COALESCE(NULLIF(julgamento_data, '')::DATE, NULLIF(publicacao_data, '')::DATE))
+  FROM raw.acordao_stf;
+
 /* Sem isto a estatística declarada acima fica vazia até o próximo autovacuum,
    e a primeira execução paga o plano ruim. Custa 1,1 s nas duas tabelas. */
 ANALYZE raw.acordao_tjdft;
 ANALYZE raw.espelho_stj;
+ANALYZE raw.acordao_stf;
 JINJA_END;
 
 /*
@@ -106,6 +120,23 @@ classe AS (
     LEFT JOIN arvore_classe AS a USING (codigo_cnj)
   ) AS x
   ORDER BY chave, (raiz = 5) DESC, codigo_cnj
+),
+
+/* O mesmo desempate para o STF, que tem subárvore própria no CNJ: raiz 1310,
+   67 classes. Sem ele "Agravo Regimental" cai na primeira raiz que tiver o
+   nome — o código cível 206, não o 1321 do Supremo. */
+classe_stf AS (
+  SELECT DISTINCT ON (chave) chave, codigo_cnj
+  FROM (
+    SELECT
+      s.codigo_cnj,
+      COALESCE(a.raiz, 0) AS raiz,
+      UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
+      TRANSLATE(s.nome, E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))) AS chave
+    FROM core.classe_processual AS s
+    LEFT JOIN arvore_classe AS a USING (codigo_cnj)
+  ) AS x
+  ORDER BY chave, (raiz = 1310) DESC, codigo_cnj
 ),
 
 -- The STJ writes the same organ both with and without accents. Whichever
@@ -174,6 +205,63 @@ coletado AS (
     ON ce.chave = REGEXP_REPLACE(UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
       TRANSLATE(e."descricaoClasse", E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))), '\s+(NOS|NAS|NO|NA|EM)\s+.*$', '')
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
+
+  UNION ALL
+
+  /* O STF não publica dado aberto: isto vem do serviço por trás da pesquisa de
+     jurisprudência do próprio Tribunal. O levantamento das alternativas está em
+     `documentation/architecture/stf-source.md`, e a situação da fonte na linha
+     `stf-jurisprudencia` do seed. */
+  SELECT
+    a."_id"                                                  AS identificador,
+    /* O endereço do inteiro teor muda de forma com a época: dos 373.178
+       acórdãos carregados, 68,0% abrem por `numero` e `classe` e 32,0% por
+       `idDocumento`. Nenhum veio sem endereço. Como o nome do parâmetro varia,
+       o token é a query inteira e o template do seed guarda só o caminho. */
+    NULLIF(REGEXP_REPLACE(a.inteiro_teor_url, '^[^?]*\?', ''), '')
+                                                             AS identificador_documento,
+    NULLIF(a.julgamento_data, '')::DATE                      AS data_julgamento,
+    NULLIF(a.publicacao_data, '')::DATE                      AS data_publicacao,
+    NULLIF(TRIM(a.processo_codigo_completo), '')             AS processo,
+    NULLIF(TRIM(a.orgao_julgador), '')                       AS orgao_julgador,
+    COALESCE(
+      NULLIF(TRIM(a.relator_acordao_nome), ''),
+      NULLIF(TRIM(a.relator_processo_nome), '')
+    )                                                        AS relator,
+    cs.codigo_cnj                                            AS classe_cnj,
+    a.ementa_texto                                           AS ementa,
+    NULLIF(TRIM(a.acordao_ata), '')                          AS decisao_texto,
+    FALSE                                                    AS turma_recursal,
+    (a.inteiro_teor_url IS NOT NULL)                          AS possui_inteiro_teor,
+    a._dlt_load_id                                           AS carga_id,
+    'stf-jurisprudencia'                                     AS fonte_codigo
+  FROM raw.acordao_stf AS a
+  /* O STF nomeia a classe pela escada inteira e abreviada: "EMB.DECL.NO
+     AG.REG.NO AGRAVO DE INSTRUMENTO". A classe é a mais externa, como no STJ —
+     os embargos, não o agravo em que foram opostos. Expandir as cinco
+     abreviaturas, tirar o ordinal da frente ("SEGUNDO AGRAVO REGIMENTAL") e
+     cortar no primeiro conectivo casa 369.273 dos 373.178 acórdãos — 98,95%.
+     Os 3.905 restantes são incidentes que o CNJ não classifica — referendo,
+     diligência, repercussão geral — e ficam sem código. */
+  LEFT JOIN classe_stf AS cs
+    ON cs.chave = TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+         REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+         REGEXP_REPLACE(UPPER(UNACCENT(a.processo_classe_processual_unificada_extenso)),
+           'AG\.REG\.\s*',    'AGRAVO REGIMENTAL ',      'g'),
+           'EMB\.DECL\.\s*',  'EMBARGOS DE DECLARACAO ', 'g'),
+           'EMB\.INFR?\.\s*', 'EMBARGOS INFRINGENTES ',  'g'),
+           'EMB\.DIV\.\s*',   'EMBARGOS DIVERGENTES ',   'g'),
+           '\s+', ' ', 'g'),
+         '^(PRIMEIR|SEGUND|TERCEIR|QUART|QUINT|SEXT|SETIM|OITAV|NON|DECIM)[AO]S?\s+', ''),
+         '\s+(NOS|NAS|NO|NA|EM|DOS|DAS|DO|DA)\s+.*$', ''),
+         '\s+$', ''))
+  /* "Acórdão sem ementa." é o texto que a fonte grava quando não tem ementa:
+     3.608 acórdãos, 0,97% do acervo carregado, mais 16 de ementa realmente
+     vazia. Não sendo vazio, `ementa_nao_vazia` deixa passar — mas é um rótulo,
+     não um texto: entraria no índice de busca, casaria com quem procurasse
+     "ementa" e contaria como decisão com conteúdo. */
+  WHERE COALESCE(TRIM(a.ementa_texto), '') <> ''
+    AND UPPER(UNACCENT(TRIM(a.ementa_texto))) !~ '^ACORDAO SEM EMENTA\.?$'
 ),
 
 /*
@@ -199,8 +287,10 @@ bruto AS (
   A tese que o próprio tribunal escreveu, quando escreveu.
 
   Desde 2024 o CNJ pede uma ementa em quatro seções, e a quarta é "DISPOSITIVO
-  E TESE". Dentro dela o relator rotula o que firmou. 54.918 decisões trazem o
-  rótulo — 34,5% do TJDFT e 2,0% do STJ, que tem acervo desde 1989.
+  E TESE". Dentro dela o relator rotula o que firmou. 58.202 decisões trazem o
+  rótulo — 34,7% do TJDFT, 2,0% do STJ e 0,2% do STF. A proporção acompanha a
+  idade do acervo, não a qualidade da fonte: o padrão é de 2024, o STJ tem
+  acervo desde 1989 e o do STF começa em 1892.
 
   Os dois-pontos são obrigatórios: sem eles o padrão pega prosa, como em "tese
   de julgamento extra petita", e contamina 3.925 decisões do STJ.

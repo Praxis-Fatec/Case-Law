@@ -24,7 +24,7 @@ MODEL (
   de óleo era um artigo sobre prescrição de ação acidentária.
 
   O peso é a raridade do termo na linguagem judicial, não no acervo de
-  doutrina. Medido sobre as 991.163 ementas:
+  doutrina. Medido em 25/10/2026, sobre as 991.163 ementas de então:
 
     prov       19,7% das decisões   peso 0,82
     sumula     8.008 decisões       peso 1,07

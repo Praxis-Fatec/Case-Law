@@ -8,7 +8,11 @@ MODEL (
   -- isto o modelo nasce cobrindo só 2026: as decisões anteriores ficam sem
   -- norma, e decisão sem norma nunca é sugerida. Seria um acervo que só
   -- encontra parecidas entre as recentes, sem nada denunciando o corte.
-  start '1989-01-01',
+  /* Acompanha `core.decisao`: o acervo do STF começa em 1892 e metade dele é
+     anterior a 1989. Mantida a data antiga aqui, essas decisões existiriam na
+     coleção sem nunca render referência nem precedente — uma assimetria dentro
+     da mesma fonte, invisível na tela. */
+  start '1892-01-01',
   grain (fonte_codigo, identificador_fonte),
   audits (
     not_null(columns := (fonte_codigo, identificador_fonte, norma)),

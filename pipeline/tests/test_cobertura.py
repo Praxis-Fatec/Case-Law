@@ -101,6 +101,7 @@ def test_toda_fonte_do_catalogo_aparece(cobertura: list[dict[str, Any]]) -> None
         "stj-espelhos",
         "stj-precedentes",
         "stj-bdjur",
+        "stf-jurisprudencia",
     }
 
 
