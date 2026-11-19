@@ -31,6 +31,8 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       ROOT_PATH: ${ROOT_PATH:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-15}
     ports:
       - "${BACKEND_BIND:-127.0.0.1}:8000:8000"
     depends_on:
