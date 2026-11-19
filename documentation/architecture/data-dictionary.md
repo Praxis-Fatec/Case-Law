@@ -345,7 +345,7 @@ Not published to the servers, but part of how the system works.
 
 | Schema | Holds |
 |---|---|
-| `raw` | the sources' own responses, field names unchanged. 2.4 M rows across 13 tables. Includes documents under seal, which is one reason it never leaves the machine that collected it |
+| `raw` | the sources' own responses, field names unchanged. 5.07 M rows across 13 tables. Includes documents under seal, which is one reason it never leaves the machine that collected it |
 | `raw_staging` | dlt's landing area during a load |
 | `sqlmesh__core` | the physical, fingerprinted tables the `core` views read. 103 indexes |
 | `sqlmesh` | SQLMesh's own state: model versions, environments, plan history |

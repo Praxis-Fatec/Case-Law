@@ -42,9 +42,9 @@ Two tools, two jobs:
 
 | Layer | What lives there | Rows today |
 |---|---|---|
-| `raw` | the source's own response, field names and all | 2.4 M across 6 tables |
-| `sqlmesh__core` | the physical, fingerprinted tables SQLMesh builds | 83 indexes |
-| `core` | **views** over the above — the public contract | 1.37 M across 7 tables |
+| `raw` | the source's own response, field names and all | 5.07 M across 13 tables |
+| `sqlmesh__core` | the physical, fingerprinted tables SQLMesh builds | 103 indexes |
+| `core` | **views** over the above — the public contract | 20 views; `core.decisao` alone is 1.36 M rows |
 | published | a materialised copy on each server | `core_publicacao` |
 
 `core` being views matters operationally: `pg_dump --schema core` produces
