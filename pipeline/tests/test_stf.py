@@ -321,3 +321,37 @@ class TestTotal:
         _responde(monkeypatch, _Resposta(200, {"result": {}}))
 
         assert stf.total_available() == 0
+
+
+class TestVerificacaoDeLink:
+    def test_the_record_key_is_what_the_index_is_asked_for(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """
+        The link check is handed the document token beside the record key, and
+        for this source they are not the same thing: the token is a whole query
+        string and the index answers by the record's own id. Asking for the
+        token finds nothing, and "nothing" reads as a broken link — which would
+        have condemned every decision of this source at once.
+        """
+        enviados = _responde(monkeypatch, _Resposta(200, RESPOSTA))
+
+        stf.document_opens(ANTIGO, "numero=1234&classe=HC")
+
+        filtros = enviados[0]["json"]["query"]["bool"]["filter"]
+        assert {"ids": {"values": [ANTIGO]}} in filtros
+
+    def test_a_record_the_index_no_longer_holds_is_invalid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _responde(monkeypatch, _Resposta(200, {"result": {"hits": {"hits": []}}}))
+
+        assert stf.document_opens(ANTIGO) is False
+
+    def test_a_record_without_a_key_is_not_asked_about(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        enviados = _responde(monkeypatch, _Resposta(200, RESPOSTA))
+
+        assert stf.document_opens("") is False
+        assert enviados == []

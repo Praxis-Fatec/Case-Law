@@ -258,9 +258,19 @@ def document_opens(identificador: str, documento: str | None = None) -> bool:
     The search can: a record that is still indexed answers one hit for its own
     id.
 
+    `documento` is accepted so the signature matches the other sources' and
+    ignored, because here the two are not the same thing. The STJ and the TJDFT
+    open a document by the token that also keys it; the STF opens it by a whole
+    query string — `idDocumento=801574455`, or `numero=&classe=` on the older
+    acordaos — while the index answers by the record's own id. Asking the index
+    for the token finds nothing, which reads as "the link is broken": verified
+    against a live record, the key answers True and the token answers False, so
+    taking `documento` first would have reported every decision of this source
+    as a dead link, with no error anywhere.
+
     Raises whatever the request raised, which is not an answer of "invalid".
     """
-    chave = (documento or identificador or "").strip()
+    chave = (identificador or "").strip()
     if not chave:
         return False
 
