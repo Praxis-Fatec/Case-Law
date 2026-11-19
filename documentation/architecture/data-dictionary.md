@@ -99,7 +99,7 @@ everything else either describes it or hangs off it.
 | `turma_recursal` | boolean | 1.6 % true | collected | Whether it came from a small-claims appellate panel. Only the TJDFT has them; `FALSE` for both superior courts |
 | `possui_inteiro_teor` | boolean | 35.5 % true | collected | Whether the full text exists at the source. The jump is the STF, where it is **100 %** — every acordao it publishes carries an address for its own full text, which the STJ's mirrors never do |
 | `url_fonte` | text | 100 % | derived | Link to the official document. Built by substituting `identificador_documento` into the source's template — the APIs do not return a link. Audited to actually contain the identifier |
-| `link_valido` | boolean | **0 %** | verified | Three states: `TRUE` reachable, `FALSE` gone, `NULL` not checked. NULL is not FALSE. Not yet run against the current collection |
+| `link_valido` | boolean | **0 %** | verified | Three states: `TRUE` reachable, `FALSE` gone, `NULL` not checked. NULL is not FALSE. The check writes to `verificacao.link` and this column is filled from it **at build time**, so a verdict reaches the screen only at the next rebuild: 400 STF records are verified and valid there today, and still read NULL here |
 | `carga_id` | varchar | — | lineage | Which extraction run brought it. FK → `core.carga.carga_id` |
 | `carregado_em` | timestamptz | 100 % | lineage | When the transformation last built this row |
 | `ementa_busca` | tsvector | 100 % | derived | Full-text index over `ementa`, using the `portugues_sem_acento` configuration so that accents do not change results |
