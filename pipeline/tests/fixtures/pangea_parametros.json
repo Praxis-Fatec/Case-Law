@@ -1,0 +1,46 @@
+{
+  "orgaos": [
+    {
+      "apelido": null,
+      "descricao": "Supremo Tribunal Federal",
+      "grupoEspecies": 1,
+      "grupoTribunais": null,
+      "sigla": "STF"
+    },
+    {
+      "apelido": null,
+      "descricao": "Superior Tribunal de Justiça",
+      "grupoEspecies": 2,
+      "grupoTribunais": null,
+      "sigla": "STJ"
+    }
+  ],
+  "especies": [
+    {
+      "apelido": null,
+      "descricao": "Súmula",
+      "sigla": "SUM"
+    },
+    {
+      "apelido": null,
+      "descricao": "Incidente de Assunção de Competência",
+      "sigla": "IAC"
+    },
+    {
+      "apelido": null,
+      "descricao": "Súmula Vinculante",
+      "sigla": "SV"
+    },
+    {
+      "apelido": "REsp. Rep.",
+      "descricao": "Recurso Especial Repetitivo",
+      "sigla": "RR"
+    },
+    {
+      "apelido": "Rep. Geral",
+      "descricao": "Tema de Repercussão Geral",
+      "sigla": "RG"
+    }
+  ],
+  "versao": "1.0.2"
+}

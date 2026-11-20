@@ -201,10 +201,20 @@ than fitting one source.
 
 ## core.carga
 
-One row per extraction run — the lineage anchor. **25 rows**, 2026-10-10 to
-2026-11-18, across four sources: 13 TJDFT runs, one each for the STJ's mirrors,
-its qualified precedents, the BDJur and the STF. Eight claim no source, which
-is a state the model keeps rather than guesses at — see `fonte_codigo` below.
+One row per extraction run — the lineage anchor. **26 rows**, 2026-10-10 to
+2026-11-20, across six sources: 13 TJDFT runs, one each for the STJ's mirrors,
+its qualified precedents, the BDJur, the STF and the CNJ's register. Eight
+claim no source, which is a state the model keeps rather than guesses at — see
+`fonte_codigo` below.
+
+The source is attributed by which raw table received rows in the run, because
+dlt does not record the extractor: every collection shares one `pipeline_name`
+and one `_dlt_loads`. That means **one hand-written branch per source**, and a
+source added without its branch does not fail — its runs fall into the
+unclaimed group, and the RF16 screen then states "never collected" about a
+source that delivered. `cnj-bnp` was added to the catalogue and to the
+collection one commit before its branch, so `test_carga.py` now guards the
+link.
 
 | Column | Type | Description |
 |---|---|---|
