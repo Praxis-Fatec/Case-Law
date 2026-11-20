@@ -44,11 +44,17 @@ def detail(client: TestClient, identifier: str) -> dict[str, Any]:
     return dict(response.json())
 
 
-def catalogue(db: psycopg.Connection[DictRow], number: int) -> None:
+def catalogue(
+    db: psycopg.Connection[DictRow],
+    number: int,
+    status: str | None = None,
+    updated_on: str | None = None,
+) -> None:
     db.execute(
-        "INSERT INTO core.precedente (corte, tipo, numero, enunciado, origem)"
-        " VALUES ('STJ', 'sumula', %s, %s, 'reconstruido')",
-        (number, f"Enunciado da Súmula {number}."),
+        "INSERT INTO core.precedente"
+        " (corte, tipo, numero, enunciado, situacao, atualizado_em, origem)"
+        " VALUES ('STJ', 'sumula', %s, %s, %s, %s, 'oficial')",
+        (number, f"Enunciado da Súmula {number}.", status, updated_on),
     )
 
 
@@ -89,7 +95,7 @@ def cited(db_rolled_back: psycopg.Connection[DictRow]) -> psycopg.Connection[Dic
     register(db_rolled_back, "STJ")
     register(db_rolled_back, "TRF1")
 
-    catalogue(db_rolled_back, 7)
+    catalogue(db_rolled_back, 7, "Cancelado", "2026-10-15")
     catalogue(db_rolled_back, 83)
 
     for name in ("a", "b", "c", "d", "silent"):
@@ -223,6 +229,33 @@ def test_the_detail_carries_the_text_when_the_catalogue_has_it(
     assert only["resolved"] is True
     assert only["text"] == "Enunciado da Súmula 7."
     assert only["adherence"] == "seguiu"
+
+
+def test_the_detail_carries_the_standing_of_each_precedent(
+    client: TestClient,
+) -> None:
+    """
+    The whole reason the official register is read. A súmula shown without its
+    situação reads as being in force, and 16 of the ones this collection holds
+    are cancelled.
+    """
+    only = detail(client, "a")["precedents"][0]
+
+    assert only["number"] == 7
+    assert only["status"] == "Cancelado"
+
+
+def test_a_precedent_the_register_does_not_hold_carries_no_standing(
+    client: TestClient,
+) -> None:
+    """
+    Null, not a guess. The screen renders nothing for it rather than something
+    that reads as "in force".
+    """
+    cited_here = detail(client, "d")["precedents"]
+    outside = next(p for p in cited_here if p["number"] == 999)
+
+    assert outside["status"] is None
 
 
 def test_the_most_cited_ranks_by_how_often_the_cut_invokes_each(

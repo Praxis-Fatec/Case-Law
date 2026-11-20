@@ -183,7 +183,7 @@ of the merge, two days after the rest of this document.
 | `url_fonte` | text | **0 %** | Neither register publishes an address per precedent. A documented deviation from the acceptance criterion |
 | `origem` | text | 100 % | Which register the `enunciado` came from: `oficial` (all 3,951 today, the CNJ's BNP), `catalogo` (the STJ open data portal) or `reconstruido` (rebuilt from the collection). The last two are the fallback, and are empty while the register covers everything |
 | `transcricoes` | bigint | **0 %** | How many decisions quoted this exact sentence. Only reconstructed rows carry it, and none is reconstructed today |
-| `atualizado_em` | date | 100 % | When the register last moved this entry. The only date it publishes, and what dates `situacao` |
+| `atualizado_em` | date | 100 % | When the register last moved this entry. The only date it publishes, and what would date `situacao` on screen. **Nothing reads it yet**: the API can only select a column a publication has already carried, and the deploy runs before the publish — reading it on the first deploy would answer 500 on every decision detail until the publish caught up |
 | `carregado_em` | timestamptz | 100 % | When the transformation built this row |
 
 **Why the official register wins.** Súmulas were reconstructed because no public

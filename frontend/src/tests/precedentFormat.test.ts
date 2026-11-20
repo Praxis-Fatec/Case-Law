@@ -6,6 +6,7 @@ import {
   readCitedPrecedents,
   readMostCited,
 } from '../api/precedents';
+import { standingOf } from '../components/precedentFormat';
 
 /**
  * The client reads the answer field by field so that one field the screen
@@ -58,6 +59,39 @@ describe('a cited precedent', () => {
   it('answers an empty list when the block is missing or not a list', () => {
     expect(readCitedPrecedents(undefined)).toEqual([]);
     expect(readCitedPrecedents({ court: 'STJ' })).toEqual([]);
+  });
+});
+
+describe('the standing of a precedent', () => {
+  it('reads the register three casing conventions and all', () => {
+    expect(standingOf('APROVADO')).toBe('current');
+    expect(standingOf('Vigente')).toBe('current');
+    expect(standingOf('Transitado em julgado')).toBe('current');
+    expect(standingOf('Cancelado')).toBe('superseded');
+    expect(standingOf('PUBLICACAO_SUSPENSA')).toBe('pending');
+  });
+
+  it('takes the worse of two states a sentence carries', () => {
+    // The register writes a whole sentence for a tema. Repercussão geral being
+    // recognised does not settle the thesis if the leading case has not ended,
+    // so the second half decides.
+    expect(standingOf('Há repercussão geral. Leading case: transitado em julgado')).toBe('current');
+    expect(standingOf('Há repercussão geral. Leading case: afetado')).toBe('pending');
+    expect(standingOf('Acórdão Publicado (RE Pendente)')).toBe('pending');
+  });
+
+  it('refuses to classify a word that means the text moved', () => {
+    expect(standingOf('ALTERADO')).toBe('unclassified');
+    expect(standingOf('Revisado')).toBe('unclassified');
+  });
+
+  it('never reads something it does not know as in force', () => {
+    expect(standingOf('coisa que o registro ainda nao escreveu')).toBe('unclassified');
+  });
+
+  it('separates carrying no status from carrying an unreadable one', () => {
+    expect(standingOf(null)).toBe('unknown');
+    expect(standingOf('   ')).toBe('unknown');
   });
 });
 
