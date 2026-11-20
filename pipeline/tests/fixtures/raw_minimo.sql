@@ -92,7 +92,8 @@ CREATE TABLE core.precedente (
     data         DATE,
     url_fonte    TEXT,
     origem       TEXT,
-    transcricoes BIGINT
+    transcricoes BIGINT,
+    atualizado_em DATE
 );
 
 INSERT INTO raw.acordao_tjdft

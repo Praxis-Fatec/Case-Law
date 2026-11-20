@@ -200,18 +200,68 @@ The register answers the story's question for every súmula it holds:
 | STJ · 676 súmulas | 646 `Vigente` | 30 | — | — |
 
 Of the precedents the collection already holds and the detail screen already
-shows, **17 do not stand** — and the screen presents all 17 as current, because
-`situacao` is null and the warning is therefore never rendered:
+shows, **16 are cancelled**, and the screen presents every one of them as
+current, because `situacao` is null and the warning is therefore never rendered:
 
 | | How many | Which |
 |---|---:|---|
-| STF súmulas | 2 | 359 (altered), 619 (cancelled) |
-| STJ súmulas | 11 | 68, 94, 212, 222, 256, 276, and five more — all cancelled |
-| STJ temas | 4 | 479, 701, 739, 1055 — all cancelled |
+| STF súmulas | 1 | 619 |
+| STJ súmulas | 11 | 68, 94, 212, 222, 256, 276, 343, 348, 408, 418, 421 |
+| STJ temas | 4 | 479, 701, 739, 1055 |
 
 This is the defect in the story's own words, counted. A lawyer reading one of
-those 17 decisions today is shown a súmula, with its text, and nothing says it
+those 16 decisions today is shown a súmula, with its text, and nothing says it
 was cancelled.
+
+Two more groups are not cancelled and are not plainly in force either, and
+lumping them in with the 16 would be its own error:
+
+- **53 are under way or suspended** — a tema whose leading case has not ended, a
+  súmula whose publication is suspended.
+- **16 carry a word this project will not translate**: 15 temas read `Revisado`
+  and Súmula 359 of the STF reads `ALTERADO`. Both mean the wording moved, and
+  the register hands over the moved wording — so calling them superseded would
+  be as wrong as calling them current. They are shown with the register's own
+  word and a line saying it is not interpreted.
+
+## What the merge produced
+
+Built against the collection on 20/11/2026, with the register loaded into
+`raw.precedente_pangea` and `core.precedente` rendered into a table of its own
+rather than over the published one. **3.951 rows, against 1.525 before:**
+
+| Court / kind | Rows | Origin |
+|---|---:|---|
+| STF / súmula | 734 | official |
+| STF / súmula vinculante | 62 | official |
+| STF / tema | 1.318 | official |
+| STJ / súmula | 676 | official |
+| STJ / tema | 1.161 | official |
+
+Nothing was left with an earlier origin, which is the measured form of "nothing
+disappears": every reconstructed and catalogue precedent has an official
+counterpart that carries a text, so the official row wins all 1.525 of them.
+`situacao` goes from 74,9% filled to **100%**, and the four audits over the
+table pass with no failures — including the unique key, which a merge is the
+natural way to break.
+
+The reconstruction and the catalogue stay in the model as the fallback they now
+are: without a load from the register, the two still build the 1.525, and the
+volume audit's floor is what notices if the register stops answering.
+
+The gain the screen sees is in citation resolution, measured over the 459.800
+links already in `core.decisao_precedente`:
+
+| | Before | After |
+|---|---:|---:|
+| Súmula citations resolved | 380.428 · 97,3% | 391.044 · **100,0%** |
+| Tema citations resolved | 8.841 · 12,9% | 29.366 · **42,8%** |
+| All citations | 389.269 · 84,7% | 420.410 · **91,4%** |
+
+The temas' gap closes by a third rather than entirely, and the reason is on our
+side of the line: 6,3% of tema citations name no court, and a bare "Tema 793"
+identifies no precedent because both courts have one. The register supplies the
+rows those citations would need; it cannot supply the word the court left out.
 
 ## Súmula vinculante needs its own kind
 

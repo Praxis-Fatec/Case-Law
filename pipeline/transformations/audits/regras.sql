@@ -150,25 +150,41 @@ AUDIT (
   dialect postgres
 );
 /* O enunciado é o produto: sem ele, sobra a contagem de citações, que é outra
-   história. Um recorte que pegou pontuação em vez de texto cai aqui. */
+   história. Um recorte que pegou pontuação em vez de texto cai aqui.
+
+   O piso de 40 é regra da reconstrução, onde texto curto é sinal de recorte
+   errado, e não serve para registro oficial — que tem súmula curta de verdade.
+   A menor das 4.457 do BNP é a 237 do STF, "O usucapião pode ser argüído em
+   defesa.", com 39 caracteres: exigir 40 dela reprovaria a carga inteira por
+   uma linha correta. */
 SELECT *
 FROM @this_model
-WHERE LENGTH(BTRIM(COALESCE(enunciado, ''))) < 40;
+WHERE LENGTH(BTRIM(COALESCE(enunciado, '')))
+      < CASE WHEN origem = 'reconstruido' THEN 40 ELSE 20 END;
 
 AUDIT (
   name precedente_com_volume,
   dialect postgres
 );
-/* Se o tribunal mudar a forma de transcrever, o recorte para de casar e a
-   tabela encolhe em silêncio — a tela mostraria menos precedentes sem avisar.
-   As duas origens degradam por motivos diferentes — o tribunal muda a forma de
-   transcrever, ou o portal muda o CSV —, então cada uma tem o próprio piso.
-   Hoje: 371 súmulas reconstruídas e 1.142 temas do catálogo. */
+/* Se a fonte parar de casar, a tabela encolhe em silêncio — a tela mostraria
+   menos precedentes sem avisar.
+
+   O piso era por origem, e deixou de funcionar quando o oficial passou a
+   vencer: os 1.525 precedentes do catálogo e da reconstrução existem todos no
+   BNP, então os dois grupos ficaram vazios, e `HAVING` sobre grupo que não
+   existe nunca dispara. A regra que sobrava reprovava nada.
+
+   Agregado sem GROUP BY devolve uma linha mesmo sobre tabela vazia, e é essa a
+   propriedade que fecha o buraco: sem carga do BNP a tabela cai para os 1.525
+   do catálogo e da reconstrução, e o piso total pega isso. Medido em
+   20/11/2026: 3.951 linhas, todas oficiais — 734 súmulas e 62 vinculantes do
+   STF, 1.318 temas de repercussão geral, 676 súmulas do STJ e 1.161
+   repetitivos. Os 506 restantes do registro são temas sem tese firmada, que
+   são pergunta e não precedente. */
 SELECT 1 AS falha
 FROM @this_model
-GROUP BY origem
-HAVING (origem = 'reconstruido' AND COUNT(*) < 300)
-    OR (origem = 'catalogo' AND COUNT(*) < 1000);
+HAVING COUNT(*) < 3500
+    OR COUNT(*) FILTER (WHERE origem = 'oficial') < 3500;
 
 AUDIT (
   name citacao_de_tipo_conhecido,

@@ -46,7 +46,7 @@ dimensions surround it, and a bridge carries the many-to-many to precedents.
 | Dimension | `core.classe_processual` | one CNJ procedural class |
 | Dimension | `core.carga` | one extraction run — the lineage dimension, which answers *how old is this* |
 | **Bridge** | `core.decisao_precedente` | one citation of one precedent by one decision |
-| Dimension | `core.precedente` | one súmula or tema |
+| Dimension | `core.precedente` | one súmula, súmula vinculante or tema |
 
 Two modelling decisions are deliberate and worth stating, because both trade a
 normal-form virtue for something the product needs more:
@@ -139,7 +139,7 @@ Súmula 7/STJ alone appears in 128,237 of them.
 | `tipo` | text | 100 % | Domain: `sumula` (391,126), `tema` (68,674) |
 | `numero` | bigint | 100 % | The precedent's number |
 | `trecho` | text | 100 % | 220 characters of the ementa around the citation. **Cut by position, not captured by the same expression** — capturing context made one citation swallow the next, which cost 5.07 % of the links |
-| `resolvida` | boolean | 84.7 % true | Whether the citation matched a row in `core.precedente` — **97.3 % for súmulas, 12.9 % for temas**. The gap is almost entirely the STF's: `core.precedente` holds temas from the STJ's open data portal, and the STF's repercussão geral temas have no catalogue there to match. Unresolved links are **kept on purpose**: discarding them would hide how big the gap is, and the gap is the measure that says whether widening collection is worth it |
+| `resolvida` | boolean | 91.4 % true | Whether the citation matched a row in `core.precedente` — **100 % for súmulas, 42.8 % for temas**, measured over the 459,800 links against the register loaded on 2026-11-20. It was 84.7 % before, and the STF's temas were the whole of the gap: no catalogue published them. What is left is on our side of the line — 6.3 % of tema citations name no court, and a bare "Tema 793" identifies no precedent because both courts have one. Unresolved links are **kept on purpose**: discarding them would hide how big the gap is, and the gap is the measure that says whether widening collection is worth it |
 | `aderencia` | text | 75.8 %¹ | How the court used it. Domain: `seguiu`, `afastou`, `distinguiu` |
 | `carregado_em` | timestamptz | 100 % | When the transformation built this row |
 
@@ -167,35 +167,44 @@ admissibility more than it describes adherence on the merits. Excluding STJ 5,
 
 ## core.precedente
 
-What the higher courts settled, and that decisions cite. **1,525 rows.**
+What the higher courts settled, and that decisions cite. **3,951 rows.**
 
-**Grain:** `(corte, tipo, numero)`.
+**Grain:** `(corte, tipo, numero)`. Figures below are from the 2026-11-20 build
+of the merge, two days after the rest of this document.
 
 | Column | Type | Fill | Description |
 |---|---|---|---|
 | `corte` | text | 100 % | `STJ` or `STF` |
-| `tipo` | text | 100 % | `sumula` or `tema` |
+| `tipo` | text | 100 % | `sumula`, `sumula_vinculante` or `tema`. Vinculantes carry a kind of their own because all 62 of their numbers also exist as STF súmulas, saying something else |
 | `numero` | bigint | 100 % | The precedent's number |
-| `enunciado` | text | 100 % | The text of the holding. Audited to be at least 40 characters, so a capture that caught punctuation instead of text fails the build |
-| `situacao` | text | 74.9 % | Status (in force, cancelled…). **NULL for every reconstructed súmula on purpose** — showing a cancelled súmula as being in force is a serious error in a legal tool, so the screen says it does not know |
-| `data` | date | 74.6 % | Judgment date. Catalogue temas only |
-| `url_fonte` | text | **0 %** | No public catalogue exists to link to. A documented deviation from the acceptance criterion |
-| `origem` | text | 100 % | How this row came to exist. `catalogo` (1,142 temas, from the STJ open data portal) or `reconstruido` (383 súmulas, rebuilt from the collection) |
-| `transcricoes` | bigint | 25.1 % | How many decisions quoted this exact sentence. Only reconstructed rows have it — it is the evidence for the text. Súmula 7/STJ: 1,843 |
+| `enunciado` | text | 100 % | The text of the holding. Audited to be at least 20 characters, and 40 for a reconstructed row, where a short text means the capture caught punctuation. The shortest official one is Súmula 237 of the STF, at 39 |
+| `situacao` | text | 100 % | Whether it still stands, in the register's own words — prose, not a code: 26 distinct values over the register, three casing conventions, and a whole sentence for a tema. 45 rows do not stand, 58 are under way or suspended, and 16 carry a word the screen will not translate. NULL means the register holds no entry, which is not the same as being in force |
+| `data` | date | 28.8 % | Judgment date. Only the STJ's catalogue publishes one, and it survives the merge even where the official register supplied the text |
+| `url_fonte` | text | **0 %** | Neither register publishes an address per precedent. A documented deviation from the acceptance criterion |
+| `origem` | text | 100 % | Which register the `enunciado` came from: `oficial` (all 3,951 today, the CNJ's BNP), `catalogo` (the STJ open data portal) or `reconstruido` (rebuilt from the collection). The last two are the fallback, and are empty while the register covers everything |
+| `transcricoes` | bigint | **0 %** | How many decisions quoted this exact sentence. Only reconstructed rows carry it, and none is reconstructed today |
+| `atualizado_em` | date | 100 % | When the register last moved this entry. The only date it publishes, and what dates `situacao` |
 | `carregado_em` | timestamptz | 100 % | When the transformation built this row |
 
-**Why súmulas are reconstructed.** No public catalogue exists anywhere — the STJ
-open data portal publishes none, the BDJur holds only internal manuals,
-`scon.stj.jus.br` answers 403, and the STF and CNJ portals do not resolve. The
-text is rebuilt from decisions that quote it between quotation marks, and
-**repetition is the verification**: a floor of three identical transcriptions
-discards a capture that caught neighbouring text. The reconstructed súmulas
-cover 97.3 % of all súmula citations.
+**Why the official register wins.** Súmulas were reconstructed because no public
+catalogue of them was known to exist — the STJ open data portal publishes none,
+the BDJur holds only internal manuals, `scon.stj.jus.br` answers 403 — and the
+text was rebuilt from decisions that quote it between quotation marks, with
+repetition as the verification: a floor of three identical transcriptions
+discards a capture that caught neighbouring text.
 
-The STF's arrival added 43 of them without any new rule. They are holdings that
-only its own acordaos transcribe — the same mechanism reading a court that
-quotes its own súmulas, which is the argument for reconstruction working rather
-than fitting one source.
+The CNJ's national register ends that, and the survey in
+[`pangea-source.md`](pangea-source.md) says why it had to. The reconstruction
+agreed with the register on 87.1 % of the 1,525 precedents they share, and **23
+carried another precedent's words** — 18 of them súmulas filed under the wrong
+number, such as Súmula 70 of the STF holding the text of Súmula 323. Repetition
+confirms that a sentence was transcribed, never that it was transcribed for that
+number: decisions cite súmulas in blocks, and the nearest quoted text is not the
+right one.
+
+The reconstruction and the catalogue stay in the model as the fallback. Without a
+load from the register the two still build 1,525 rows, and that is what the
+volume audit's floor watches for.
 
 ---
 
@@ -253,7 +262,12 @@ One row per connector. **5 rows.** Seeded from
 | `observacoes` | text | Free notes |
 
 Current rows: `tjdft-jurisdf`, `stj-espelhos`, `stj-precedentes`, `stj-bdjur`,
-`stf-jurisprudencia`.
+`stf-jurisprudencia`, `cnj-bnp`.
+
+`cnj-bnp` is the one row with no `tribunal_sigla`: the BNP is the CNJ's
+national register, it carries both higher courts' precedents, and the CNJ is
+not a court. Naming one of the two would be a claim about the source that is
+false.
 
 Adding the fifth one found a guard that could never have let it in.
 `carga_de_fonte_conhecida` checked each run's source against this table, but a
@@ -377,7 +391,8 @@ erDiagram
     precedente||--o{ decisao_precedente: "corte + tipo + numero"
 ```
 
-`decisao_precedente → precedente` is a **soft** reference: 15 % of links point
-at a precedent not in the catalogue — almost all of them STF temas, which no
-public catalogue publishes — and `resolvida` records that rather than the row
-being dropped.
+`decisao_precedente → precedente` is a **soft** reference: links point at a
+precedent the catalogue may not hold, and `resolvida` records that rather than
+the row being dropped. It was 15 % of links before the CNJ's register entered
+and is 8.6 % with it, almost all of them citations that name no court — a bare
+"Tema 793" identifies no precedent, because both courts have one.
