@@ -10,6 +10,7 @@ from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
+from app import embeddings
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
@@ -80,6 +81,9 @@ ts_headline(
 
 Order = Literal["relevance", "date"]
 DEFAULT_ORDER: Order = "relevance"
+
+SearchMode = Literal["exact", "subjects"]
+DEFAULT_MODE: SearchMode = "subjects"
 
 TIEBREAK = "fonte_codigo DESC, identificador_fonte DESC"
 
@@ -362,19 +366,25 @@ ORDER BY
 # moment it appears, with nobody having to restart anything.
 PUBLISHED_SQL = """
 SELECT TO_REGCLASS('core.busca_ampla') IS NOT NULL       AS ranking,
-       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada
+       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada,
+       TO_REGCLASS('core.decisao_vetor') IS NOT NULL     AS vetores
 """
 
 
 class Published(NamedTuple):
     ranking: bool
     shared: bool
+    vectors: bool
 
 
 def _published(cursor: Any) -> Published:
     cursor.execute(PUBLISHED_SQL)
     row = cursor.fetchone() or {}
-    return Published(bool(row.get("ranking")), bool(row.get("compartilhada")))
+    return Published(
+        bool(row.get("ranking")),
+        bool(row.get("compartilhada")),
+        bool(row.get("vetores")),
+    )
 
 
 def _broad_term(
@@ -445,6 +455,80 @@ JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
 # before either existed.
 COUNT_SQL = _count_sql()
 PAGE_SQL = _page_sql()
+
+
+VECTOR_DIMENSIONS = embeddings.DIM
+
+SUBJECT_DEPTH = 500
+SUBJECT_LIMIT = 10
+SUBJECT_MAX_DISTANCE = "0.42"
+SUBJECT_MIN_EMENTA = 120
+
+SUBJECT_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SUBJECT_DEPTH}"
+
+
+def _subject_sql(filters: str = "", published: bool = True) -> str:
+    """
+    The decisions a query is close to in meaning and shares no word with.
+
+    Three things narrow it, and each is measured in
+    documentation/architecture/vector-index.md and search-subjects.md.
+
+    The index answers on a one-bit-per-dimension quantization, and the 500 it
+    returns are re-ordered by the exact distance: the quantization chooses who
+    to look at, the full vector decides the order.
+
+    `SUBJECT_MAX_DISTANCE` is a floor and not a ranking. The search always has
+    a nearest neighbour, so a query about something the collection does not
+    cover would still answer with ten decisions. Measured over queries rather
+    than over pairs of decisions: six real legal questions never passed 0,391,
+    and the closest off-domain question — "como trocar o pneu do carro" —
+    started at 0,460. The floor sits in that gap.
+
+    `SUBJECT_MIN_EMENTA` drops the stubs. An ementa of three words — "Demora.
+    Pedido prejudicado." — carries the meaning of one word, and that word
+    outranks whole decisions on the subject.
+    """
+    shared, join = _shared(published)
+    return f"""
+WITH candidatas AS (
+    SELECT fonte_codigo, identificador_fonte, vetor
+    FROM core.decisao_vetor
+    ORDER BY binary_quantize(vetor)::bit({VECTOR_DIMENSIONS})
+             <~> binary_quantize(%(vetor)s::halfvec({VECTOR_DIMENSIONS}))::bit({VECTOR_DIMENSIONS})
+    LIMIT {SUBJECT_DEPTH}
+),
+proximas AS (
+    SELECT
+        fonte_codigo,
+        identificador_fonte,
+        vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia
+    FROM candidatas
+    WHERE vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) <= {SUBJECT_MAX_DISTANCE}
+)
+SELECT
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.data_referencia,
+    decisao.turma_recursal,
+    decisao.url_fonte,
+    decisao.link_valido,
+    {shared} AS url_compartilhada,
+    decisao.deliberacao,
+    decisao.ementa,
+    decisao.tese,
+    {SNIPPET} AS snippet
+FROM proximas
+JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
+WHERE NOT (decisao.{MATCH})
+  AND LENGTH(BTRIM(decisao.ementa)) >= {SUBJECT_MIN_EMENTA}{filters}
+ORDER BY proximas.distancia, decisao.fonte_codigo, decisao.identificador_fonte
+LIMIT {SUBJECT_LIMIT}
+"""
 
 
 def _detail_sql(published: bool) -> str:
@@ -873,6 +957,59 @@ class SearchResults(BaseModel):
         examples=[40],
     )
     results: list[DecisionMatch]
+    subject_matches: list[DecisionMatch] = Field(
+        default_factory=list,
+        description=(
+            "Decisions that do not contain the words searched for but are "
+            "about the same subject, nearest first. Up to ten, and only on "
+            "the first page of a `mode=subjects` search — the screen shows "
+            "them as a block below the results, not mixed into them. Empty "
+            "whenever `mode=exact`, whenever nothing in the collection is "
+            "close enough, and whenever this server has no embedding model "
+            "or the collection carries no vectors yet."
+        ),
+    )
+
+
+def _match(row: DictRow, q: str) -> DecisionMatch:
+    return DecisionMatch(
+        **_base_fields(row),
+        thesis=split_theses(row.get("tese")),
+        snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
+    )
+
+
+def _subject_rows(
+    cursor: Any,
+    q: str,
+    filters: str,
+    parameters: dict[str, Any],
+    mode: SearchMode,
+    page: int,
+    published: Published,
+) -> list[DictRow]:
+    """
+    The subject block, or nothing at all.
+
+    Four ways to come back empty and none of them is an error: the reader
+    asked for exact words, this is not the first page, the collection carries
+    no vectors yet, or this server has no model to turn the query into one.
+    The last two are the same bargain `_published` already makes for
+    `core.busca_ampla` — a deploy can land before the base that goes with it,
+    and answering by word alone is the right answer while it is on its way.
+    """
+    if mode != "subjects" or page != 1 or not published.vectors:
+        return []
+
+    vetor = embeddings.embed(q)
+    if vetor is None:
+        return []
+
+    cursor.execute(SUBJECT_SEARCH_DEPTH)
+    cursor.execute(
+        _subject_sql(filters, published.shared), {**parameters, "vetor": vetor}
+    )
+    return cursor.fetchall()
 
 
 def _base_fields(row: DictRow) -> dict[str, Any]:
@@ -1220,6 +1357,19 @@ def search_decisions(
             ),
         ),
     ] = DEFAULT_ORDER,
+    mode: Annotated[
+        SearchMode,
+        Query(
+            description=(
+                "`exact` searches the words written and nothing else — the "
+                "same results, the same order and the same cost as before "
+                "this parameter existed. `subjects` runs that identical "
+                "search and adds `subject_matches`: decisions about the same "
+                "subject that share none of the words. It never changes "
+                "`results`."
+            ),
+        ),
+    ] = DEFAULT_MODE,
 ) -> SearchResults:
     """
     Search the ementa of every collected decision.
@@ -1335,20 +1485,20 @@ def search_decisions(
                 )
                 rows = cursor.fetchall()
 
+        # After the page and never before it: the search by word answers on
+        # its own, and whatever happens here cannot change what it answered.
+        subject_rows = _subject_rows(
+            cursor, q, filters, parameters, mode, page, publicado
+        )
+
     return SearchResults(
         total=total,
         page=page,
         page_size=page_size,
         range_from=offset + 1 if rows else None,
         range_to=offset + len(rows) if rows else None,
-        results=[
-            DecisionMatch(
-                **_base_fields(row),
-                thesis=split_theses(row.get("tese")),
-                snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
-            )
-            for row in rows
-        ],
+        results=[_match(row, q) for row in rows],
+        subject_matches=[_match(row, q) for row in subject_rows],
     )
 
 

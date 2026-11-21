@@ -10,6 +10,7 @@ corpus-vectors.md.
     uv run --group embeddings python embed_corpus.py --create
     uv run --group embeddings python embed_corpus.py --embed
     uv run --group embeddings python embed_corpus.py --report
+    uv run --group embeddings python embed_corpus.py --serving-model ./modelo
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ import io
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Iterator
 
 import psycopg2
@@ -220,6 +222,32 @@ def embed(
     }
 
 
+def save_serving_model(nome: str, destino: str) -> dict[str, Any]:
+    """
+    A bfloat16 copy of the model, which is what the API loads.
+
+    Asking for bfloat16 at load time does not give the memory back: the
+    weights are read from the float32 safetensors and cast afterwards, and the
+    mapped float32 pages stay resident. Only a copy stored as bfloat16 and
+    loaded as itself does, and it is 582 MiB of the server's RAM.
+    """
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    rede = SentenceTransformer(
+        nome, device="cpu", model_kwargs={"torch_dtype": torch.bfloat16}
+    )
+    rede.max_seq_length = MAX_TOKENS
+    rede.save(destino)
+
+    return {
+        "modelo": nome,
+        "revisao": revision(nome),
+        "precisao": "bfloat16",
+        "destino": destino,
+    }
+
+
 def report(conexao: Any) -> list[tuple]:
     with conexao.cursor() as cursor:
         cursor.execute(REPORT)
@@ -238,7 +266,15 @@ def main(argv: list[str] | None = None) -> int:
                             choices=("float16", "bfloat16", "float32"))
     analisador.add_argument("--limit", type=int, default=0)
     analisador.add_argument("--source", default="")
+    analisador.add_argument("--serving-model", type=Path)
     argumentos = analisador.parse_args(argv)
+
+    if argumentos.serving_model:
+        for chave, valor in save_serving_model(
+            argumentos.model, str(argumentos.serving_model)
+        ).items():
+            print(f"{chave}: {valor}")
+        return 0
 
     url = os.getenv("DATABASE_URL", "")
     if not url:

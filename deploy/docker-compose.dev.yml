@@ -31,6 +31,10 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-}
       ROOT_PATH: ${ROOT_PATH:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      EMBEDDING_MODEL_PATH: ${EMBEDDING_MODEL_PATH:-}
+      EMBEDDING_THREADS: ${EMBEDDING_THREADS:-2}
+    volumes:
+      - ${EMBEDDING_MODEL_DIR:-./modelo}:/opt/case-law/modelo:ro
     ports:
       - "${BACKEND_BIND:-127.0.0.1}:8000:8000"
     depends_on:

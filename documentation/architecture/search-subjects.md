@@ -1,0 +1,205 @@
+# Searching by subject
+
+What the reader chooses, how the two searches are combined, and what the
+combination costs. This is the decision and the evidence for
+**SCRUM-254 (G.6)**.
+
+Measured on **2026-11-21** against the local collection of 1.360.708
+decisions, with the vectors of [`corpus-vectors.md`](corpus-vectors.md) and
+the index of [`vector-index.md`](vector-index.md).
+
+---
+
+## The reader chooses, and the words are not ours
+
+The search box offers two options, and neither of them names a technology:
+
+| On screen | `mode` | What it does |
+|---|---|---|
+| **Palavras exatas** | `exact` | Only decisions that contain what was written. |
+| **Palavras e assuntos parecidos** | `subjects` | That same search, plus decisions about the same subject. |
+
+The second is the default, because **SCRUM-250 (G.2)** measured the gain:
+taking whichever of the two methods ranked a known-relevant decision better
+lifts agreement with the court from 13,27% to 16,99% at ten, and recovers
+11,78% of the pairs the word search never reaches at any depth. A reader who
+changes nothing gets the better answer, and the exact search is one click away.
+
+---
+
+## The two lists are not merged, and that is the decision
+
+```
+127 decisões com suas palavras
+──────────────────────────────────────────────
+  [ decisão ]  [ decisão ]  …  20 per page, paged as before
+
+Também sobre o mesmo assunto
+──────────────────────────────────────────────
+  [ OVERBOOKING…    • assunto parecido ]
+  [ CANCELAMENTO…   • assunto parecido ]
+```
+
+`results` is the search that existed before this feature, unchanged in
+content, order, paging and cost. `subject_matches` is a separate list of at
+most ten, below it, on the first page only.
+
+**Why not one ranked list.** G.2 split the evaluation set by whether the word
+search can reach the target at all, and the two halves pull opposite ways: on
+the pairs it reaches, the word search puts the court's answer on the first
+screen 39,08% of the time against the model's 31,88%. A single ranking that
+treats them as equals puts the weaker one at the top of the page where most
+answers come from. Keeping them apart costs nothing and loses nothing.
+
+**Why the first page only.** The block is an offer, not a second result set.
+Repeated on every page it would take space without adding anything and would
+cost one vector search per page instead of one per search.
+
+**Why it is explicable.** A reader can be told the whole rule in one line:
+*these decisions do not come up in a search for your words, but they are about
+the same thing.* That is the US's requirement that the combination be
+explicable, met by not combining.
+
+---
+
+## Three things narrow the block, and each was measured
+
+### It never repeats what the word search already found
+
+A decision that matches the query is excluded outright. The block exists to
+show what the other list cannot.
+
+This produces a property nobody programmed: **the block appears only where it
+is needed.** A search for `recurso` or `dano moral` comes back with an empty
+block, because the decisions nearest in meaning to those words also contain
+them. A search for `demora no voo` comes back with ten.
+
+### A floor on distance, measured over queries and not over documents
+
+The vector search always has a nearest neighbour. A question about something
+the collection does not cover still gets ten decisions back, and they look
+exactly like an answer. So anything past a distance is dropped.
+
+**The first floor was wrong, and the way it was wrong is worth recording.**
+It was taken from the pairs of **documents** in the G.1 evaluation set, where
+the court's own similars sit at a median distance of 0,258 and a p90 of 0,378,
+against 0,437 for random pairs — which suggested 0,35. Applied to the search
+box it returned nothing at all. A six-token question is further from a full
+ementa than two ementas are from each other, and the air-travel decisions that
+the feature exists to find sat at 0,384 to 0,391 — just outside.
+
+Measured again, over queries:
+
+| Query | Nearest | Tenth |
+|---|---:|---:|
+| `dano moral por inscricao indevida` | 0,238 | 0,260 |
+| `prescricao intercorrente execucao fiscal` | 0,250 | 0,257 |
+| `juros abusivos em contrato bancario` | 0,252 | 0,282 |
+| `acidente de trabalho responsabilidade do empregador` | 0,257 | 0,296 |
+| `guarda compartilhada de menor` | 0,298 | 0,329 |
+| `demora no voo` | 0,375 | **0,391** |
+| | | |
+| *`como trocar o pneu do carro`* | **0,460** | 0,497 |
+| *`flurbinator de quimbondo`* | 0,587 | 0,598 |
+| *`qwertyuiop asdfghjkl`* | 0,618 | 0,664 |
+| *`receita de bolo de cenoura com cobertura`* | 0,660 | 0,703 |
+
+No legal question passed 0,391 and no question from outside the law started
+below 0,460. **The floor is 0,42**, in the gap. It is a floor on an already
+ranked list, not a selector: a cut that tried to be the selector would be
+useless, because at 0,35 — measured on the document pairs — 12,7% of random
+pairs pass, and 12,7% of 1,36 million decisions is 173 thousand.
+
+### A floor on the ementa's length
+
+The first run of this search answered `demora no voo` with these, ahead of
+every real decision:
+
+```
+Demora. Pedido prejudicado.
+Demora na instrução já sanada.
+Demora provocada pela defesa.
+```
+
+When the ementa is three words long, the meaning it carries is the meaning of
+one of them, and that one word outranks whole decisions about air transport.
+The collection holds **6.426 ementas under 40 characters and 69.130 under
+120**, 5,1% of it — the placeholders `stf-source.md` records. The floor is
+120 characters.
+
+---
+
+## What it costs
+
+Median of five, after a warm-up, over the whole local collection:
+
+| Query | `exact` | `subjects` | The block | Results |
+|---|---:|---:|---:|---:|
+| `recurso` | 33,6 ms | 66,5 ms | **+32,9 ms** | 967.143 |
+| `dano moral` | 158,3 ms | 197,8 ms | **+39,5 ms** | 30.799 |
+| `demora no voo` | 8,7 ms | 48,3 ms | **+39,6 ms** | 127 |
+
+**The US A ceiling is 2 s, and the broadest search spends 3,3% of it.** The
+block costs a flat ~35 ms regardless of how many decisions the word search
+found, because it is one query embedding plus one index read.
+
+On the server the embedding is estimated at 32 to 215 ms rather than the ~20 ms
+it costs here — the range and its method are in
+[`query-embedding.md`](query-embedding.md) — so the worst case there is about
+260 ms, or 13% of the ceiling.
+
+---
+
+## When it is off, the search is the old search
+
+Four states return an empty block, and none of them is an error:
+
+| | |
+|---|---|
+| The reader chose **Palavras exatas** | the model is never loaded |
+| This is not the first page | no vector search is run |
+| `core.decisao_vetor` is not published yet | probed per request, like `core.busca_ampla` |
+| `EMBEDDING_MODEL_PATH` is unset or will not load | logged once, then answered by word |
+
+The last two matter operationally. A deploy can land before the base that goes
+with it — it happened once this sprint — and a server without the model is a
+server that answers the way it did before the feature existed. That is the
+same bargain `google_api_key` already makes for reading a thesis, and the
+reason `test_busca_por_assunto.py` pins both.
+
+---
+
+## Running it locally
+
+The publish creates `core.decisao_vetor` on the environments. On a development
+machine the vectors live in `vetor.decisao`, so the view that stands in for it
+is one statement:
+
+```sql
+CREATE OR REPLACE VIEW core.decisao_vetor AS
+  SELECT fonte_codigo, identificador_fonte, modelo, revisao, vetor
+  FROM vetor.decisao;
+```
+
+And the model the API loads is produced by the pipeline, not by hand:
+
+```bash
+uv run --group embeddings python embed_corpus.py --serving-model ./modelo
+export EMBEDDING_MODEL_PATH=$PWD/modelo
+```
+
+---
+
+## What is still open
+
+- **Nothing here measures agreement with the court.** The cost is measured and
+  the behaviour is pinned, but whether the block actually surfaces decisions a
+  reader wanted is the G.1 measurement re-run end to end, which belongs to
+  **SCRUM-256 (G.8)** along with the proof that the word search did not change.
+- **The block respects the screen's filters**, and the candidate step reads
+  500 before applying them. A narrow filter can therefore return fewer than
+  ten — or none — while matching decisions exist further down. Measuring how
+  often that happens needs a filter the readers actually use, and there is no
+  log of that yet.
+- **The marking on screen is G.7.** The API says which list a decision came
+  from; `SCRUM-255` is where a reader sees it.

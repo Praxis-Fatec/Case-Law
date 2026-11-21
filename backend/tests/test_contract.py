@@ -14,7 +14,15 @@ from tests.conftest import needs_database
 
 pytestmark = needs_database
 
-ENVELOPE = {"total", "page", "page_size", "range_from", "range_to", "results"}
+ENVELOPE = {
+    "total",
+    "page",
+    "page_size",
+    "range_from",
+    "range_to",
+    "results",
+    "subject_matches",
+}
 
 MATCH = {
     "source",
