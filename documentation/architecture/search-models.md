@@ -221,4 +221,6 @@ hundred.
   return nothing the reader wanted, and nothing cheaper reaches them.
 - **The query side is untouched.** Everything here is document against
   document. How the reader's own words become a vector is **SCRUM-251 (G.3)**,
-  and the frozen-stack question above lands there.
+  and the frozen-stack question above lands there —
+  [`query-embedding.md`](query-embedding.md) answers it: BGE-M3 runs in the
+  backend on the current stack, so the pin never reaches the serving path.
