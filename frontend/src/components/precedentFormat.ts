@@ -40,6 +40,7 @@ export const adherenceLabel = (adherence: string) => ADHERENCE_LABELS[adherence]
 
 export const KIND_LABELS: Record<string, string> = {
   sumula: 'Súmula',
+  sumula_vinculante: 'Súmula Vinculante',
   tema: 'Tema',
 };
 
@@ -61,19 +62,45 @@ export function precedentName(precedent: {
 // Three states, not two. A null status is "we do not know", which is why it
 // never reads as "in force": presenting a cancelled precedent as current is
 // the error this refuses to risk.
-export type Standing = 'superseded' | 'current' | 'unknown';
+export type Standing = 'superseded' | 'pending' | 'current' | 'unclassified' | 'unknown';
 
+// The register writes a status in prose, not in a code: 26 distinct values over
+// its 4,457 entries, in three casing conventions, and for a tema a whole
+// sentence — "Há repercussão geral. Leading case: afetado".
+//
+// The order of the tests is the caution, because a sentence can carry two
+// states and the one that matters is the worse of them. A tema whose
+// repercussão geral was recognised but whose leading case is still afetado is
+// not settled, so `afetado` decides and `repercussão geral` does not.
+//
+// `unclassified` is the important state, and it exists for words that mean
+// something this screen must not guess at. `ALTERADO` and `Revisado` are the
+// two the register uses — 16 entries — and both are read as the text having
+// moved, not as the precedent having fallen: the register hands over the
+// altered wording, so calling them superseded would be as wrong as calling
+// them current. The screen shows the word and says it does not classify it.
+// Anything new the register starts writing lands here too, which is the point:
+// reading an unknown word as in force is the error this whole story prevents.
 export function standingOf(status: string | null): Standing {
-  if (!status) {
+  if (!status || !status.trim()) {
     return 'unknown';
   }
 
-  const folded = status.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const folded = status
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
 
-  if (/cancelad|superad|revogad|prejudicad/.test(folded)) {
+  if (/cancelad|revogad|prejudicad|superad/.test(folded)) {
     return 'superseded';
   }
-  return 'current';
+  if (/afetad|sobrestad|suspens|em julgamento|em analise|pendente|sem processo/.test(folded)) {
+    return 'pending';
+  }
+  if (/aprovad|vigente|transitad|publicad|merito julgado|repercussao/.test(folded)) {
+    return 'current';
+  }
+  return 'unclassified';
 }
 
 // The official portals, which hold the authoritative wording. The catalogue

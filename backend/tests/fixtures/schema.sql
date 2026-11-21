@@ -198,6 +198,7 @@ CREATE TABLE core.precedente (
     url_fonte    TEXT,
     origem       TEXT   NOT NULL,
     transcricoes BIGINT,
+    atualizado_em DATE,
     carregado_em TIMESTAMPTZ,
     PRIMARY KEY (corte, tipo, numero)
 );
