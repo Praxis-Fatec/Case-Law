@@ -338,8 +338,16 @@ the result is, so on that list the label would report how short the question
 was rather than how close the answer is. Past the floor `_band` returns
 nothing, and `test_busca_por_assunto.py` pins the boundary.
 
-Each decision in the block also carries a **`assunto parecido`** tag in its header,
-and the block itself carries the one-line explanation the story asks for:
+A decision only meaning found carries a **stripe down its left edge**, not a
+chip. The header already holds the proximity and the date, and a third chip
+there crowded them; the stripe distinguishes without competing for the space.
+
+Colour alone would not do it — a reader who cannot see colour would see
+nothing — so the same card carries the sentence *"Encontrada pelo assunto: a
+busca pelas palavras escritas não traz esta decisão"* in `title` and in text
+for a screen reader, and `buscaPorAssunto.test.tsx` pins both.
+
+The block itself carries the one-line explanation the story asks for:
 *estas decisões não aparecem na busca pelas palavras que você escreveu, mas
 tratam do mesmo tema.* A decision in the main list never carries the tag, so
 the two kinds of result are told apart by the card and not only by where it

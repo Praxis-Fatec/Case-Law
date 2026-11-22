@@ -120,11 +120,22 @@ describe('a lista reordenada por sentido', () => {
     installApi();
     await pesquisar();
 
-    const marcadas = cartoes().map(
-      (cartao) => within(cartao).queryByText('assunto parecido') !== null,
+    const marcadas = cartoes().map((cartao) =>
+      cartao.classList.contains('decision-result-card--by-subject'),
     );
 
     expect(marcadas).toEqual([true, false, true]);
+  });
+
+  it('a marca não é só cor: ela tem texto para quem não a enxerga', async () => {
+    installApi();
+    await pesquisar();
+
+    const achada = cartoes()[0];
+
+    expect(achada).toHaveAttribute('title', expect.stringContaining('Encontrada pelo assunto'));
+    expect(within(achada).getByText(/Encontrada pelo assunto/)).toBeInTheDocument();
+    expect(within(cartoes()[1]).queryByText(/Encontrada pelo assunto/)).toBeNull();
   });
 
   it('diz a proximidade em palavras que o leitor entende, não em porcentagem', async () => {
@@ -145,7 +156,7 @@ describe('a lista reordenada por sentido', () => {
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
     await screen.findAllByRole('article');
 
-    expect(screen.queryByText('assunto parecido')).toBeNull();
+    expect(screen.queryByText(/Encontrada pelo assunto/)).toBeNull();
     expect(screen.queryByText('muito próximo')).toBeNull();
   });
 
@@ -163,6 +174,6 @@ describe('a lista reordenada por sentido', () => {
     await pesquisar();
 
     expect(cartoes().length).toBeGreaterThan(0);
-    expect(screen.queryByText('assunto parecido')).toBeNull();
+    expect(screen.queryByText(/Encontrada pelo assunto/)).toBeNull();
   });
 });

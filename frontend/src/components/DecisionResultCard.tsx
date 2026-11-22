@@ -64,6 +64,9 @@ type DecisionResultCardProps = {
   bySubject?: boolean;
 };
 
+const ENCONTRADA_POR_SENTIDO =
+  'Encontrada pelo assunto: a busca pelas palavras escritas não traz esta decisão.';
+
 const PROXIMIDADE = {
   high: { rotulo: 'muito próximo', explicacao: 'Entre as mais próximas do que você escreveu.' },
   medium: { rotulo: 'próximo', explicacao: 'Trata do mesmo assunto que você escreveu.' },
@@ -156,9 +159,14 @@ function DecisionResultCard({
 
   return (
     <article
-      className={
-        selected ? 'decision-result-card decision-result-card--selected' : 'decision-result-card'
-      }
+      className={[
+        'decision-result-card',
+        selected && 'decision-result-card--selected',
+        bySubject && 'decision-result-card--by-subject',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      title={bySubject ? ENCONTRADA_POR_SENTIDO : undefined}
       aria-label={`Decisão ${decision.case_number ?? 'sem processo'}`}
     >
       {/* The whole card opens the decision, as in the reference. A real link
@@ -182,6 +190,8 @@ function DecisionResultCard({
         </Link>
       )}
 
+      {bySubject && <span className="sr-only">{ENCONTRADA_POR_SENTIDO}</span>}
+
       {rank !== undefined && (
         <span className="decision-result-card__rank" aria-hidden="true">
           {String(rank).padStart(2, '0')}
@@ -204,9 +214,6 @@ function DecisionResultCard({
               >
                 {PROXIMIDADE[decision.proximity].rotulo}
               </span>
-            )}
-            {bySubject && (
-              <span className="decision-result-card__subject-tag">assunto parecido</span>
             )}
             {decided && <span className="decision-result-card__date">{decided}</span>}
           </div>
