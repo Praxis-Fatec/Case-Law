@@ -182,6 +182,33 @@ it costs here — the range and its method are in
 
 ---
 
+## The box asks for a sentence, because two words do not work
+
+The same case, described at six lengths, against the whole collection:
+
+| Words | Nearest | Tenth | Within the floor | First decision |
+|---:|---:|---:|---:|---|
+| 2 | 0,466 | 0,481 | **0** | a generic appeal about reparation |
+| 4 | **0,261** | 0,275 | 984 | DANO MORAL. INSCRIÇÃO INDEVIDA… |
+| 9 | 0,209 | 0,245 | 984 | Inscrição no cadastro de inadimplentes… |
+| 15 | **0,199** | 0,232 | 996 | Inscrição no cadastro de inadimplentes… |
+| 37 | 0,207 | 0,235 | 1.000 | Inscrição no cadastro de inadimplentes… |
+| 90 | **0,185** | 0,211 | 1.000 | Fraude e… |
+
+**The gain is all at the start.** Two words to four nearly halves the distance
+and takes the feature from zero usable decisions to 984 — the difference
+between not working and working. After nine words it saturates: eighty-one
+further words buy 0,024, and it is not even monotonic, with fifteen words
+(0,199) beating thirty-seven (0,207).
+
+So the placeholder reads **"Descreva o caso em uma frase"**. The old one —
+*"Pesquise um assunto ou fundamento"* — invited exactly the two loose words
+that do not work.
+
+(The last column saturates at 1.000 because that is the ceiling asked of the
+index; past 984 it stops distinguishing, and the distance is what carries the
+reading.)
+
 ## A capital letter decided whether the feature worked
 
 The query is folded to lower case before it is embedded, and that is not

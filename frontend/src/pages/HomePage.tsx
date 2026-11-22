@@ -848,7 +848,7 @@ function HomePage({
             type="search"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Pesquise um assunto ou fundamento"
+            placeholder="Descreva o caso em uma frase"
             autoComplete="off"
             disabled={isLoading}
           />
