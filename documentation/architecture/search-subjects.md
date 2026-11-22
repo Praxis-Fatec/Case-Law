@@ -279,6 +279,32 @@ export EMBEDDING_MODEL_PATH=$PWD/modelo
 
 ---
 
+## Proving the word search did not change — SCRUM-256 (G.8)
+
+The story's last criterion is that the search that existed is unchanged *in
+results, in order and in time*. The first two are ordinary assertions. The
+third is not: a wall-clock assertion on a shared CI runner measures the runner,
+not the code, and a test that fails for the wrong reason gets deleted.
+
+So what is pinned is the **work done**, which is what causes the time:
+
+| Pinned | Why it is the guarantee |
+|---|---|
+| `mode=exact` never calls the model | embedding costs 38 ms here and 32–215 ms on the server; not calling it is the ceiling |
+| `mode=exact` never reads `core.decisao_vetor` | the fixtures do not create it, so a read would answer 500 |
+| `_word_page_sql()` **is** `_page_sql()`, character for character | same statement, same plan, same indexes, same time |
+| the US A fast path still reads `core.busca_ampla` | `Index Only Scan`, no `Sort`, no `Seq Scan`, over ten thousand rows |
+| the widened search also reads the stored ranking | `ts_rank` never appears in the statement that serves a frequent term |
+
+**The first version of that file passed while the code was broken.** The test
+asserting "exact never calls the model" ran against fixtures with no vector
+table, so the model was never reached for a reason that had nothing to do with
+the mode — and deliberately making `exact` embed its query did not fail it.
+The fixture now creates the published table, and the same break fails exactly
+that test.
+
+---
+
 ## What is still open
 
 - **Nothing here measures agreement with the court.** The cost is measured and
