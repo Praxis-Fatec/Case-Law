@@ -13,8 +13,8 @@ The thresholds below are explicit initial product choices. The mathematical
 examples are synthetic checks, not measurements of the published collection,
 empirical calibration, or evidence of approval by a legal specialist. The
 endpoint and rule tests are implemented by SCRUM-282 as described below;
-the Panorama panel is implemented by SCRUM-283. The document-opening flow
-belongs to subsequent tasks.
+the Panorama panel is implemented by SCRUM-283. SCRUM-284 connects each
+identified panel's descriptive document count to the existing document drawer.
 
 ## The comparison unit and its scope
 
@@ -349,3 +349,29 @@ Idle, loading, empty and failed states are distinct. Failed requests can be
 retried. The panel repeats the distinction between a statistical difference
 and a legal divergence. It does not yet expose representative-document links;
 the RF12 flow must retain the sample-selection invariants described above.
+
+## SCRUM-284: open a panel's documents
+
+Clicking an identified panel's name opens `IndicatorDocumentsDrawer`, as with
+the existing indicators. The selection intersects **court, exact judging-body
+name and CNJ class** with the original cut. Expression, judge, outcome,
+date/publication intervals, exclusions and ordering are retained. Same-named
+panels in another court or class cannot enter the list. Incompatible original
+filters produce an empty intersection rather than a wider query.
+
+The expected total is the card's **document count**, including multiple
+documents in one process. These links are labelled as all documents behind
+the descriptive card; they do not claim to retrieve the pair's independent
+process representatives. Access to that separate statistical sample still
+requires the representative-selection contract above.
+
+Small or unvalidated samples remain clickable: lack of an inferential
+conclusion does not prevent reading their documents. A card without an exact
+body or class explains that an exact document cut is unavailable instead of
+opening all classes or all bodies. While a drawer is open or a search is
+loading, new selections are disabled.
+
+The detail opens inside the shared drawer. Its Back control restores the
+document list; closing the drawer or using browser Back restores the same
+Panorama dimension and focus on the selected panel, without reloading the
+indicator. The shared remove-selection action restores the original search.

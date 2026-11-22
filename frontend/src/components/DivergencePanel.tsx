@@ -1,4 +1,4 @@
-import { Info, WarningCircle } from '@phosphor-icons/react';
+import { ArrowRight, Info, WarningCircle } from '@phosphor-icons/react';
 import type {
   DivergenceCounts,
   DivergencePair,
@@ -21,13 +21,66 @@ const pValue = (value: number) =>
       ? value.toExponential(2)
       : value.toLocaleString('pt-BR', { maximumSignificantDigits: 4 });
 
-function PanelCard({ panel, minimum }: { panel: DivergencePanelNumbers; minimum: number }) {
+export type DivergenceSelection = {
+  court: string;
+  panel: string;
+  classCode: number;
+  count: number;
+};
+
+function PanelCard({
+  panel,
+  minimum,
+  onSelect,
+  disabled,
+}: {
+  panel: DivergencePanelNumbers;
+  minimum: number;
+  onSelect?: (selection: DivergenceSelection) => void;
+  disabled?: boolean;
+}) {
+  const identified = Boolean(panel.panel?.trim()) && panel.class_code !== null;
   return (
     <article
       className="divergence__panel"
       aria-label={`${panel.panel ?? 'Órgão não informado'} — ${panel.court}`}
     >
-      <h4>{panel.panel ?? 'Órgão julgador não informado'}</h4>
+      <h4>
+        {identified && onSelect ? (
+          <button
+            type="button"
+            className="divergence__open"
+            disabled={disabled}
+            data-indicator-focus={JSON.stringify([
+              'divergence',
+              panel.court,
+              panel.panel,
+              panel.class_code,
+            ])}
+            aria-haspopup="dialog"
+            aria-label={`Consultar decisões da turma ${panel.panel} no ${panel.court}, classe CNJ ${panel.class_code}: ${formatCount(panel.documents)} decisões`}
+            onClick={() =>
+              onSelect({
+                court: panel.court,
+                panel: panel.panel!,
+                classCode: panel.class_code!,
+                count: panel.documents,
+              })
+            }
+          >
+            <span>{panel.panel}</span>
+            <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        ) : (
+          (panel.panel ?? 'Órgão julgador não informado')
+        )}
+      </h4>
+      {!identified && (
+        <p className="divergence__muted">
+          Acesso ao recorte da turma indisponível: órgão julgador ou classe processual não
+          informado.
+        </p>
+      )}
       <p className="divergence__count">
         <strong>{formatCount(panel.documents)}</strong> decisões no recorte
       </p>
@@ -48,6 +101,7 @@ function PanelCard({ panel, minimum }: { panel: DivergencePanelNumbers; minimum:
       </dl>
       <p className="divergence__muted">
         Os resultados acima contam documentos, não a amostra estatística.
+        {identified && onSelect && ' Clique no nome da turma para consultar todas essas decisões.'}
       </p>
       {panel.processes < minimum && (
         <p className="divergence__insufficient">
@@ -140,9 +194,13 @@ function Pair({ pair }: { pair: DivergencePair }) {
 export default function DivergencePanel({
   divergence: state,
   onRetry,
+  onSelect,
+  selectionDisabled,
 }: {
   divergence: DivergenceState;
   onRetry: () => void;
+  onSelect?: (selection: DivergenceSelection) => void;
+  selectionDisabled?: boolean;
 }) {
   const data = state.status === 'loaded' ? state.divergence : null;
   const groups = new Map<
@@ -226,6 +284,8 @@ export default function DivergencePanel({
                       key={panel.panel ?? 'missing'}
                       panel={panel}
                       minimum={data.thresholds.minimum_classified_processes}
+                      onSelect={onSelect}
+                      disabled={selectionDisabled}
                     />
                   ))}
                 </div>

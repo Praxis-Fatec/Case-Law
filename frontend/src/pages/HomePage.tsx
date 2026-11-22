@@ -1165,7 +1165,14 @@ function HomePage({
           tabIndex={0}
         >
           <PanoramaLayout
-            divergence={<DivergencePanel divergence={divergenceState} onRetry={retryPanorama} />}
+            divergence={
+              <DivergencePanel
+                divergence={divergenceState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelect={(selection) => openIndicator({ kind: 'divergence', ...selection })}
+              />
+            }
             courts={
               <CourtVolumePanel
                 compact
