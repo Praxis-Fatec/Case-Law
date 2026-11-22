@@ -1,12 +1,14 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import errors
+from app import embeddings, errors
 from app.api import (
     courts,
     decisions,
+    divergence,
     doctrine,
     exports,
     filters,
@@ -76,7 +78,17 @@ TAGS = [
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """
+    O modelo sobe junto com o servidor, não na primeira busca.
+
+    Carregá-lo custa 2,9 s. Pago aqui, ninguém espera; pago no primeiro
+    pedido, um leitor espera — e era esse leitor que estourava o teto de 2 s
+    da US A sozinho, com a busca inteira levando 38 ms depois disso.
+
+    Sem `EMBEDDING_MODEL_PATH` não há o que carregar e a chamada não faz nada.
+    """
     pool.open()
+    await asyncio.to_thread(embeddings.warm)
     yield
     pool.close()
 
@@ -113,6 +125,7 @@ errors.register(app)
 app.include_router(health.router)
 app.include_router(saved_decisions.router)
 app.include_router(decisions.router)
+app.include_router(divergence.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)

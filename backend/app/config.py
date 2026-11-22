@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/caselaw"
     environment: str = "development"
     root_path: str = ""
-    database_pool_size: int = 10
+    # Ten ran out: at 50 simultaneous requests, 300 of 1,000 waited over 30s
+    # for a connection and answered 503. Fifteen per worker, two workers, is
+    # 30 — against the 100 PostgreSQL accepts.
+    database_pool_size: int = 15
     search_max_page_size: int = 100
     # Signs the session tokens. Empty is allowed only while developing: an
     # environment that serves real accounts with a default secret is one where
@@ -34,6 +37,12 @@ class Settings(BaseSettings):
     # A name, never an alias like `gemini-flash-latest`: an alias moves
     # under the readings already stored against it.
     gemini_model: str = DEFAULT_MODEL
+    # Turns the search by subject on. Empty leaves every search answering by
+    # word alone, which is what it did before the feature existed — the same
+    # bargain as `google_api_key` above, and for the same reason: a model that
+    # is not there is not an error per request.
+    embedding_model_path: str = ""
+    embedding_threads: int = 2
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
 
     @field_validator("gemini_model", mode="before")

@@ -75,6 +75,13 @@ CREATE TABLE raw."espelho_stj▶referenciasLegislativas" (
     _dlt_id        VARCHAR NOT NULL
 );
 
+CREATE TABLE raw."espelho_stj▶acordaosSimilares" (
+    value          VARCHAR,
+    _dlt_parent_id VARCHAR NOT NULL,
+    _dlt_list_idx  BIGINT NOT NULL,
+    _dlt_id        VARCHAR NOT NULL
+);
+
 CREATE TABLE verificacao.link (
     fonte_codigo  TEXT NOT NULL,
     identificador TEXT NOT NULL,
@@ -92,7 +99,8 @@ CREATE TABLE core.precedente (
     data         DATE,
     url_fonte    TEXT,
     origem       TEXT,
-    transcricoes BIGINT
+    transcricoes BIGINT,
+    atualizado_em DATE
 );
 
 INSERT INTO raw.acordao_tjdft

@@ -10,9 +10,11 @@ import {
   ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
+  DEFAULT_MODE,
   DEFAULT_ORDER,
   SearchRequestError,
   type SearchDecisionMatch,
+  type SearchMode,
   type SearchOrder,
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
@@ -38,6 +40,9 @@ import TimelineVolumePanel, { type TimelineState } from '../components/TimelineV
 import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
 import PanoramaLayout from '../components/PanoramaLayout';
 import ConcentrationPanel from '../components/ConcentrationPanel';
+import DivergencePanel from '../components/DivergencePanel';
+import type { DivergenceState } from '../components/divergenceFormat';
+import { getDivergence } from '../api/divergence';
 import { CONCENTRATION_LIMIT, type ConcentrationState } from '../components/concentrationFormat';
 import {
   selectIndicator,
@@ -134,6 +139,7 @@ type AppliedSearch = {
   q: string;
   filters: SearchFilterValues;
   order: SearchOrder;
+  mode: SearchMode;
   page: number;
   extraFilters?: AdditionalSavedFilters;
 };
@@ -152,6 +158,7 @@ const requestFor = (search: AppliedSearch) => ({
   ...toSearchParams(search.q, search.filters),
   page: search.page,
   order: search.order,
+  mode: search.mode,
 });
 
 // The cut the panorama counts: the applied expression and filters, built by the
@@ -182,6 +189,7 @@ const volumeKey = (params: VolumeParams) =>
 
 // A counted cut, kept under the key of the cut it counts.
 type PanoramaCache = {
+  divergence?: DivergenceState;
   key: string;
   volume: VolumeState;
   outcome: OutcomeState;
@@ -232,6 +240,7 @@ function HomePage({
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  const [modeDraft, setModeDraft] = useSessionState<SearchMode>('mode', DEFAULT_MODE);
   // Which view of the applied search is up. In the session, so it is still the
   // one chosen after a decision or the coverage page is left.
   const [view, setView] = useSessionState<ResultsView>('view', 'documents');
@@ -259,14 +268,22 @@ function HomePage({
         ? document.activeElement
         : null,
     );
-    const selection = selectIndicator(requestFor(applied), point, {
+    // Sem o bloco por assunto: a gaveta lista os documentos por trás de um
+    // número e nunca o mostra, então pedi-lo custaria uma consulta vetorial
+    // por abertura para jogar o resultado fora.
+    const selection = selectIndicator({ ...requestFor(applied), mode: 'exact' }, point, {
       total: totalResults ?? 0,
       filterCount: countFilters(applied.filters) + additionalFilterCount(applied),
     });
     // The comparison's court selector replaces only the court dimension.
     // Keep the original search intact for the drawer's remove-selection action.
     if (compareCourt && point.kind === 'court') {
-      selection.params = { ...requestFor(applied), tribunal: [point.court], page: 1 };
+      selection.params = {
+        ...requestFor(applied),
+        mode: 'exact',
+        tribunal: [point.court],
+        page: 1,
+      };
     }
     setIndicatorSelection(selection);
     navigate(
@@ -523,6 +540,7 @@ function HomePage({
       filters: filterDraft,
       extraFilters: applied?.extraFilters,
       order: applied?.order ?? DEFAULT_ORDER,
+      mode: modeDraft,
       page: 1,
     });
   };
@@ -551,7 +569,9 @@ function HomePage({
     setView('documents');
     resetBuffer();
     navigate('/', { replace: true });
-    void runSearch(search);
+    // Uma busca salva guarda o recorte — expressão, filtros e ordem —, não o
+    // modo de pesquisar, que é escolha do leitor agora.
+    void runSearch({ ...search, mode: modeDraft });
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -588,7 +608,8 @@ function HomePage({
   const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
   const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
   const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
-  const panoramaKey = panorama?.timeline && panorama.concentration ? panorama.key : null;
+  const panoramaKey =
+    panorama?.timeline && panorama.concentration && panorama.divergence ? panorama.key : null;
 
   // Asked when the panorama is up and what it holds is not this cut: a new
   // expression or new filters, applied while it was up or before it opened.
@@ -612,6 +633,8 @@ function HomePage({
       setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
     const settleConcentration = (concentration: ConcentrationState) =>
       setPanorama((current) => (current?.key === key ? { ...current, concentration } : current));
+    const settleDivergence = (divergence: DivergenceState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, divergence } : current));
 
     setPanorama({
       key,
@@ -621,10 +644,19 @@ function HomePage({
       adherence: { status: 'loading' },
       mostCited: { status: 'loading' },
       concentration: { status: 'loading' },
+      divergence: { status: 'loading' },
     });
     getVolumeByPeriod(volumeFor(applied)).then(
       (volume) => settleTimeline({ status: 'loaded', volume }),
       () => settleTimeline({ status: 'failed' }),
+    );
+    getDivergence(volumeFor(applied)).then(
+      (divergence) => settleDivergence({ status: 'loaded', divergence }),
+      () =>
+        settleDivergence({
+          status: 'failed',
+          message: 'Não foi possível carregar a comparação entre turmas. Tente novamente.',
+        }),
     );
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
@@ -705,6 +737,12 @@ function HomePage({
         ? panorama.concentration
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+  const divergenceState: DivergenceState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.divergence
+        ? panorama.divergence
+        : { status: 'loading' };
   const timelineState: TimelineState =
     cutKey === null
       ? { status: 'idle' }
@@ -834,13 +872,42 @@ function HomePage({
             type="search"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Pesquise um assunto ou fundamento"
+            placeholder="Descreva o caso em uma frase"
             autoComplete="off"
             disabled={isLoading}
           />
         </div>
 
         <div className="legal-search__actions">
+          <fieldset className="search-mode" disabled={isLoading}>
+            <legend className="sr-only">Como pesquisar</legend>
+            {(
+              [
+                [
+                  'exact',
+                  'Só as minhas palavras',
+                  'Só decisões que contêm o que você escreveu. As aspas continuam valendo aqui.',
+                ],
+                [
+                  'subjects',
+                  'Palavras e assuntos parecidos',
+                  'Também decisões sobre o mesmo assunto, escritas com outras palavras.',
+                ],
+              ] as const
+            ).map(([valor, rotulo, explicacao]) => (
+              <label key={valor} className="search-mode__option" title={explicacao}>
+                <input
+                  type="radio"
+                  name="search-mode"
+                  value={valor}
+                  checked={modeDraft === valor}
+                  onChange={() => setModeDraft(valor)}
+                />
+                <span>{rotulo}</span>
+              </label>
+            ))}
+          </fieldset>
+
           <button
             type="button"
             className="filter-button"
@@ -1082,6 +1149,7 @@ function HomePage({
                           openButtonId={openButtonId(decision)}
                           selected={selected}
                           rank={firstRank + index}
+                          bySubject={result.by_subject}
                         />
                       </li>
                     );
@@ -1143,6 +1211,14 @@ function HomePage({
           tabIndex={0}
         >
           <PanoramaLayout
+            divergence={
+              <DivergencePanel
+                divergence={divergenceState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelect={(selection) => openIndicator({ kind: 'divergence', ...selection })}
+              />
+            }
             courts={
               <CourtVolumePanel
                 compact
