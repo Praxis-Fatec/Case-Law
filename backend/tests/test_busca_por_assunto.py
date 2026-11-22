@@ -120,7 +120,9 @@ def test_a_lista_vem_do_mais_parecido_para_o_menos(cliente: TestClient) -> None:
 
 
 def test_marca_o_que_so_o_sentido_encontrou(cliente: TestClient) -> None:
-    por_assunto = {m["identifier"]: m["by_subject"] for m in procurar(cliente)["results"]}
+    por_assunto = {
+        m["identifier"]: m["by_subject"] for m in procurar(cliente)["results"]
+    }
 
     assert por_assunto == {
         "perto-longa": True,

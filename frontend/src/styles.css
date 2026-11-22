@@ -6450,14 +6450,12 @@ input:focus-visible {
   opacity: 0.6;
 }
 
-
 .decision-result-card__flags {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
 }
-
 
 /* Quão perto do que foi digitado. Três faixas, que são os tercis medidos do
    intervalo que a busca mantém — não uma porcentagem, porque o cosseno não

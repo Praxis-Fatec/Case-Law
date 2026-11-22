@@ -29,6 +29,7 @@ type DecisionCardData = Pick<
   | 'deliberation'
   | 'snippet'
   | 'thesis'
+  | 'proximity'
 > & {
   published_on?: string | null;
   // Where the decision lives, which is how the API is asked about it: for the

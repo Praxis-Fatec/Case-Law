@@ -565,7 +565,9 @@ function HomePage({
     setView('documents');
     resetBuffer();
     navigate('/', { replace: true });
-    void runSearch(search);
+    // Uma busca salva guarda o recorte — expressão, filtros e ordem —, não o
+    // modo de pesquisar, que é escolha do leitor agora.
+    void runSearch({ ...search, mode: modeDraft });
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 

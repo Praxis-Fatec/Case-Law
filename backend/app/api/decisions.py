@@ -470,7 +470,11 @@ SEMANTIC_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SEMANTIC_DEPTH}"
 
 Proximity = Literal["high", "medium", "low"]
 
-PROXIMITY_BANDS: tuple[tuple[float, Proximity], ...] = ((0.272, "high"), (0.326, "medium"))
+PROXIMITY_BANDS: tuple[tuple[float, Proximity], ...] = (
+    (0.272, "high"),
+    (0.326, "medium"),
+)
+
 
 def _band(distancia: float | None) -> Proximity | None:
     """
@@ -614,18 +618,26 @@ def _word_page_sql(
     que `mode=exact` serve, palavra por palavra.
     """
     if not excluding:
-        return _broad_page_sql(published) if lexema else _page_sql(filters, ordering, published)
+        return (
+            _broad_page_sql(published)
+            if lexema
+            else _page_sql(filters, ordering, published)
+        )
 
-    base = _broad_page_sql(published) if lexema else _page_sql(filters, ordering, published)
-    tabela = "core.busca_ampla" if lexema else "core.decisao"
-    alvo = (
-        "WHERE lexema = %(lexema)s"
+    base = (
+        _broad_page_sql(published)
         if lexema
-        else f"WHERE {MATCH}{filters}"
+        else _page_sql(filters, ordering, published)
     )
-    return _semantic_ctes(filters) + "," + base.replace(
-        "WITH pagina AS (", "pagina AS (", 1
-    ).replace(alvo, alvo + _ja_mostrada(tabela), 1)
+    tabela = "core.busca_ampla" if lexema else "core.decisao"
+    alvo = "WHERE lexema = %(lexema)s" if lexema else f"WHERE {MATCH}{filters}"
+    return (
+        _semantic_ctes(filters)
+        + ","
+        + base.replace("WITH pagina AS (", "pagina AS (", 1).replace(
+            alvo, alvo + _ja_mostrada(tabela), 1
+        )
+    )
 
 
 # Which of the tables the search reads are in front of this server yet.
