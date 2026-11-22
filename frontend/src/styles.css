@@ -6597,3 +6597,96 @@ input:focus-visible {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Como pesquisar, ao lado dos filtros. Duas opções e nenhum nome de
+   tecnologia: quem usa a ferramenta é advogado, não desenvolvedor. */
+.search-mode {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid #eadbd6;
+  border-radius: 999px;
+  background: #fcf6f3;
+}
+
+.search-mode__option {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: #6f6064;
+  cursor: pointer;
+  font:
+    500 var(--text-xs)/1.2 'Source Sans 3',
+    sans-serif;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.search-mode__option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.search-mode__option:has(input:checked) {
+  background: var(--search-primary);
+  color: #fff;
+}
+
+.search-mode__option:has(input:focus-visible) {
+  outline: 2px solid var(--search-primary);
+  outline-offset: 2px;
+}
+
+.search-mode:disabled .search-mode__option {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.decision-result-card__flags {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Quão perto do que foi digitado. Três faixas, que são os tercis medidos do
+   intervalo que a busca mantém — não uma porcentagem, porque o cosseno não
+   lê como porcentagem: um casamento temático perfeito marca 0,61. */
+.decision-result-card__proximity {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font:
+    600 11px/1.3 'Source Sans 3',
+    sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.decision-result-card__proximity--high {
+  background: #e7f0e9;
+  color: #2f5d3a;
+}
+
+.decision-result-card__proximity--medium {
+  background: #fdf1e3;
+  color: #7a5320;
+}
+
+.decision-result-card__proximity--low {
+  background: #f1eeec;
+  color: #6f6064;
+}
+
+/* Achada pelo assunto, não pelas palavras. Uma faixa na borda em vez de mais
+   um chip no cabeçalho: ela distingue sem disputar espaço com a data e com a
+   proximidade. A cor não responde sozinha — o card carrega o mesmo recado em
+   `title` e em texto para leitor de tela. */
+.decision-result-card--by-subject {
+  box-shadow: inset 5px 0 0 0 var(--search-primary);
+}

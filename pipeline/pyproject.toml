@@ -17,6 +17,10 @@ package = false
 pythonpath = ["."]
 
 [dependency-groups]
+embeddings = [
+    "sentence-transformers>=5.0.0",
+    "torch>=2.9.0",
+]
 dev = [
     # Only the tests use it. The pipeline itself talks to PostgreSQL through
     # dlt and SQLMesh, which bring psycopg2; the tests build models and compare
@@ -24,3 +28,11 @@ dev = [
     "psycopg[binary]>=3.2.0",
     "pytest>=9.1.1",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
