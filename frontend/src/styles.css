@@ -6399,3 +6399,170 @@ input:focus-visible {
     animation: none;
   }
 }
+
+/* RF22 keeps document counts separate from the process sample of each pair. */
+.divergence {
+  padding: 20px;
+  min-width: 0;
+}
+.divergence__group {
+  margin-top: 26px;
+  min-width: 0;
+}
+.divergence__group-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.divergence__panels,
+.divergence__samples {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.divergence__panel,
+.divergence__sample {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--search-border);
+  border-radius: 12px;
+  background: #fff;
+  overflow-wrap: anywhere;
+}
+.divergence__panel h4,
+.divergence__sample h5 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--search-primary);
+}
+.divergence__panel p,
+.divergence__sample p {
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.divergence__count strong {
+  font-size: 24px;
+}
+.divergence__numbers {
+  margin: 14px 0;
+}
+.divergence__numbers > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--search-border);
+  font-size: 13px;
+}
+.divergence__numbers dt {
+  overflow-wrap: anywhere;
+}
+.divergence__numbers dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+.divergence__muted,
+.divergence__method {
+  color: var(--search-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.divergence__insufficient {
+  padding: 10px;
+  border-radius: 8px;
+  background: #f5f1ed;
+  color: var(--search-text);
+}
+.divergence__pairs {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+.divergence__pair {
+  border: 1px solid var(--search-border);
+  border-radius: 12px;
+  padding: 14px;
+  background: #fff;
+}
+.divergence__pair summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+  font-size: 14px;
+}
+.divergence__pair summary > span {
+  display: block;
+  margin: 5px 0;
+}
+.divergence__pair summary:focus-visible {
+  outline: 3px solid #9b697e;
+  outline-offset: 4px;
+}
+.divergence__pair--signal {
+  border-left: 4px solid var(--search-primary);
+  background: #fff4ed;
+}
+.divergence__reason {
+  color: var(--search-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.divergence__reason svg {
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.divergence__samples {
+  margin-top: 14px;
+}
+.divergence__test {
+  margin: 12px 0 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.divergence__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 20px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f9f4f1;
+  color: var(--search-muted);
+}
+.divergence__notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+.divergence__notice p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.divergence__error {
+  padding: 14px;
+  background: #fff6f4;
+  border: 1px solid #e7ccc7;
+  border-radius: 10px;
+}
+.divergence__error button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--search-primary);
+  border-radius: 8px;
+  background: var(--search-primary);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .divergence {
+    padding: 12px;
+  }
+  .divergence__panels,
+  .divergence__samples {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -38,6 +38,9 @@ import TimelineVolumePanel, { type TimelineState } from '../components/TimelineV
 import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
 import PanoramaLayout from '../components/PanoramaLayout';
 import ConcentrationPanel from '../components/ConcentrationPanel';
+import DivergencePanel from '../components/DivergencePanel';
+import type { DivergenceState } from '../components/divergenceFormat';
+import { getDivergence } from '../api/divergence';
 import { CONCENTRATION_LIMIT, type ConcentrationState } from '../components/concentrationFormat';
 import {
   selectIndicator,
@@ -182,6 +185,7 @@ const volumeKey = (params: VolumeParams) =>
 
 // A counted cut, kept under the key of the cut it counts.
 type PanoramaCache = {
+  divergence?: DivergenceState;
   key: string;
   volume: VolumeState;
   outcome: OutcomeState;
@@ -588,7 +592,8 @@ function HomePage({
   const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
   const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
   const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
-  const panoramaKey = panorama?.timeline && panorama.concentration ? panorama.key : null;
+  const panoramaKey =
+    panorama?.timeline && panorama.concentration && panorama.divergence ? panorama.key : null;
 
   // Asked when the panorama is up and what it holds is not this cut: a new
   // expression or new filters, applied while it was up or before it opened.
@@ -612,6 +617,8 @@ function HomePage({
       setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
     const settleConcentration = (concentration: ConcentrationState) =>
       setPanorama((current) => (current?.key === key ? { ...current, concentration } : current));
+    const settleDivergence = (divergence: DivergenceState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, divergence } : current));
 
     setPanorama({
       key,
@@ -621,10 +628,19 @@ function HomePage({
       adherence: { status: 'loading' },
       mostCited: { status: 'loading' },
       concentration: { status: 'loading' },
+      divergence: { status: 'loading' },
     });
     getVolumeByPeriod(volumeFor(applied)).then(
       (volume) => settleTimeline({ status: 'loaded', volume }),
       () => settleTimeline({ status: 'failed' }),
+    );
+    getDivergence(volumeFor(applied)).then(
+      (divergence) => settleDivergence({ status: 'loaded', divergence }),
+      () =>
+        settleDivergence({
+          status: 'failed',
+          message: 'Não foi possível carregar a comparação entre turmas. Tente novamente.',
+        }),
     );
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
@@ -705,6 +721,12 @@ function HomePage({
         ? panorama.concentration
         : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+  const divergenceState: DivergenceState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.divergence
+        ? panorama.divergence
+        : { status: 'loading' };
   const timelineState: TimelineState =
     cutKey === null
       ? { status: 'idle' }
@@ -1143,6 +1165,7 @@ function HomePage({
           tabIndex={0}
         >
           <PanoramaLayout
+            divergence={<DivergencePanel divergence={divergenceState} onRetry={retryPanorama} />}
             courts={
               <CourtVolumePanel
                 compact

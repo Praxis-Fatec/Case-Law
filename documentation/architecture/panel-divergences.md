@@ -13,7 +13,8 @@ The thresholds below are explicit initial product choices. The mathematical
 examples are synthetic checks, not measurements of the published collection,
 empirical calibration, or evidence of approval by a legal specialist. The
 endpoint and rule tests are implemented by SCRUM-282 as described below;
-the Panorama interface and document-opening flow belong to subsequent tasks.
+the Panorama panel is implemented by SCRUM-283. The document-opening flow
+belongs to subsequent tasks.
 
 ## The comparison unit and its scope
 
@@ -326,3 +327,25 @@ cross-panel process exclusions, historical scopes, a global Holm family,
 search-filter agreement and authentication. The document-list interface and
 representative-sample retrieval remain the following RF12 tasks; no new
 evidence-opening route is claimed here.
+
+## SCRUM-283: Panorama panel
+
+The Panorama dimension **Como as turmas do mesmo tribunal decidiram** reads
+the authenticated endpoint only after a search has been applied and Panorama
+is opened. It shares the applied cut and session cache with the existing
+indicators; draft edits do not change its numbers, and a late response for
+an older cut cannot replace the current one.
+
+Panels appear side by side within their court and CNJ class, stacking on a
+phone. Document outcome counts and identified processes are labelled
+separately from each pair's classified-process sample. Pair details show its
+own denominators, unknown outcomes and exclusions. A highlighted pair
+requires the backend's confirmed signal and matching statistical reason;
+insufficient or unvalidated comparisons remain visible with their counts
+and explanation. The client rejects incomplete responses and inconsistent
+signalling fields instead of displaying guessed zeros or conclusions.
+
+Idle, loading, empty and failed states are distinct. Failed requests can be
+retried. The panel repeats the distinction between a statistical difference
+and a legal divergence. It does not yet expose representative-document links;
+the RF12 flow must retain the sample-selection invariants described above.
