@@ -35,7 +35,12 @@ TABLES = (
     "doutrina",
     "doutrina_termo",
     "decisao_doutrina",
+    "decisao_vetor",
 )
+
+ORIGENS = {"decisao_vetor": "vetor.decisao"}
+
+COLUNAS = {"decisao_vetor": "fonte_codigo, identificador_fonte, modelo, revisao, vetor"}
 
 INDEXES = (
     (
@@ -135,10 +140,25 @@ INDEXES = (
         f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria_candidata "
         "(fonte_codigo, identificador_fonte)"
     ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_vetor "
+        "(fonte_codigo, identificador_fonte)"
+    ),
 )
+
+VETOR_DIMENSOES = 1024
+
+VETOR_INDICE = f"""
+SET maintenance_work_mem = '2GB';
+SET max_parallel_maintenance_workers = 0;
+CREATE INDEX ON {STAGING_SCHEMA}.decisao_vetor
+  USING hnsw ((binary_quantize(vetor)::bit({VETOR_DIMENSOES})) bit_hamming_ops);
+ANALYZE {STAGING_SCHEMA}.decisao_vetor;
+"""
 
 SEARCH_CONFIGURATION = """
 CREATE EXTENSION IF NOT EXISTS unaccent;
+CREATE EXTENSION IF NOT EXISTS vector;
 DO $do$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'portugues_sem_acento')
@@ -256,12 +276,14 @@ def stage() -> int:
     _local_psql(["-c", f"CREATE SCHEMA {STAGING_SCHEMA}"])
 
     for table in TABLES:
+        origem = ORIGENS.get(table, f"{PUBLISHED_SCHEMA}.{table}")
+        colunas = COLUNAS.get(table, "*")
         _local_psql(
             [
                 "-c",
                 (
                     f"CREATE TABLE {STAGING_SCHEMA}.{table} AS "
-                    f"SELECT * FROM {PUBLISHED_SCHEMA}.{table}"
+                    f"SELECT {colunas} FROM {origem}"
                 ),
             ]
         )
@@ -302,7 +324,7 @@ def transfer(target: Target) -> None:
             "--format",
             "custom",
             "--compress",
-            "6",
+            "zstd:6",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -351,6 +373,9 @@ def publish(name: str) -> None:
 
     print(f"transferring to {target.name}", flush=True)
     transfer(target)
+
+    print(f"building the vector index on {target.name}", flush=True)
+    _remote_psql(target, VETOR_INDICE, [])
 
     print("swapping the schema", flush=True)
     _remote_psql(target, SWAP, [])

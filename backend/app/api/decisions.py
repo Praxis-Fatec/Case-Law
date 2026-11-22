@@ -10,6 +10,7 @@ from psycopg import Connection
 from psycopg.rows import DictRow
 from pydantic import BaseModel, Field
 
+from app import embeddings
 from app.config import settings
 from app.db import get_connection
 from app.ementa import split as split_ementa
@@ -80,6 +81,9 @@ ts_headline(
 
 Order = Literal["relevance", "date"]
 DEFAULT_ORDER: Order = "relevance"
+
+SearchMode = Literal["exact", "subjects"]
+DEFAULT_MODE: SearchMode = "subjects"
 
 TIEBREAK = "fonte_codigo DESC, identificador_fonte DESC"
 
@@ -362,19 +366,25 @@ ORDER BY
 # moment it appears, with nobody having to restart anything.
 PUBLISHED_SQL = """
 SELECT TO_REGCLASS('core.busca_ampla') IS NOT NULL       AS ranking,
-       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada
+       TO_REGCLASS('core.url_compartilhada') IS NOT NULL AS compartilhada,
+       TO_REGCLASS('core.decisao_vetor') IS NOT NULL     AS vetores
 """
 
 
 class Published(NamedTuple):
     ranking: bool
     shared: bool
+    vectors: bool
 
 
 def _published(cursor: Any) -> Published:
     cursor.execute(PUBLISHED_SQL)
     row = cursor.fetchone() or {}
-    return Published(bool(row.get("ranking")), bool(row.get("compartilhada")))
+    return Published(
+        bool(row.get("ranking")),
+        bool(row.get("compartilhada")),
+        bool(row.get("vetores")),
+    )
 
 
 def _broad_term(
@@ -447,6 +457,205 @@ COUNT_SQL = _count_sql()
 PAGE_SQL = _page_sql()
 
 
+VECTOR_DIMENSIONS = embeddings.DIM
+
+# Quantas vizinhas o índice devolve antes dos dois pisos. Vinte e cinco telas
+# de resultado, bem além do que alguém pagina, e o teto que `hnsw.ef_search`
+# aceita é 1000.
+SEMANTIC_DEPTH = 500
+SUBJECT_MAX_DISTANCE = "0.42"
+SUBJECT_MIN_EMENTA = 120
+
+SEMANTIC_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SEMANTIC_DEPTH}"
+
+Proximity = Literal["high", "medium", "low"]
+
+PROXIMITY_BANDS: tuple[tuple[float, Proximity], ...] = (
+    (0.272, "high"),
+    (0.326, "medium"),
+)
+
+
+def _band(distancia: float | None) -> Proximity | None:
+    """
+    Which third of the kept range a distance falls in, for what is inside it.
+
+    The thirds are measured, not chosen: over ten real legal queries, the 100
+    results the floor keeps split at 0,272 and 0,326. The spread is between
+    queries rather than within one, so a search the collection covers well
+    reads `high` throughout and one it covers poorly reads `low` throughout —
+    which is the useful thing to say.
+
+    Past `SUBJECT_MAX_DISTANCE` there is nothing to say, and saying `low`
+    there would be a claim rather than a measurement.
+    """
+    if distancia is None or distancia > float(SUBJECT_MAX_DISTANCE):
+        return None
+    for limite, faixa in PROXIMITY_BANDS:
+        if distancia <= limite:
+            return faixa
+    return "low"
+
+
+SEMANTIC_CTE_TEMPLATE = """
+WITH candidatas AS (
+    SELECT fonte_codigo, identificador_fonte, vetor
+    FROM core.decisao_vetor
+    ORDER BY binary_quantize(vetor)::bit({dim})
+             <~> binary_quantize(%(vetor)s::halfvec({dim}))::bit({dim})
+    LIMIT {depth}
+),
+proximas AS (
+    SELECT
+        c.fonte_codigo,
+        c.identificador_fonte,
+        c.vetor <=> %(vetor)s::halfvec({dim}) AS distancia,
+        decisao.{match} AS pela_palavra
+    FROM candidatas AS c
+    JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte)
+    WHERE c.vetor <=> %(vetor)s::halfvec({dim}) <= {floor}
+      AND LENGTH(BTRIM(decisao.ementa)) >= {minima}{filters}
+)
+"""
+
+
+def _semantic_ctes(filters: str = "") -> str:
+    """
+    As decisões próximas em sentido, de qualquer origem.
+
+    Não há exclusão por palavra aqui: uma decisão que casa com o que foi
+    digitado e está perto em sentido entra como qualquer outra, e `pela_palavra`
+    só registra de onde ela também poderia ter vindo.
+
+    Dois pisos a estreitam, e os dois são medidos em search-subjects.md: o de
+    distância, porque a busca vetorial sempre tem um vizinho mais próximo
+    mesmo quando nada no acervo trata do assunto; e o de tamanho de ementa,
+    porque um texto de três palavras carrega o sentido de uma só.
+    """
+    return SEMANTIC_CTE_TEMPLATE.format(
+        dim=VECTOR_DIMENSIONS,
+        depth=SEMANTIC_DEPTH,
+        match=MATCH,
+        floor=SUBJECT_MAX_DISTANCE,
+        minima=SUBJECT_MIN_EMENTA,
+        filters=filters,
+    )
+
+
+def _semantic_counts_sql(filters: str = "") -> str:
+    """
+    Quantas decisões o sentido traz, e quantas delas a palavra também traria.
+
+    A segunda é o que a lista por palavra deixa de repetir, e sem ela o total
+    contaria a mesma decisão duas vezes.
+    """
+    return (
+        _semantic_ctes(filters)
+        + """
+SELECT COUNT(*) AS proximas, COUNT(*) FILTER (WHERE pela_palavra) AS repetidas
+FROM proximas
+"""
+    )
+
+
+def _semantic_page_sql(filters: str = "", published: bool = True) -> str:
+    """A primeira parte da lista: por sentido, da mais próxima para a menos."""
+    shared, join = _shared(published)
+    return (
+        _semantic_ctes(filters)
+        + f""",
+pagina AS (
+    SELECT * FROM proximas
+    ORDER BY distancia, fonte_codigo, identificador_fonte
+    LIMIT %(limit)s OFFSET %(offset)s
+)
+SELECT
+    decisao.fonte_codigo,
+    decisao.identificador_fonte,
+    decisao.tribunal_sigla,
+    decisao.processo,
+    decisao.orgao_julgador,
+    decisao.relator,
+    decisao.data_referencia,
+    decisao.turma_recursal,
+    decisao.url_fonte,
+    decisao.link_valido,
+    {shared} AS url_compartilhada,
+    decisao.deliberacao,
+    decisao.ementa,
+    decisao.tese,
+    {SNIPPET} AS snippet,
+    pagina.distancia,
+    NOT pagina.pela_palavra AS por_assunto
+FROM pagina
+JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
+ORDER BY pagina.distancia, pagina.fonte_codigo, pagina.identificador_fonte
+"""
+    )
+
+
+def _ja_mostrada(tabela: str) -> str:
+    """O que a fase por sentido já serviu, para a fase por palavra não repetir."""
+    return f"""
+  AND NOT EXISTS (
+      SELECT 1 FROM proximas AS p
+      WHERE p.fonte_codigo = {tabela}.fonte_codigo
+        AND p.identificador_fonte = {tabela}.identificador_fonte
+  )"""
+
+
+def _word_page_sql(
+    filters: str = "",
+    ordering: str = "",
+    published: bool = True,
+    lexema: str = "",
+    excluding: bool = False,
+) -> str:
+    """
+    A segunda fase: por palavra, pulando o que o sentido já mostrou.
+
+    Sem `excluding` é exatamente a consulta que a busca sempre fez — a mesma
+    que `mode=exact` serve, palavra por palavra.
+    """
+    if not excluding:
+        return (
+            _broad_page_sql(published)
+            if lexema
+            else _page_sql(filters, ordering, published)
+        )
+
+    base = (
+        _broad_page_sql(published)
+        if lexema
+        else _page_sql(filters, ordering, published)
+    )
+    tabela = "core.busca_ampla" if lexema else "core.decisao"
+    alvo = "WHERE lexema = %(lexema)s" if lexema else f"WHERE {MATCH}{filters}"
+    return (
+        _semantic_ctes(filters)
+        + ","
+        + base.replace("WITH pagina AS (", "pagina AS (", 1).replace(
+            alvo, alvo + _ja_mostrada(tabela), 1
+        )
+    )
+
+
+# Which of the tables the search reads are in front of this server yet.
+#
+# A deploy can land before the base that goes with it — it happened once this
+# sprint already. Without this check a search would name a table that does not
+# exist and answer 500 instead of answering slowly, or without the warning
+# about a shared link. Both are right answers while the data is on its way; an
+# error page is not.
+#
+# Two tables, one statement. They are published by the same run and can still
+# be absent one without the other, and asking twice would double a probe that
+# exists precisely because it is cheap.
+#
+# Asked every time rather than remembered. The statement reads two catalog rows
+# and costs a tenth of a millisecond against a page that costs thirty-six, and
+# a server that started before the base was published starts using it the
+# moment it appears, with nobody having to restart anything.
 def _detail_sql(published: bool) -> str:
     shared, join = _shared(published)
     return f"""
@@ -591,6 +800,25 @@ class DecisionMatch(DecisionBase):
                 )
             ]
         ],
+    )
+    by_subject: bool = Field(
+        default=False,
+        description=(
+            "True when the word search does not return this decision at all "
+            "and only its meaning brought it here. The screen marks those, "
+            "because a reader trusts the two differently."
+        ),
+    )
+    proximity: Proximity | None = Field(
+        default=None,
+        description=(
+            "How close this decision is, in meaning, to what was typed: "
+            "`high`, `medium` or `low`, which are thirds of the range the "
+            "search keeps, measured over real queries. Null in `mode=exact`, "
+            "which never computes meaning, past the floor the bands were "
+            "measured inside, and for a decision with no vector."
+        ),
+        examples=["high"],
     )
     snippet: str = Field(
         description=(
@@ -879,6 +1107,41 @@ class SearchResults(BaseModel):
         examples=[40],
     )
     results: list[DecisionMatch]
+
+
+def _match(row: DictRow, q: str) -> DecisionMatch:
+    return DecisionMatch(
+        **_base_fields(row),
+        thesis=split_theses(row.get("tese")),
+        snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
+        proximity=_band(row.get("distancia")),
+        by_subject=bool(row.get("por_assunto")),
+    )
+
+
+def _query_vector(
+    q: str, mode: SearchMode, order: Order, published: Published
+) -> str | None:
+    """
+    The reader's words as a vector, or nothing — and nothing is not an error.
+
+    Four ways to come back empty: the reader asked for exact words, the reader
+    asked for the most recent first, the collection carries no vectors yet, or
+    this server has no model.
+
+    The second is the one worth explaining. Meaning earns its place here by
+    ordering, and a reader who picks `date` has said what the order is. Adding
+    decisions the word search never returns, in an order nobody asked for,
+    would change the list without answering the request — so ordering by date
+    is the search as it always was.
+
+    The last two are the same bargain `_published` already makes for
+    `core.busca_ampla`: a deploy can land before the base that goes with it,
+    and answering by word alone is right while it is on its way.
+    """
+    if mode != "subjects" or order != "relevance" or not published.vectors:
+        return None
+    return embeddings.embed(q)
 
 
 def _base_fields(row: DictRow) -> dict[str, Any]:
@@ -1226,6 +1489,19 @@ def search_decisions(
             ),
         ),
     ] = DEFAULT_ORDER,
+    mode: Annotated[
+        SearchMode,
+        Query(
+            description=(
+                "`exact` searches the words written and nothing else — the "
+                "same results, the same order and the same cost as before "
+                "this parameter existed. `subjects` runs that identical "
+                "search and reorders the front of it by meaning, adding the "
+                "decisions about the same subject that share none of the "
+                "words. Those carry `by_subject`."
+            ),
+        ),
+    ] = DEFAULT_MODE,
 ) -> SearchResults:
     """
     Search the ementa of every collected decision.
@@ -1316,30 +1592,69 @@ def search_decisions(
 
     with connection.cursor() as cursor:
         publicado = _published(cursor)
+        vetor = _query_vector(q, mode, order, publicado)
         broad = _broad_term(
             cursor, parameters, filters, order, offset, page_size, publicado.ranking
         )
+        lexema = str(broad["lexema"]) if broad is not None else ""
+        parameters["lexema"] = lexema
 
         if broad is not None:
-            # Both the page and the total are read, not computed. The total is
-            # the exact number of decisions carrying the term, counted once
-            # when the base was built.
+            # The total is read, not computed: the exact number of decisions
+            # carrying the term, counted once when the base was built.
             total = int(broad["decisoes"])
-            cursor.execute(
-                _broad_page_sql(publicado.shared),
-                {**parameters, "lexema": broad["lexema"]},
-            )
-            rows = cursor.fetchall()
         else:
             cursor.execute(_count_sql(filters), parameters)
             total = int((cursor.fetchone() or {"total": 0})["total"])
 
-            if offset < total:
+        def por_palavra(
+            deslocamento: int, excluindo: bool = False, quantas: int | None = None
+        ) -> list[DictRow]:
+            cursor.execute(
+                _word_page_sql(
+                    filters, ORDERINGS[order], publicado.shared, lexema, excluindo
+                ),
+                {
+                    **parameters,
+                    "offset": deslocamento,
+                    "limit": quantas or page_size,
+                },
+            )
+            return cursor.fetchall()
+
+        if vetor is None:
+            rows = por_palavra(offset) if offset < total else []
+        else:
+            parameters["vetor"] = vetor
+            # Sem isto o índice devolve os 40 vizinhos padrão, e medido sobre
+            # o acervo inteiro nenhum deles sobrevive ao piso: a busca por
+            # sentido viria vazia sem nenhum erro.
+            cursor.execute(SEMANTIC_SEARCH_DEPTH)
+            cursor.execute(_semantic_counts_sql(filters), parameters)
+            contagem = cursor.fetchone() or {}
+            proximas = int(contagem.get("proximas") or 0)
+            repetidas = int(contagem.get("repetidas") or 0)
+            total += proximas - repetidas
+
+            if offset < proximas:
                 cursor.execute(
-                    _page_sql(filters, ORDERINGS[order], publicado.shared),
-                    parameters,
+                    _semantic_page_sql(filters, publicado.shared),
+                    {**parameters, "limit": min(page_size, proximas - offset)},
                 )
                 rows = cursor.fetchall()
+                # A emenda entre as duas fases cai no meio de uma página tantas
+                # vezes quantas forem as buscas: sem completar aqui, essa
+                # página chega curta e a seguinte começa torta.
+                faltam = page_size - len(rows)
+                if faltam > 0:
+                    rows += por_palavra(0, excluindo=proximas > 0, quantas=faltam)
+            elif offset < total:
+                # Acabaram as que passam do corte de proximidade. Daqui em
+                # diante é a busca por palavra, pulando as que a primeira fase
+                # já serviu.
+                rows = por_palavra(offset - proximas, excluindo=proximas > 0)
+            else:
+                rows = []
 
     return SearchResults(
         total=total,
@@ -1347,14 +1662,7 @@ def search_decisions(
         page_size=page_size,
         range_from=offset + 1 if rows else None,
         range_to=offset + len(rows) if rows else None,
-        results=[
-            DecisionMatch(
-                **_base_fields(row),
-                thesis=split_theses(row.get("tese")),
-                snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
-            )
-            for row in rows
-        ],
+        results=[_match(row, q) for row in rows],
     )
 
 
