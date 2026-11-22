@@ -276,3 +276,50 @@ def test_uma_pagina_nao_repete_o_que_a_outra_mostrou(cliente: TestClient) -> Non
     segunda = achadas(procurar(cliente, page=2))
 
     assert set(primeira) & set(segunda) == set()
+
+
+def test_a_caixa_do_que_foi_digitado_nao_chega_ao_modelo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    Uma maiúscula inicial decidia se a funcionalidade existia.
+
+    Medido: `Demora no voo` e `demora no voo` produzem vetores apenas 0,77
+    parecidos, e a decisão mais próxima de cada um fica a 0,565 e a 0,375 —
+    um de cada lado do piso. Aqui o modelo é substituído por um espião, e o
+    que se afirma é que ele recebe sempre a mesma coisa.
+    """
+    from app import embeddings
+
+    recebidas: list[str] = []
+
+    class Espiao:
+        max_seq_length = 0
+
+        def encode(self, textos: list[str], **_: object) -> list[list[float]]:
+            recebidas.extend(textos)
+            return [[0.0] * embeddings.DIM]
+
+    monkeypatch.setattr(embeddings.settings, "embedding_model_path", "/qualquer")
+    monkeypatch.setattr(embeddings, "_loaded", True)
+    monkeypatch.setattr(embeddings, "_model", Espiao())
+
+    for forma in ("demora no voo", "Demora no voo", "DEMORA NO VOO", "DeMoRa No VoO"):
+        embeddings.embed(forma)
+
+    assert recebidas == ["demora no voo"] * 4
+    assert len(set(recebidas)) == 1
+
+
+def test_ordenar_por_data_nao_e_reordenado_por_sentido(cliente: TestClient) -> None:
+    """
+    Quem pede a mais recente primeiro disse qual é a ordem.
+
+    Sem isto a lista saía em ordem de proximidade com o seletor marcado em
+    `date`, e as datas voltavam embaralhadas: 2007, 2025, 2026, 2025.
+    """
+    corpo = procurar(cliente, order="date")
+    datas = [m["decided_on"] for m in corpo["results"]]
+
+    assert datas == sorted(datas, reverse=True)
+    assert achadas(corpo) == achadas(procurar(cliente, order="date", mode="exact"))

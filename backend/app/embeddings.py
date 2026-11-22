@@ -72,11 +72,22 @@ def embed(consulta: str) -> str | None:
     """
     The query as a `halfvec` literal, or `None` when there is no model.
 
+    Folded to lower case first, and that is not cosmetic. `Demora no voo` and
+    `demora no voo` produce vectors only 0,77 alike, and the first one's
+    nearest decision sits at 0,565 against the second's 0,375 — one side of
+    the floor each. A capital letter is what anybody types, and without this
+    it decided whether the feature worked. Lower case also measured closer to
+    the collection in nine of twelve forms, which is backwards given the
+    ementas are mostly upper case, and the reason it is measured rather than
+    assumed.
+
     A literal rather than a list because that is what the database takes, and
     building it here keeps the formatting in one place.
     """
     if not configured() or not consulta.strip():
         return None
+
+    consulta = consulta.lower()
 
     rede = _load()
     if rede is None:

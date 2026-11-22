@@ -1101,17 +1101,27 @@ def _match(row: DictRow, q: str) -> DecisionMatch:
     )
 
 
-def _query_vector(q: str, mode: SearchMode, published: Published) -> str | None:
+def _query_vector(
+    q: str, mode: SearchMode, order: Order, published: Published
+) -> str | None:
     """
     The reader's words as a vector, or nothing — and nothing is not an error.
 
-    Three ways to come back empty: the reader asked for exact words, the
-    collection carries no vectors yet, or this server has no model. The last
-    two are the same bargain `_published` already makes for `core.busca_ampla`
-    — a deploy can land before the base that goes with it, and answering by
-    word alone is the right answer while it is on its way.
+    Four ways to come back empty: the reader asked for exact words, the reader
+    asked for the most recent first, the collection carries no vectors yet, or
+    this server has no model.
+
+    The second is the one worth explaining. Meaning earns its place here by
+    ordering, and a reader who picks `date` has said what the order is. Adding
+    decisions the word search never returns, in an order nobody asked for,
+    would change the list without answering the request — so ordering by date
+    is the search as it always was.
+
+    The last two are the same bargain `_published` already makes for
+    `core.busca_ampla`: a deploy can land before the base that goes with it,
+    and answering by word alone is right while it is on its way.
     """
-    if mode != "subjects" or not published.vectors:
+    if mode != "subjects" or order != "relevance" or not published.vectors:
         return None
     return embeddings.embed(q)
 
@@ -1564,7 +1574,7 @@ def search_decisions(
 
     with connection.cursor() as cursor:
         publicado = _published(cursor)
-        vetor = _query_vector(q, mode, publicado)
+        vetor = _query_vector(q, mode, order, publicado)
         broad = _broad_term(
             cursor, parameters, filters, order, offset, page_size, publicado.ranking
         )

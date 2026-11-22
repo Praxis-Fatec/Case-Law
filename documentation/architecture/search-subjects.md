@@ -182,9 +182,39 @@ it costs here — the range and its method are in
 
 ---
 
+## A capital letter decided whether the feature worked
+
+The query is folded to lower case before it is embedded, and that is not
+cosmetic:
+
+| Typed | Cosine with the lower-case form | Nearest decision | |
+|---|---:|---:|---|
+| `demora no voo` | — | 0,375 | inside the floor |
+| `demora no vôo` | 0,9511 | 0,354 | inside |
+| **`Demora no voo`** | **0,7743** | **0,565** | **cut** |
+| **`DEMORA NO VOO`** | **0,6891** | **0,471** | **cut** |
+
+A capital letter is what anybody types, and without the fold it decided
+whether a reader got the feature at all: 233 results against 127, fourteen
+decisions against none. The longer query barely moves — 0,238, 0,240, 0,262
+across the three forms — because this is the short-query problem again: a
+three-word query sits so close to the floor that any perturbation tips it over.
+
+Lower case also measured **closer to the collection in nine of twelve forms**,
+which is backwards given the ementas are mostly upper case, and the reason it
+is measured rather than assumed.
+
+## Ordering by date turns meaning off
+
+Meaning earns its place here by ordering. A reader who picks `date` has said
+what the order is, so the semantic phase does not run and the list is the
+search as it always was. Without this the screen answered `date` with
+decisions in order of proximity — 2007, 2025, 2026, 2025 — while the control
+said it was sorting by date.
+
 ## When it is off, the search is the old search
 
-Four states return an empty block, and none of them is an error:
+Four states return the plain word search, and none of them is an error:
 
 | | |
 |---|---|
