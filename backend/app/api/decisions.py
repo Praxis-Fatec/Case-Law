@@ -889,7 +889,7 @@ STRUCTURED_EXAMPLE: dict[str, Any] = {
                 "na citação, por motivos inerentes ao mecanismo da Justiça, não "
                 "justifica o acolhimento da arguição de prescrição."
             ),
-            "status": None,
+            "status": "Vigente",
             "settled_on": None,
             "snippet": (
                 "prescricao intercorrente. incidencia da sumula 106/stj. "
@@ -958,15 +958,21 @@ class CitedPrecedent(BaseModel):
     status: str | None = Field(
         default=None,
         description=(
-            "Whether it is still in force. Always `null` for a súmula, whose "
-            "text is reconstructed from the collection and carries no status: "
-            "presenting a cancelled one as current is an error this refuses to "
-            "risk."
+            "Whether it still stands, in the words of the CNJ's national "
+            "register: prose rather than a code, in three casing conventions, "
+            "and for a tema a whole sentence. `null` means the register holds "
+            "no entry for this precedent, which is not the same as being in "
+            "force — a screen that reads an absent status as current commits "
+            "the error this field exists to prevent."
         ),
-        examples=[None],
+        examples=["Cancelado"],
     )
     settled_on: date | None = Field(
-        default=None, description="When it was judged, for temas."
+        default=None,
+        description=(
+            "When it was judged. Only the STJ's open data catalogue publishes "
+            "it, so it is filled for its temas and absent elsewhere."
+        ),
     )
     snippet: str = Field(
         description=(

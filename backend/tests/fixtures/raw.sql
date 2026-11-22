@@ -151,6 +151,18 @@ CREATE TABLE raw.precedente_stj (
     _dlt_load_id TEXT
 );
 
+-- The CNJ's register, for the same reason as the table above: `core.carga`
+-- attributes a run to a source by which raw table received rows, so the model
+-- names this one. Absent, the load record cannot be built at all and every
+-- test that reads it errors instead of reporting an empty collection.
+CREATE TABLE raw.precedente_pangea (
+    id           TEXT,
+    orgao        TEXT,
+    tipo         TEXT,
+    nr           BIGINT,
+    _dlt_load_id TEXT
+);
+
 -- The same columns tests/test_doutrina_escopo.py declares. One definition, so
 -- its `CREATE TABLE IF NOT EXISTS` finds the table it expects instead of a
 -- narrower one created here first.

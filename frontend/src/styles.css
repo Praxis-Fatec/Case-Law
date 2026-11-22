@@ -3909,6 +3909,22 @@ input:focus-visible {
   font-weight: 600;
 }
 
+/* A step below the one above, and deliberately so. "Afetado" and "Revisado"
+   are not "cancelado": the reader has to look, not stop. Same shape so the two
+   read as the same kind of notice, lighter weight and a dashed edge so they
+   are not mistaken for each other at a glance — the distinction survives
+   without colour, which is what a reader who cannot separate the two hues
+   needs. */
+.precedent__standing--pending {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed #8a5a12;
+  border-radius: 6px;
+  color: #8a5a12;
+}
+
 .precedent__text {
   margin: 10px 0 0;
   padding-left: 12px;

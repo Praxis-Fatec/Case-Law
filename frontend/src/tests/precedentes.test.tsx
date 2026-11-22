@@ -93,6 +93,24 @@ describe('the precedents a decision cites', () => {
     expect(warning.textContent).toMatch(/não vale hoje/);
   });
 
+  it('says a tema is not settled yet instead of showing it as in force', () => {
+    showDetail([precedent({ kind: 'tema', number: 1384, status: 'Afetado' })]);
+
+    expect(screen.getByText(/Situação: Afetado/)).toBeInTheDocument();
+    expect(screen.getByText(/ainda não está firmada em definitivo/)).toBeInTheDocument();
+  });
+
+  it('shows a status it will not interpret, and admits that', () => {
+    // `ALTERADO` and `Revisado` mean the wording moved, not that the
+    // precedent fell. Reading either as "in force" is the defect this
+    // section exists to avoid, and so is reading it as cancelled.
+    showDetail([precedent({ status: 'Revisado' })]);
+
+    expect(screen.getByText(/Situação: Revisado/)).toBeInTheDocument();
+    expect(screen.getByText(/não interpreta essa situação/)).toBeInTheDocument();
+    expect(screen.queryByText(/não vale hoje/)).toBeNull();
+  });
+
   it('never reads an unknown status as current', () => {
     showDetail([precedent({ status: null })]);
 

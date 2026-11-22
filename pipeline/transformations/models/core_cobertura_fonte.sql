@@ -36,9 +36,18 @@ MODEL (
   herdaria a precisão da consulta em vez de declarar que não tem nenhuma.
 
   As súmulas reconstruídas ficam fora da conta dos precedentes. Elas não vêm
-  de coleta — saem das transcrições do próprio acervo — e as 371 não têm data
-  nenhuma, então contá-las como coleta do portal do STJ atribuiria ao portal
-  um período que ele não forneceu.
+  de coleta — saem das transcrições do próprio acervo — e não têm data nenhuma,
+  então contá-las como coleta de um portal atribuiria a ele um período que não
+  forneceu.
+
+  Os dois registros de precedente entram por critérios diferentes, porque
+  entregam coisas diferentes. O catálogo do STJ é o único que publica data de
+  julgamento, e a data atravessa a fusão de `core.precedente` mesmo quando o
+  texto vem do BNP — então é ela que marca o que o catálogo entregou, e não
+  `origem`, que passou a dizer de onde saiu o enunciado. O BNP não publica data
+  nenhuma: `itens_sem_data` é a contagem inteira de propósito, porque a coluna
+  diz quantos itens chegaram sem data **desta** fonte, e a auditoria
+  `cobertura_preenchida` só exige período de quem entregou item datado.
 */
 
 WITH decisao AS (
@@ -62,7 +71,20 @@ precedente AS (
     MAX(data)                                            AS cobertura_fim,
     'dia'                                                AS precisao
   FROM core.precedente
-  WHERE origem = 'catalogo'
+  WHERE tipo = 'tema' AND data IS NOT NULL
+  HAVING COUNT(*) > 0
+),
+
+precedente_oficial AS (
+  SELECT
+    'cnj-bnp'                                            AS fonte_codigo,
+    COUNT(*)                                             AS itens,
+    COUNT(*)                                             AS itens_sem_data,
+    CAST(NULL AS DATE)                                   AS cobertura_inicio,
+    CAST(NULL AS DATE)                                   AS cobertura_fim,
+    'nenhuma'                                            AS precisao
+  FROM core.precedente
+  WHERE origem = 'oficial'
   HAVING COUNT(*) > 0
 ),
 
@@ -82,6 +104,7 @@ doutrina AS (
 coletado AS (
   SELECT * FROM decisao
   UNION ALL SELECT * FROM precedente
+  UNION ALL SELECT * FROM precedente_oficial
   UNION ALL SELECT * FROM doutrina
 )
 

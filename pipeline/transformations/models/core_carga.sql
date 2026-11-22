@@ -117,12 +117,33 @@ stf AS (
   GROUP BY 1
 ),
 
+/*
+  O registro oficial do CNJ. Sem este ramo a carga do BNP cai no grupo de fonte
+  nula, e a tela do RF16 afirma "nunca coletada" sobre uma fonte que entregou
+  4.457 registros — que é pior do que não saber, porque é uma afirmação falsa.
+  Aqui não há o que chutar: a tabela recebeu linha na carga, como nas outras
+  cinco.
+*/
+bnp AS (
+  SELECT
+    _dlt_load_id                  AS carga_id,
+    'cnj-bnp'                     AS fonte_codigo,
+    COUNT(*)                      AS registros_lidos,
+    COUNT(*)                      AS registros_gravados,
+    CAST(NULL AS BIGINT)          AS descartados_sigilo,
+    CAST(NULL AS BIGINT)          AS links_invalidos,
+    CAST(NULL AS BIGINT)          AS links_nao_verificados
+  FROM raw.precedente_pangea
+  GROUP BY 1
+),
+
 contagem AS (
   SELECT * FROM tjdft
   UNION ALL SELECT * FROM espelhos
   UNION ALL SELECT * FROM precedentes
   UNION ALL SELECT * FROM doutrina
   UNION ALL SELECT * FROM stf
+  UNION ALL SELECT * FROM bnp
 )
 
 SELECT

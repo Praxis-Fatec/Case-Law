@@ -25,24 +25,51 @@ type CitedPrecedentsProps = { precedents: CitedPrecedent[]; headingId: string };
 function Standing({ status }: { status: string | null }) {
   const standing = standingOf(status);
 
+  // Nothing at all when the register carries no status. It is the state of a
+  // precedent the official register does not hold, and a warning repeated on
+  // every one of them would stop being read and would compete with the ones
+  // below, which are the ones that matter. The section says it once instead.
+  if (standing === 'unknown' || !status) {
+    return null;
+  }
+
   if (standing === 'superseded') {
     return (
       <p className="precedent__standing precedent__standing--superseded">
         <Warning size={14} weight="fill" aria-hidden="true" />
         <span>
-          Precedente {status}. A decisão que o aplicou continua sendo um fato, mas o enunciado não
-          vale hoje.
+          Precedente {status.toLocaleLowerCase('pt-BR')}. A decisão que o aplicou continua sendo um
+          fato, mas o enunciado não vale hoje.
         </span>
       </p>
     );
   }
 
-  // Nothing at all when the status is unknown, which is every reconstructed
-  // súmula: a warning that appears on all of them stops being read, and it
-  // would compete with the one above, which is the one that matters. The
-  // section says it once instead.
-  if (standing === 'unknown') {
-    return null;
+  if (standing === 'pending') {
+    return (
+      <p className="precedent__standing precedent__standing--pending">
+        <Warning size={14} aria-hidden="true" />
+        <span>
+          Situação: {status}. A tese ainda não está firmada em definitivo — o enunciado pode mudar.
+        </span>
+      </p>
+    );
+  }
+
+  // The register says something this screen will not translate. Showing the
+  // word and admitting that is the whole point: `ALTERADO` and `Revisado` mean
+  // the wording moved, not that the precedent fell, and reading either as "in
+  // force" would be the defect this section exists to avoid.
+  if (standing === 'unclassified') {
+    return (
+      <p className="precedent__standing precedent__standing--pending">
+        <Warning size={14} aria-hidden="true" />
+        <span>
+          Situação: {status}. Esta ferramenta não interpreta essa situação — confira na fonte
+          oficial antes de citar.
+        </span>
+      </p>
+    );
   }
 
   return <p className="precedent__standing">Situação: {status}</p>;
@@ -123,8 +150,9 @@ function CitedPrecedents({ precedents, headingId }: CitedPrecedentsProps) {
       </h3>
       <p className="precedents__lead">
         Súmulas e temas que esta decisão invoca. O enunciado e o trecho são do acórdão; o rótulo ao
-        final de cada bloco é leitura automática, não texto do tribunal. O acervo não registra se um
-        precedente segue valendo, salvo quando marcado abaixo — confira na fonte oficial antes de
+        final de cada bloco é leitura automática, não texto do tribunal. A situação de cada
+        precedente é a do Banco Nacional de Precedentes do CNJ na última carga. Precedente que o
+        registro não cobre aparece sem situação — nesse caso, confira na fonte oficial antes de
         citar.
       </p>
 
