@@ -201,5 +201,44 @@ export EMBEDDING_MODEL_PATH=$PWD/modelo
   ten — or none — while matching decisions exist further down. Measuring how
   often that happens needs a filter the readers actually use, and there is no
   log of that yet.
-- **The marking on screen is G.7.** The API says which list a decision came
-  from; `SCRUM-255` is where a reader sees it.
+- **Query repetition is unknown.** Legal searches repeat, and a cache of query
+  vectors would make most of them free — but nothing records what readers
+  typed, so the hit rate cannot be claimed.
+
+---
+
+## On screen — SCRUM-255 (G.7)
+
+The choice sits beside the filters, in the words the reader uses:
+
+```
+[ Palavras exatas | Palavras e assuntos parecidos ]   [ Filtros ]   [ Pesquisar ]
+```
+
+Nothing names a technology. "Semântico", "vetorial" and "léxico" are words for
+the people who built it, and the people who use it are lawyers.
+
+Each decision in the block carries a **`assunto parecido`** tag in its header,
+and the block itself carries the one-line explanation the story asks for:
+*estas decisões não aparecem na busca pelas palavras que você escreveu, mas
+tratam do mesmo tema.* A decision in the main list never carries the tag, so
+the two kinds of result are told apart by the card and not only by where it
+sits.
+
+**The indicator drawer always asks for `exact`.** It lists the documents behind
+a number and never renders the block, so asking for it would spend a query
+embedding and a vector search per opening to throw the answer away.
+
+### Two things the frontend had to learn
+
+**The results buffer fetches two screens at once.** `PAGES_PER_BLOCK` is 2, so
+the API is asked for page 1 at `page_size` 40 and the answer is sliced into
+screens 1 and 2. The subject block belongs to the request, not to the slice,
+so `sliceFor` hands it to the first screen and an empty list to the second —
+otherwise the same ten decisions would appear again under page 2.
+
+**A tag beside the date is not free naming.** The first version wrapped the
+date in `decision-result-card__meta`, which already exists on the card and
+already holds the deliberation; `querySelector` returned the new one and a
+test about reporting a classification started reading the wrong element. The
+wrapper is `__flags`.

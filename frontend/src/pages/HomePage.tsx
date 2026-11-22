@@ -10,9 +10,11 @@ import {
   ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
+  DEFAULT_MODE,
   DEFAULT_ORDER,
   SearchRequestError,
   type SearchDecisionMatch,
+  type SearchMode,
   type SearchOrder,
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
@@ -134,6 +136,7 @@ type AppliedSearch = {
   q: string;
   filters: SearchFilterValues;
   order: SearchOrder;
+  mode: SearchMode;
   page: number;
   extraFilters?: AdditionalSavedFilters;
 };
@@ -152,6 +155,7 @@ const requestFor = (search: AppliedSearch) => ({
   ...toSearchParams(search.q, search.filters),
   page: search.page,
   order: search.order,
+  mode: search.mode,
 });
 
 // The cut the panorama counts: the applied expression and filters, built by the
@@ -232,12 +236,17 @@ function HomePage({
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  const [modeDraft, setModeDraft] = useSessionState<SearchMode>('mode', DEFAULT_MODE);
   // Which view of the applied search is up. In the session, so it is still the
   // one chosen after a decision or the coverage page is left.
   const [view, setView] = useSessionState<ResultsView>('view', 'documents');
   const [isLoading, setIsLoading] = useSessionState('isLoading', false);
   const [errorMessage, setErrorMessage] = useSessionState<string | null>('errorMessage', null);
   const [results, setResults] = useSessionState<SearchDecisionMatch[]>('results', []);
+  const [subjectMatches, setSubjectMatches] = useSessionState<SearchDecisionMatch[]>(
+    'subjectMatches',
+    [],
+  );
   const [totalResults, setTotalResults] = useSessionState<number | null>('totalResults', null);
   // Where the page on screen sits in the total, as the API answered it. Null
   // while a page loads or after one failed: no range is shown that was not read.
@@ -259,14 +268,22 @@ function HomePage({
         ? document.activeElement
         : null,
     );
-    const selection = selectIndicator(requestFor(applied), point, {
+    // Sem o bloco por assunto: a gaveta lista os documentos por trás de um
+    // número e nunca o mostra, então pedi-lo custaria uma consulta vetorial
+    // por abertura para jogar o resultado fora.
+    const selection = selectIndicator({ ...requestFor(applied), mode: 'exact' }, point, {
       total: totalResults ?? 0,
       filterCount: countFilters(applied.filters) + additionalFilterCount(applied),
     });
     // The comparison's court selector replaces only the court dimension.
     // Keep the original search intact for the drawer's remove-selection action.
     if (compareCourt && point.kind === 'court') {
-      selection.params = { ...requestFor(applied), tribunal: [point.court], page: 1 };
+      selection.params = {
+        ...requestFor(applied),
+        mode: 'exact',
+        tribunal: [point.court],
+        page: 1,
+      };
     }
     setIndicatorSelection(selection);
     navigate(
@@ -408,6 +425,7 @@ function HomePage({
       setErrorMessage(null);
       setTotalResults(inHand.total);
       setResults(inHand.results);
+      setSubjectMatches(inHand.subject_matches);
       setPageInfo({
         page: inHand.page,
         pageSize: inHand.page_size,
@@ -441,6 +459,7 @@ function HomePage({
       // the list does — without taking the list's address from it.
       setTotalResults(response.total);
       setResults(response.results);
+      setSubjectMatches(response.subject_matches);
       setPageInfo({
         page: response.page,
         pageSize: response.page_size,
@@ -523,6 +542,7 @@ function HomePage({
       filters: filterDraft,
       extraFilters: applied?.extraFilters,
       order: applied?.order ?? DEFAULT_ORDER,
+      mode: modeDraft,
       page: 1,
     });
   };
@@ -841,6 +861,31 @@ function HomePage({
         </div>
 
         <div className="legal-search__actions">
+          <fieldset className="search-mode" disabled={isLoading}>
+            <legend className="sr-only">Como pesquisar</legend>
+            {(
+              [
+                ['exact', 'Palavras exatas', 'Só decisões que contêm o que você escreveu.'],
+                [
+                  'subjects',
+                  'Palavras e assuntos parecidos',
+                  'Também decisões sobre o mesmo assunto, escritas com outras palavras.',
+                ],
+              ] as const
+            ).map(([valor, rotulo, explicacao]) => (
+              <label key={valor} className="search-mode__option" title={explicacao}>
+                <input
+                  type="radio"
+                  name="search-mode"
+                  value={valor}
+                  checked={modeDraft === valor}
+                  onChange={() => setModeDraft(valor)}
+                />
+                <span>{rotulo}</span>
+              </label>
+            ))}
+          </fieldset>
+
           <button
             type="button"
             className="filter-button"
@@ -1089,6 +1134,43 @@ function HomePage({
                 </ul>
               )}
             </section>
+
+            {/* Abaixo da lista e fora dela: são decisões que a busca por
+                palavra não encontrou, e misturá-las ao que ela encontrou
+                tiraria do leitor a chance de saber a diferença. */}
+            {!isLoading && subjectMatches.length > 0 && (
+              <section className="subject-results" aria-labelledby="subject-results-title">
+                <h2 id="subject-results-title" className="subject-results__title">
+                  Também sobre o mesmo assunto
+                </h2>
+                <p className="subject-results__explanation">
+                  Estas decisões não aparecem na busca pelas palavras que você escreveu, mas
+                  tratam do mesmo tema.
+                </p>
+                <ul className="result-list">
+                  {subjectMatches.map((result) => {
+                    const decision = { source: result.source, identifier: result.identifier };
+                    const selected =
+                      openDecision !== null && keyOf(openDecision) === keyOf(decision);
+
+                    return (
+                      <li key={`assunto-${result.source}-${result.identifier}`} className="result-item">
+                        <DecisionResultCard
+                          decision={result}
+                          to={{ pathname: detailPath(decision), search: location.search }}
+                          replace={chosenDecision !== null}
+                          state={{ fromResults: true }}
+                          onOpen={openDetail}
+                          openButtonId={openButtonId(decision)}
+                          selected={selected}
+                          bySubject
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            )}
 
             {/* Under the list. Up while a later page loads, to say which, but
                 never with a range before the API has answered one; gone when

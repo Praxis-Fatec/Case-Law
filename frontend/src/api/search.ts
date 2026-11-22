@@ -34,6 +34,10 @@ export type SearchDecisionResponse = {
   range_from?: number | null;
   range_to?: number | null;
   results: SearchDecisionMatch[];
+  // Decisões que a busca por palavra não encontrou e que tratam do mesmo
+  // assunto. Até dez, só na primeira página e só em `subjects`. Opcional: uma
+  // API publicada antes da funcionalidade não manda o campo.
+  subject_matches?: SearchDecisionMatch[];
 };
 
 // The two orders the API accepts. `relevance` is its default, so it is left
@@ -41,6 +45,12 @@ export type SearchDecisionResponse = {
 export type SearchOrder = 'relevance' | 'date';
 
 export const DEFAULT_ORDER: SearchOrder = 'relevance';
+
+// O que o leitor escolhe na barra de busca. `subjects` é o padrão da API, por
+// isso sai da requisição: quem não escolhe nada manda a mesma URL de sempre.
+export type SearchMode = 'exact' | 'subjects';
+
+export const DEFAULT_MODE: SearchMode = 'subjects';
 
 // Which indicator the reader arrived from. The API cuts the snippet around
 // what produced that classification instead of around what was typed; absent,
@@ -71,6 +81,7 @@ export type SearchParams = {
   published_to?: string;
   // Applied by the API over every match, before paging — never on the page.
   order?: SearchOrder;
+  mode?: SearchMode;
 };
 
 // A failed search, carrying what the API said so the screen can tell a
@@ -140,6 +151,10 @@ export async function searchDecisions(
 
   if (params.highlight) {
     url.searchParams.set('highlight', params.highlight);
+  }
+
+  if (params.mode && params.mode !== DEFAULT_MODE) {
+    url.searchParams.set('mode', params.mode);
   }
 
   const response = await fetch(url.toString(), {

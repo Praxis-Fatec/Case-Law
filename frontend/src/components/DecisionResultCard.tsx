@@ -59,6 +59,9 @@ type DecisionResultCardProps = {
   selected?: boolean;
   // Its place in the whole result, counting from 1 across pages.
   rank?: number;
+  // Achada por assunto e não pelas palavras digitadas. O leitor confia de um
+  // jeito diferente em cada uma das duas, então a diferença aparece no card.
+  bySubject?: boolean;
 };
 
 function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
@@ -121,6 +124,7 @@ function DecisionResultCard({
   openButtonId,
   selected = false,
   rank,
+  bySubject = false,
 }: DecisionResultCardProps) {
   const officialUrl = normalizeOfficialUrl(decision.source_url);
   const linkIsUnavailable = !officialUrl || decision.source_url_reachable === false;
@@ -186,7 +190,12 @@ function DecisionResultCard({
               {getDisplayValue(decision.case_number)}
             </span>
           </div>
-          {decided && <span className="decision-result-card__date">{decided}</span>}
+          <div className="decision-result-card__flags">
+            {bySubject && (
+              <span className="decision-result-card__subject-tag">assunto parecido</span>
+            )}
+            {decided && <span className="decision-result-card__date">{decided}</span>}
+          </div>
         </header>
 
         <p className="decision-result-card__snippet">{renderSafeSnippet(decision.snippet)}</p>

@@ -14,6 +14,10 @@ export type ResultsPage = {
   page_size: number;
   range_from: number | null;
   range_to: number | null;
+  // Só na primeira página do acervo, nunca na segunda metade de um bloco: a
+  // API devolve o bloco por assunto para a página que pediu, e um bloco
+  // carrega duas páginas de tela.
+  subject_matches: SearchDecisionResponse['results'];
 };
 
 const blockOf = (page: number) => Math.floor((page - 1) / PAGES_PER_BLOCK) + 1;
@@ -85,6 +89,7 @@ function sliceFor(page: number, block: SearchDecisionResponse): ResultsPage {
     page_size: PAGE_SIZE,
     range_from: results.length > 0 ? from : null,
     range_to: results.length > 0 ? from + results.length - 1 : null,
+    subject_matches: page === 1 ? (block.subject_matches ?? []) : [],
   };
 }
 
