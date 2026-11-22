@@ -29,7 +29,7 @@ function Standing({ status }: { status: string | null }) {
   // precedent the official register does not hold, and a warning repeated on
   // every one of them would stop being read and would compete with the ones
   // below, which are the ones that matter. The section says it once instead.
-  if (standing === 'unknown') {
+  if (standing === 'unknown' || !status) {
     return null;
   }
 

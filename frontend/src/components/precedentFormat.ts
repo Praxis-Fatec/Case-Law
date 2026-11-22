@@ -86,10 +86,7 @@ export function standingOf(status: string | null): Standing {
     return 'unknown';
   }
 
-  const folded = status
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  const folded = status.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
   if (/cancelad|revogad|prejudicad|superad/.test(folded)) {
     return 'superseded';
