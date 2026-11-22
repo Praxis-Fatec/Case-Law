@@ -865,7 +865,11 @@ function HomePage({
             <legend className="sr-only">Como pesquisar</legend>
             {(
               [
-                ['exact', 'Palavras exatas', 'Só decisões que contêm o que você escreveu.'],
+                [
+                  'exact',
+                  'Só as minhas palavras',
+                  'Só decisões que contêm o que você escreveu. As aspas continuam valendo aqui.',
+                ],
                 [
                   'subjects',
                   'Palavras e assuntos parecidos',

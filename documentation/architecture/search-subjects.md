@@ -16,7 +16,7 @@ The search box offers two options, and neither of them names a technology:
 
 | On screen | `mode` | What it does |
 |---|---|---|
-| **Palavras exatas** | `exact` | Only decisions that contain what was written. |
+| **Só as minhas palavras** | `exact` | Only decisions that contain what was written. |
 | **Palavras e assuntos parecidos** | `subjects` | That same search, plus decisions about the same subject. |
 
 The second is the default, because **SCRUM-250 (G.2)** measured the gain:
@@ -212,7 +212,7 @@ export EMBEDDING_MODEL_PATH=$PWD/modelo
 The choice sits beside the filters, in the words the reader uses:
 
 ```
-[ Palavras exatas | Palavras e assuntos parecidos ]   [ Filtros ]   [ Pesquisar ]
+[ Só as minhas palavras | Palavras e assuntos parecidos ]  [ Filtros ]  [ Pesquisar ]
 ```
 
 Nothing names a technology. "Semântico", "vetorial" and "léxico" are words for

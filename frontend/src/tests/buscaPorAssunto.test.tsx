@@ -81,7 +81,7 @@ describe('o leitor escolhe como pesquisar', () => {
     installApi();
     renderApp();
 
-    expect(screen.getByRole('radio', { name: 'Palavras exatas' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Só as minhas palavras' })).toBeInTheDocument();
     expect(
       screen.getByRole('radio', { name: 'Palavras e assuntos parecidos' }),
     ).toBeInTheDocument();
@@ -99,7 +99,7 @@ describe('o leitor escolhe como pesquisar', () => {
     const api = installApi();
     const user = await pesquisar();
 
-    await user.click(screen.getByRole('radio', { name: 'Palavras exatas' }));
+    await user.click(screen.getByRole('radio', { name: 'Só as minhas palavras' }));
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
 
     expect(api.last().searchParams.get('mode')).toBe('exact');
@@ -148,7 +148,7 @@ describe('o bloco de decisões por assunto', () => {
     installApi();
     const user = await pesquisar();
 
-    await user.click(screen.getByRole('radio', { name: 'Palavras exatas' }));
+    await user.click(screen.getByRole('radio', { name: 'Só as minhas palavras' }));
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
     await screen.findAllByRole('article');
 
@@ -212,7 +212,7 @@ describe('a proximidade do que foi digitado', () => {
     installApi();
     const user = await pesquisar();
 
-    await user.click(screen.getByRole('radio', { name: 'Palavras exatas' }));
+    await user.click(screen.getByRole('radio', { name: 'Só as minhas palavras' }));
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
     await screen.findAllByRole('article');
 
