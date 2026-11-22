@@ -3,7 +3,7 @@
 from datetime import date
 
 import pytest
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from app.divergence import (
     ComparableGroup,
@@ -25,7 +25,7 @@ def group() -> ComparableGroup:
         classes=[198],
         valid_from=date(2020, 1, 1),
         valid_to=date(2030, 12, 31),
-        evidence_url="https://example.test/fixture",
+        evidence_url=HttpUrl("https://example.test/fixture"),
         validated_by="Test fixture, not legal approval",
         validated_on=date(2026, 1, 1),
     )
