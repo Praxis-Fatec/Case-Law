@@ -338,6 +338,10 @@ difference in volume alone does not prove legal divergence.
 **Verification.** Check the cases identified against the decisions that support
 them and against the rule approved for the comparison.
 
+The initial sample, significance and effect thresholds, sparse-sample behaviour
+and numerical validation examples are recorded in
+[the RF22 statistical rule (SCRUM-281)](architecture/panel-divergences.md).
+
 <a id="rf23"></a>
 
 ### RF23 · Decisions to the contrary
