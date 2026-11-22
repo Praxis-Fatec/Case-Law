@@ -25,10 +25,10 @@ function decision(identifier: string, snippet: string) {
   };
 }
 
-const POR_PALAVRA = [decision('1', 'Demora no voo e dano moral.')];
+const POR_PALAVRA = [{ ...decision('1', 'Demora no voo e dano moral.'), proximity: 'high' }];
 const POR_ASSUNTO = [
-  decision('9', 'TRANSPORTE AÉREO. OVERBOOKING. IMPEDIMENTO DE EMBARQUE.'),
-  decision('8', 'TRANSPORTE AÉREO. CANCELAMENTO DO VOO.'),
+  { ...decision('9', 'TRANSPORTE AÉREO. OVERBOOKING.'), proximity: 'medium' },
+  { ...decision('8', 'TRANSPORTE AÉREO. CANCELAMENTO DO VOO.'), proximity: 'low' },
 ];
 
 function json(body: unknown, status = 200): Response {
@@ -54,6 +54,9 @@ function installApi(subjectMatches = POR_ASSUNTO) {
         page_size: 20,
         results: POR_PALAVRA,
         subject_matches: url.searchParams.get('mode') === 'exact' ? [] : subjectMatches,
+        ...(url.searchParams.get('mode') === 'exact'
+          ? { results: POR_PALAVRA.map(({ proximity: _p, ...resto }) => resto) }
+          : {}),
       });
     }),
   );
@@ -177,5 +180,28 @@ describe('o bloco de decisões por assunto', () => {
 
     expect(bloco()).toBeNull();
     expect(screen.getAllByRole('article').length).toBeGreaterThan(0);
+  });
+});
+
+describe('a proximidade do que foi digitado', () => {
+  it('aparece em palavras que o leitor entende, não em porcentagem', async () => {
+    installApi();
+    await pesquisar();
+
+    expect(screen.getAllByText('muito próximo').length).toBeGreaterThan(0);
+    expect(within(bloco()!).getByText('próximo')).toBeInTheDocument();
+    expect(within(bloco()!).getByText('relacionado')).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
+  });
+
+  it('não aparece na busca por palavras exatas, que não calcula sentido', async () => {
+    installApi();
+    const user = await pesquisar();
+
+    await user.click(screen.getByRole('radio', { name: 'Palavras exatas' }));
+    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
+    await screen.findAllByRole('article');
+
+    expect(screen.queryByText('muito próximo')).toBeNull();
   });
 });

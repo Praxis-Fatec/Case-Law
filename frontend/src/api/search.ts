@@ -20,6 +20,9 @@ export type SearchDecisionMatch = {
   thesis?: string[];
   deliberation: string | null;
   snippet: string;
+  // Quão perto do que foi digitado, em sentido. Ausente na busca por palavras
+  // exatas, que não calcula sentido nenhum, e numa API publicada antes disto.
+  proximity?: 'high' | 'medium' | 'low' | null;
 };
 
 export type SearchDecisionResponse = {

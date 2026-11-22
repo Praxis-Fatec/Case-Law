@@ -36,12 +36,13 @@ MATCH = {
     "source_url",
     "source_url_reachable",
     "source_url_shared",
+    "proximity",
     "thesis",
     "deliberation",
     "snippet",
 }
 
-DETAIL = (MATCH - {"snippet"}) | {
+DETAIL = (MATCH - {"snippet", "proximity"}) | {
     "class_code",
     "judged_on",
     "published_on",

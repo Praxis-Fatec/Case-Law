@@ -64,6 +64,12 @@ type DecisionResultCardProps = {
   bySubject?: boolean;
 };
 
+const PROXIMIDADE = {
+  high: { rotulo: 'muito próximo', explicacao: 'Entre as mais próximas do que você escreveu.' },
+  medium: { rotulo: 'próximo', explicacao: 'Trata do mesmo assunto que você escreveu.' },
+  low: { rotulo: 'relacionado', explicacao: 'Tem relação com o que você escreveu, mais de longe.' },
+} as const;
+
 function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
   const normalized = normalizeText(value);
 
@@ -191,6 +197,14 @@ function DecisionResultCard({
             </span>
           </div>
           <div className="decision-result-card__flags">
+            {decision.proximity && (
+              <span
+                className={`decision-result-card__proximity decision-result-card__proximity--${decision.proximity}`}
+                title={PROXIMIDADE[decision.proximity].explicacao}
+              >
+                {PROXIMIDADE[decision.proximity].rotulo}
+              </span>
+            )}
             {bySubject && (
               <span className="decision-result-card__subject-tag">assunto parecido</span>
             )}

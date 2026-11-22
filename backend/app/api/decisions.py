@@ -466,6 +466,39 @@ SUBJECT_MIN_EMENTA = 120
 
 SUBJECT_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SUBJECT_DEPTH}"
 
+Proximity = Literal["high", "medium", "low"]
+
+PROXIMITY_BANDS: tuple[tuple[float, Proximity], ...] = ((0.272, "high"), (0.326, "medium"))
+
+PROXIMITY_SQL = f"""
+SELECT
+    fonte_codigo,
+    identificador_fonte,
+    vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia
+FROM core.decisao_vetor
+WHERE (fonte_codigo, identificador_fonte) IN (
+    SELECT * FROM UNNEST(%(fontes)s::text[], %(identificadores)s::varchar[])
+)
+"""
+
+
+def _band(distancia: float | None) -> Proximity | None:
+    """
+    Which third of the kept range a distance falls in.
+
+    The thirds are measured, not chosen: over ten real legal queries, the 100
+    results the floor keeps split at 0,272 and 0,326. The spread is between
+    queries rather than within one, so a search whose subject the collection
+    covers well tends to read `high` throughout and one it covers poorly reads
+    `low` throughout — which is the useful thing to say.
+    """
+    if distancia is None:
+        return None
+    for limite, faixa in PROXIMITY_BANDS:
+        if distancia <= limite:
+            return faixa
+    return "low"
+
 
 def _subject_sql(filters: str = "", published: bool = True) -> str:
     """
@@ -521,7 +554,8 @@ SELECT
     decisao.deliberacao,
     decisao.ementa,
     decisao.tese,
-    {SNIPPET} AS snippet
+    {SNIPPET} AS snippet,
+    proximas.distancia
 FROM proximas
 JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
 WHERE NOT (decisao.{MATCH})
@@ -675,6 +709,17 @@ class DecisionMatch(DecisionBase):
                 )
             ]
         ],
+    )
+    proximity: Proximity | None = Field(
+        default=None,
+        description=(
+            "How close this decision is, in meaning, to what was typed: "
+            "`high`, `medium` or `low`. The three are thirds of the range the "
+            "search keeps, measured over real queries. Null in `mode=exact`, "
+            "which never computes meaning, and for a decision the collection "
+            "holds no vector for."
+        ),
+        examples=["high"],
     )
     snippet: str = Field(
         description=(
@@ -971,38 +1016,73 @@ class SearchResults(BaseModel):
     )
 
 
-def _match(row: DictRow, q: str) -> DecisionMatch:
+def _match(row: DictRow, q: str, distancia: float | None = None) -> DecisionMatch:
     return DecisionMatch(
         **_base_fields(row),
         thesis=split_theses(row.get("tese")),
         snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
+        proximity=_band(distancia if distancia is not None else row.get("distancia")),
     )
+
+
+def _proximities(
+    cursor: Any, vetor: str | None, rows: list[DictRow]
+) -> dict[tuple[str, str], float]:
+    """
+    How close each decision of the page is to the query.
+
+    Read by key, in its own statement, so the page that `_page_sql` built is
+    the page the search always built — byte for byte, in content and in order.
+    What this returns only labels it.
+    """
+    if vetor is None or not rows:
+        return {}
+
+    cursor.execute(
+        PROXIMITY_SQL,
+        {
+            "vetor": vetor,
+            "fontes": [row["fonte_codigo"] for row in rows],
+            "identificadores": [row["identificador_fonte"] for row in rows],
+        },
+    )
+    return {
+        (linha["fonte_codigo"], linha["identificador_fonte"]): float(linha["distancia"])
+        for linha in cursor.fetchall()
+    }
+
+
+def _query_vector(q: str, mode: SearchMode, published: Published) -> str | None:
+    """
+    The reader's words as a vector, or nothing — and nothing is not an error.
+
+    Three ways to come back empty: the reader asked for exact words, the
+    collection carries no vectors yet, or this server has no model. The last
+    two are the same bargain `_published` already makes for `core.busca_ampla`
+    — a deploy can land before the base that goes with it, and answering by
+    word alone is the right answer while it is on its way.
+    """
+    if mode != "subjects" or not published.vectors:
+        return None
+    return embeddings.embed(q)
 
 
 def _subject_rows(
     cursor: Any,
-    q: str,
+    vetor: str | None,
     filters: str,
     parameters: dict[str, Any],
-    mode: SearchMode,
     page: int,
     published: Published,
 ) -> list[DictRow]:
     """
     The subject block, or nothing at all.
 
-    Four ways to come back empty and none of them is an error: the reader
-    asked for exact words, this is not the first page, the collection carries
-    no vectors yet, or this server has no model to turn the query into one.
-    The last two are the same bargain `_published` already makes for
-    `core.busca_ampla` — a deploy can land before the base that goes with it,
-    and answering by word alone is the right answer while it is on its way.
+    An offer, not a second list of results: it is built for the first page
+    and for no other, so paging never pays for a vector search again and the
+    same ten decisions never come back under page two.
     """
-    if mode != "subjects" or page != 1 or not published.vectors:
-        return []
-
-    vetor = embeddings.embed(q)
-    if vetor is None:
+    if vetor is None or page != 1:
         return []
 
     cursor.execute(SUBJECT_SEARCH_DEPTH)
@@ -1487,9 +1567,9 @@ def search_decisions(
 
         # After the page and never before it: the search by word answers on
         # its own, and whatever happens here cannot change what it answered.
-        subject_rows = _subject_rows(
-            cursor, q, filters, parameters, mode, page, publicado
-        )
+        vetor = _query_vector(q, mode, publicado)
+        subject_rows = _subject_rows(cursor, vetor, filters, parameters, page, publicado)
+        proximidades = _proximities(cursor, vetor, rows)
 
     return SearchResults(
         total=total,
@@ -1497,7 +1577,14 @@ def search_decisions(
         page_size=page_size,
         range_from=offset + 1 if rows else None,
         range_to=offset + len(rows) if rows else None,
-        results=[_match(row, q) for row in rows],
+        results=[
+            _match(
+                row,
+                q,
+                proximidades.get((row["fonte_codigo"], row["identificador_fonte"])),
+            )
+            for row in rows
+        ],
         subject_matches=[_match(row, q) for row in subject_rows],
     )
 

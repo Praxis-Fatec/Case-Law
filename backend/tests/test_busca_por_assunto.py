@@ -163,19 +163,42 @@ def test_o_bloco_so_existe_na_primeira_pagina(cliente: TestClient) -> None:
     assert procurar(cliente, page=2)["subject_matches"] == []
 
 
-def test_os_dois_modos_devolvem_a_mesma_lista(cliente: TestClient) -> None:
+def test_os_dois_modos_devolvem_as_mesmas_decisoes_na_mesma_ordem(
+    cliente: TestClient,
+) -> None:
     """
-    A promessa do desenho inteiro: a busca por assunto acrescenta um bloco e
-    não toca em nada. Se esta igualdade quebrar, quem escolheu "palavras
-    exatas" deixou de receber o que recebia antes de a funcionalidade existir.
+    A promessa do desenho inteiro: a busca por assunto acrescenta, nunca
+    altera. Se esta igualdade quebrar, quem escolheu "palavras exatas" deixou
+    de receber o que recebia antes de a funcionalidade existir.
     """
     exatas = procurar(cliente, mode="exact")
     assuntos = procurar(cliente, mode="subjects")
 
-    assert exatas["results"] == assuntos["results"]
+    sem_rotulo = lambda pagina: [  # noqa: E731
+        {campo: valor for campo, valor in m.items() if campo != "proximity"}
+        for m in pagina["results"]
+    ]
+
+    assert [m["identifier"] for m in exatas["results"]] == [
+        m["identifier"] for m in assuntos["results"]
+    ]
+    assert sem_rotulo(exatas) == sem_rotulo(assuntos)
     assert exatas["total"] == assuntos["total"]
     assert exatas["range_from"] == assuntos["range_from"]
     assert exatas["range_to"] == assuntos["range_to"]
+
+
+def test_palavras_exatas_nao_rotula_proximidade(cliente: TestClient) -> None:
+    """Sem vetorizar a consulta não há proximidade a afirmar, e inventar uma
+    seria pior do que não ter."""
+    assert all(m["proximity"] is None for m in procurar(cliente, mode="exact")["results"])
+
+
+def test_a_busca_ampliada_rotula_o_que_tem_vetor(cliente: TestClient) -> None:
+    rotulos = {m["proximity"] for m in procurar(cliente)["subject_matches"]}
+
+    assert rotulos <= {"high", "medium", "low"}
+    assert None not in rotulos
 
 
 def test_sem_modelo_a_busca_responde_por_palavra(

@@ -218,7 +218,31 @@ The choice sits beside the filters, in the words the reader uses:
 Nothing names a technology. "Semântico", "vetorial" and "léxico" are words for
 the people who built it, and the people who use it are lawyers.
 
-Each decision in the block carries a **`assunto parecido`** tag in its header,
+### How close, in words rather than in a number
+
+Every decision answered in `mode=subjects` carries a proximity label — **muito
+próximo**, **próximo** or **relacionado** — and the labels are the thirds of
+the range the floor keeps, measured over ten real legal queries: the 100
+results they returned split at **0,272** and **0,326**.
+
+**It is deliberately not a percentage.** The cosine the search ranks by does
+not read as one: the air-travel decisions that answer *demora no voo*
+perfectly sit at a distance of 0,384, which as a "similarity" would print as
+**61%** — a number a reader would take for a poor match. Three named bands say
+what the figure means; a percentage would say something false.
+
+**The spread is between queries, not within one.** Over those ten queries,
+*dano moral por inscrição indevida* returned everything between 0,238 and
+0,260 while *demora no voo* returned everything between 0,375 and 0,391. So
+the label rarely separates one result from its neighbour; what it separates is
+one search from another. That is the useful reading: it says how well the
+collection covers the question, decision by decision.
+
+The label is read in its own statement, keyed by the page's decisions, so
+`_page_sql` is untouched and the page the search builds is byte for byte the
+page it always built.
+
+Each decision in the block also carries a **`assunto parecido`** tag in its header,
 and the block itself carries the one-line explanation the story asks for:
 *estas decisões não aparecem na busca pelas palavras que você escreveu, mas
 tratam do mesmo tema.* A decision in the main list never carries the tag, so
