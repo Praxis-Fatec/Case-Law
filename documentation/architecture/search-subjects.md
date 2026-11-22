@@ -27,42 +27,66 @@ changes nothing gets the better answer, and the exact search is one click away.
 
 ---
 
-## The two lists are not merged, and that is the decision
+## One list, ordered by meaning
 
 ```
-127 decisões com suas palavras
+2.240 decisões
 ──────────────────────────────────────────────
-  [ decisão ]  [ decisão ]  …  20 per page, paged as before
-
-Também sobre o mesmo assunto
-──────────────────────────────────────────────
-  [ OVERBOOKING…    • assunto parecido ]
-  [ CANCELAMENTO…   • assunto parecido ]
+  [ OVERBOOKING…       muito próximo • assunto parecido ]
+  [ CANCELAMENTO…      muito próximo • assunto parecido ]
+  [ INSCRIÇÃO INDEVIDA… muito próximo ]
+  [ …                  próximo ]
 ```
 
-`results` is the search that existed before this feature, unchanged in
-content, order, paging and cost. `subject_matches` is a separate list of at
-most ten, below it, on the first page only.
+In `mode=subjects` the word search and the subject search become **one list,
+closest in meaning first**, whatever brought each decision there. A decision
+the word search never returns carries `by_subject`, and that is the only thing
+separating the two origins on screen.
 
-**Why not one ranked list.** G.2 split the evaluation set by whether the word
-search can reach the target at all, and the two halves pull opposite ways: on
-the pairs it reaches, the word search puts the court's answer on the first
-screen 39,08% of the time against the model's 31,88%. A single ranking that
-treats them as equals puts the weaker one at the top of the page where most
-answers come from. Keeping them apart costs nothing and loses nothing.
+**The first design kept them apart**, with the subject decisions in a block
+below. It was replaced because a reader reads a page top to bottom: a block
+underneath reads as "less relevant", and a `muito próximo` sitting below a
+list that is not ordered by proximity at all invites exactly the wrong
+inference.
 
-**Why the first page only.** The block is an offer, not a second result set.
-Repeated on every page it would take space without adding anything and would
-cost one vector search per page instead of one per search.
+### Meaning only reorders where meaning says something
 
-**Why it is explicable.** A reader can be told the whole rule in one line:
-*these decisions do not come up in a search for your words, but they are about
-the same thing.* That is the US's requirement that the combination be
-explicable, met by not combining.
+The reordering covers the first `RERANK_WINDOW = 100` of the word search plus
+the subject neighbours — five screens, which is further than anyone pages, and
+far cheaper than ordering the whole collection by meaning. **Past the floor
+the word order is kept**, and that is not a detail: measured on the first page
+of three searches, `recurso` sits between 0,483 and 0,640 and `dano moral`
+between 0,540 and 0,632, every one of them beyond 0,42. Reordering those by
+distance would reshuffle the order **SCRUM-210** built, using a signal that
+cannot tell them from decisions drawn at random.
+
+Measured over the whole collection:
+
+| Query | Order equals the word search | Total |
+|---|---|---:|
+| `recurso` | **yes** — nothing within the floor | 967.143 |
+| `dano moral` | **yes** | 30.799 |
+| `demora no voo` | no, reordered | 127 → 137 |
+| `dano moral por inscrição indevida` | no, reordered | 2.230 → 2.240 |
+
+**A short query is far from everything.** Two words against a whole ementa
+produce a large distance whatever the result is, which is why `dano moral`
+has not one decision within the floor while `dano moral por inscrição
+indevida` has 6.215. The rule turns that into a feature: the more the reader
+says, the more meaning has to work with, and the less they say the more the
+search behaves exactly as it always did.
+
+### Nothing is lost at the window's edge
+
+Reordering pushes some of the first hundred past position 100. If the next
+page simply resumed at word-offset 100 they would vanish from the search
+altogether — neither inside the window nor after it. So the count of word
+results that survived inside the window is read with the page, and page six
+resumes from there.
 
 ---
 
-## Three things narrow the block, and each was measured
+## Three things narrow what meaning may add, and each was measured
 
 ### It never repeats what the word search already found
 

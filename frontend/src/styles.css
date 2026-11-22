@@ -6450,29 +6450,6 @@ input:focus-visible {
   opacity: 0.6;
 }
 
-/* O bloco por assunto, abaixo da lista e separado dela. A separação é o
-   recado: estas decisões não vieram das palavras digitadas. */
-.subject-results {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid #eadbd6;
-}
-
-.subject-results__title {
-  margin: 0;
-  color: var(--search-primary);
-  font:
-    600 var(--text-sm)/1.3 'Source Sans 3',
-    sans-serif;
-}
-
-.subject-results__explanation {
-  margin: 4px 0 16px;
-  color: #6f6064;
-  font:
-    400 var(--text-xs)/1.45 'Source Sans 3',
-    sans-serif;
-}
 
 .decision-result-card__flags {
   display: flex;

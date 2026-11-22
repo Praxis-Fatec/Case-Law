@@ -243,10 +243,6 @@ function HomePage({
   const [isLoading, setIsLoading] = useSessionState('isLoading', false);
   const [errorMessage, setErrorMessage] = useSessionState<string | null>('errorMessage', null);
   const [results, setResults] = useSessionState<SearchDecisionMatch[]>('results', []);
-  const [subjectMatches, setSubjectMatches] = useSessionState<SearchDecisionMatch[]>(
-    'subjectMatches',
-    [],
-  );
   const [totalResults, setTotalResults] = useSessionState<number | null>('totalResults', null);
   // Where the page on screen sits in the total, as the API answered it. Null
   // while a page loads or after one failed: no range is shown that was not read.
@@ -425,7 +421,6 @@ function HomePage({
       setErrorMessage(null);
       setTotalResults(inHand.total);
       setResults(inHand.results);
-      setSubjectMatches(inHand.subject_matches);
       setPageInfo({
         page: inHand.page,
         pageSize: inHand.page_size,
@@ -459,7 +454,6 @@ function HomePage({
       // the list does — without taking the list's address from it.
       setTotalResults(response.total);
       setResults(response.results);
-      setSubjectMatches(response.subject_matches);
       setPageInfo({
         page: response.page,
         pageSize: response.page_size,
@@ -1131,50 +1125,12 @@ function HomePage({
                           openButtonId={openButtonId(decision)}
                           selected={selected}
                           rank={firstRank + index}
+                          bySubject={result.by_subject}
                         />
                       </li>
                     );
                   })}
                 </ul>
-              )}
-
-              {/* Abaixo da lista e dentro da área que rola com ela: como
-                    irmão da seção, a altura natural deste bloco esmagaria a
-                    lista, que é `flex: 1` numa coluna com `overflow: hidden`. são decisões que a busca por
-                  palavra não encontrou, e misturá-las ao que ela encontrou
-                  tiraria do leitor a chance de saber a diferença. */}
-              {!isLoading && subjectMatches.length > 0 && (
-                <section className="subject-results" aria-labelledby="subject-results-title">
-                  <h2 id="subject-results-title" className="subject-results__title">
-                    Também sobre o mesmo assunto
-                  </h2>
-                  <p className="subject-results__explanation">
-                    Estas decisões não aparecem na busca pelas palavras que você escreveu, mas
-                    tratam do mesmo tema.
-                  </p>
-                  <ul className="result-list">
-                    {subjectMatches.map((result) => {
-                      const decision = { source: result.source, identifier: result.identifier };
-                      const selected =
-                        openDecision !== null && keyOf(openDecision) === keyOf(decision);
-
-                      return (
-                        <li key={`assunto-${result.source}-${result.identifier}`} className="result-item">
-                          <DecisionResultCard
-                            decision={result}
-                            to={{ pathname: detailPath(decision), search: location.search }}
-                            replace={chosenDecision !== null}
-                            state={{ fromResults: true }}
-                            onOpen={openDetail}
-                            openButtonId={openButtonId(decision)}
-                            selected={selected}
-                            bySubject
-                          />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
               )}
             </section>
 

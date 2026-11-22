@@ -23,6 +23,9 @@ export type SearchDecisionMatch = {
   // Quão perto do que foi digitado, em sentido. Ausente na busca por palavras
   // exatas, que não calcula sentido nenhum, e numa API publicada antes disto.
   proximity?: 'high' | 'medium' | 'low' | null;
+  // Verdadeiro quando a busca por palavra não traz esta decisão e só o
+  // sentido a encontrou.
+  by_subject?: boolean;
 };
 
 export type SearchDecisionResponse = {
@@ -37,10 +40,6 @@ export type SearchDecisionResponse = {
   range_from?: number | null;
   range_to?: number | null;
   results: SearchDecisionMatch[];
-  // Decisões que a busca por palavra não encontrou e que tratam do mesmo
-  // assunto. Até dez, só na primeira página e só em `subjects`. Opcional: uma
-  // API publicada antes da funcionalidade não manda o campo.
-  subject_matches?: SearchDecisionMatch[];
 };
 
 // The two orders the API accepts. `relevance` is its default, so it is left

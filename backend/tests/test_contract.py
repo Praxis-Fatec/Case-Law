@@ -14,15 +14,7 @@ from tests.conftest import needs_database
 
 pytestmark = needs_database
 
-ENVELOPE = {
-    "total",
-    "page",
-    "page_size",
-    "range_from",
-    "range_to",
-    "results",
-    "subject_matches",
-}
+ENVELOPE = {"total", "page", "page_size", "range_from", "range_to", "results"}
 
 MATCH = {
     "source",
@@ -37,12 +29,13 @@ MATCH = {
     "source_url_reachable",
     "source_url_shared",
     "proximity",
+    "by_subject",
     "thesis",
     "deliberation",
     "snippet",
 }
 
-DETAIL = (MATCH - {"snippet", "proximity"}) | {
+DETAIL = (MATCH - {"snippet", "proximity", "by_subject"}) | {
     "class_code",
     "judged_on",
     "published_on",

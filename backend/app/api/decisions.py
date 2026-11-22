@@ -461,6 +461,11 @@ VECTOR_DIMENSIONS = embeddings.DIM
 
 SUBJECT_DEPTH = 500
 SUBJECT_LIMIT = 10
+
+# Quantas decisões da busca por palavra são reordenadas por sentido. Cinco
+# telas: além disso ninguém pagina, e ordenar o acervo inteiro por sentido
+# custa 720 ms numa busca de trinta mil resultados.
+RERANK_WINDOW = 100
 SUBJECT_MAX_DISTANCE = "0.42"
 SUBJECT_MIN_EMENTA = 120
 
@@ -491,44 +496,117 @@ def _band(distancia: float | None) -> Proximity | None:
     return "low"
 
 
-def _subject_sql(filters: str = "", published: bool = True) -> str:
+BROAD_LEXICAL = f"""
+    SELECT fonte_codigo, identificador_fonte
+    FROM core.busca_ampla
+    WHERE lexema = %(lexema)s
+    ORDER BY rank DESC, data_referencia DESC, fonte_codigo DESC, identificador_fonte DESC
+    LIMIT {RERANK_WINDOW}
+"""
+
+
+def _rerank_ctes(filters: str, ordering: str, lexema: str = "") -> str:
     """
-    The decisions a query is close to in meaning and shares no word with.
+    A janela da frente: as primeiras da busca por palavra mais as vizinhas em
+    sentido que ela não traz, cada uma com a sua distância e a sua posição na
+    ordem por sentido.
 
-    Three things narrow it, and each is measured in
-    documentation/architecture/vector-index.md and search-subjects.md.
+    O sentido só reordena onde ele significa alguma coisa. Passado o piso, as
+    distâncias são indistinguíveis de pares ao acaso — a primeira página de
+    `recurso` mede de 0,483 a 0,640 —, então ali a ordem volta a ser a da
+    palavra. Sem isso, uma busca ampla teria a ordem que a US A construiu
+    embaralhada por ruído.
 
-    The index answers on a one-bit-per-dimension quantization, and the 500 it
-    returns are re-ordered by the exact distance: the quantization chooses who
-    to look at, the full vector decides the order.
+    Uma decisão sem vetor cai no fim e não some: `LEFT JOIN` e `NULLS LAST`.
 
-    `SUBJECT_MAX_DISTANCE` is a floor and not a ranking. The search always has
-    a nearest neighbour, so a query about something the collection does not
-    cover would still answer with ten decisions. Measured over queries rather
-    than over pairs of decisions: six real legal questions never passed 0,391,
-    and the closest off-domain question — "como trocar o pneu do carro" —
-    started at 0,460. The floor sits in that gap.
-
-    `SUBJECT_MIN_EMENTA` drops the stubs. An ementa of three words — "Demora.
-    Pedido prejudicado." — carries the meaning of one word, and that word
-    outranks whole decisions on the subject.
+    Quando o termo tem ranking guardado, a janela vem dele. Ordenar por
+    `ts_rank` o que `core.busca_ampla` já ordenou traria de volta os 95
+    segundos que a US A gastou consertando.
     """
-    shared, join = _shared(published)
+    lexicas = BROAD_LEXICAL if lexema else f"""
+    SELECT fonte_codigo, identificador_fonte
+    FROM core.decisao
+    WHERE {MATCH}{filters}
+    {ordering}
+    LIMIT {RERANK_WINDOW}
+"""
     return f"""
-WITH candidatas AS (
+WITH lexicas AS (
+    SELECT fonte_codigo, identificador_fonte, ROW_NUMBER() OVER () AS ordem
+    FROM ({lexicas}) AS pela_palavra
+),
+candidatas AS (
     SELECT fonte_codigo, identificador_fonte, vetor
     FROM core.decisao_vetor
     ORDER BY binary_quantize(vetor)::bit({VECTOR_DIMENSIONS})
              <~> binary_quantize(%(vetor)s::halfvec({VECTOR_DIMENSIONS}))::bit({VECTOR_DIMENSIONS})
     LIMIT {SUBJECT_DEPTH}
 ),
-proximas AS (
+extras AS (
+    SELECT c.fonte_codigo, c.identificador_fonte
+    FROM candidatas AS c
+    JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte)
+    WHERE NOT (decisao.{MATCH})
+      AND LENGTH(BTRIM(decisao.ementa)) >= {SUBJECT_MIN_EMENTA}
+      AND c.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) <= {SUBJECT_MAX_DISTANCE}{filters}
+    ORDER BY c.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
+    LIMIT {SUBJECT_LIMIT}
+),
+juntas AS (
+    SELECT fonte_codigo, identificador_fonte, ordem, FALSE AS por_assunto FROM lexicas
+    UNION ALL
+    SELECT fonte_codigo, identificador_fonte, NULL, TRUE FROM extras
+),
+ordenada AS (
     SELECT
-        fonte_codigo,
-        identificador_fonte,
-        vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia
-    FROM candidatas
-    WHERE vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) <= {SUBJECT_MAX_DISTANCE}
+        j.fonte_codigo,
+        j.identificador_fonte,
+        j.por_assunto,
+        v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia,
+        ROW_NUMBER() OVER (
+            ORDER BY
+                CASE
+                    WHEN v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
+                         <= {SUBJECT_MAX_DISTANCE}
+                    THEN v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
+                END NULLS LAST,
+                j.ordem NULLS LAST,
+                j.fonte_codigo,
+                j.identificador_fonte
+        ) AS posicao
+    FROM juntas AS j
+    LEFT JOIN core.decisao_vetor AS v USING (fonte_codigo, identificador_fonte)
+)"""
+
+
+def _rerank_counts_sql(filters: str = "", ordering: str = "", lexema: str = "") -> str:
+    """
+    Quantas da busca por palavra sobraram na janela, e quantas entraram por
+    sentido.
+
+    A primeira diz por onde a página seguinte recomeça: sem ela, as que o
+    reordenamento empurrou para fora da janela sumiriam da busca inteira — nem
+    na janela, nem depois dela. A segunda entra no total.
+    """
+    ordering = ordering or ORDERINGS[DEFAULT_ORDER]
+    return _rerank_ctes(filters, ordering, lexema) + f"""
+SELECT
+    COUNT(*) FILTER (WHERE NOT por_assunto AND posicao <= {RERANK_WINDOW}) AS lexicas,
+    COUNT(*) FILTER (WHERE por_assunto) AS extras
+FROM ordenada
+"""
+
+
+def _reranked_sql(
+    filters: str = "", ordering: str = "", published: bool = True, lexema: str = ""
+) -> str:
+    """A janela servida como página, ordenada por sentido em vez de palavra."""
+    ordering = ordering or ORDERINGS[DEFAULT_ORDER]
+    shared, join = _shared(published)
+    return _rerank_ctes(filters, ordering, lexema) + f""",
+pagina AS (
+    SELECT * FROM ordenada WHERE posicao <= {RERANK_WINDOW}
+    ORDER BY posicao LIMIT %(limit)s OFFSET %(offset)s
 )
 SELECT
     decisao.fonte_codigo,
@@ -546,13 +624,11 @@ SELECT
     decisao.ementa,
     decisao.tese,
     {SNIPPET} AS snippet,
-    proximas.distancia
-FROM proximas
+    pagina.distancia,
+    pagina.por_assunto
+FROM pagina
 JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
-WHERE NOT (decisao.{MATCH})
-  AND LENGTH(BTRIM(decisao.ementa)) >= {SUBJECT_MIN_EMENTA}{filters}
-ORDER BY proximas.distancia, decisao.fonte_codigo, decisao.identificador_fonte
-LIMIT {SUBJECT_LIMIT}
+ORDER BY pagina.posicao
 """
 
 
@@ -701,16 +777,22 @@ class DecisionMatch(DecisionBase):
             ]
         ],
     )
+    by_subject: bool = Field(
+        default=False,
+        description=(
+            "True when the word search does not return this decision at all "
+            "and only its meaning brought it here. The screen marks those, "
+            "because a reader trusts the two differently."
+        ),
+    )
     proximity: Proximity | None = Field(
         default=None,
         description=(
             "How close this decision is, in meaning, to what was typed: "
             "`high`, `medium` or `low`, which are thirds of the range the "
-            "search keeps, measured over real queries. Carried only by "
-            "`subject_matches`: a decision found by its words can sit any "
-            "distance away — the first page of `recurso` measures 0,483 to "
-            "0,640 — and a label there would be reporting how short the "
-            "query was, not how close the answer is."
+            "search keeps, measured over real queries. Null in `mode=exact`, "
+            "which never computes meaning, past the floor the bands were "
+            "measured inside, and for a decision with no vector."
         ),
         examples=["high"],
     )
@@ -995,26 +1077,15 @@ class SearchResults(BaseModel):
         examples=[40],
     )
     results: list[DecisionMatch]
-    subject_matches: list[DecisionMatch] = Field(
-        default_factory=list,
-        description=(
-            "Decisions that do not contain the words searched for but are "
-            "about the same subject, nearest first. Up to ten, and only on "
-            "the first page of a `mode=subjects` search — the screen shows "
-            "them as a block below the results, not mixed into them. Empty "
-            "whenever `mode=exact`, whenever nothing in the collection is "
-            "close enough, and whenever this server has no embedding model "
-            "or the collection carries no vectors yet."
-        ),
-    )
 
 
-def _match(row: DictRow, q: str, distancia: float | None = None) -> DecisionMatch:
+def _match(row: DictRow, q: str) -> DecisionMatch:
     return DecisionMatch(
         **_base_fields(row),
         thesis=split_theses(row.get("tese")),
         snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
-        proximity=_band(distancia if distancia is not None else row.get("distancia")),
+        proximity=_band(row.get("distancia")),
+        by_subject=bool(row.get("por_assunto")),
     )
 
 
@@ -1031,31 +1102,6 @@ def _query_vector(q: str, mode: SearchMode, published: Published) -> str | None:
     if mode != "subjects" or not published.vectors:
         return None
     return embeddings.embed(q)
-
-
-def _subject_rows(
-    cursor: Any,
-    vetor: str | None,
-    filters: str,
-    parameters: dict[str, Any],
-    page: int,
-    published: Published,
-) -> list[DictRow]:
-    """
-    The subject block, or nothing at all.
-
-    An offer, not a second list of results: it is built for the first page
-    and for no other, so paging never pays for a vector search again and the
-    same ten decisions never come back under page two.
-    """
-    if vetor is None or page != 1:
-        return []
-
-    cursor.execute(SUBJECT_SEARCH_DEPTH)
-    cursor.execute(
-        _subject_sql(filters, published.shared), {**parameters, "vetor": vetor}
-    )
-    return cursor.fetchall()
 
 
 def _base_fields(row: DictRow) -> dict[str, Any]:
@@ -1410,9 +1456,9 @@ def search_decisions(
                 "`exact` searches the words written and nothing else — the "
                 "same results, the same order and the same cost as before "
                 "this parameter existed. `subjects` runs that identical "
-                "search and adds `subject_matches`: decisions about the same "
-                "subject that share none of the words. It never changes "
-                "`results`."
+                "search and reorders the front of it by meaning, adding the "
+                "decisions about the same subject that share none of the "
+                "words. Those carry `by_subject`."
             ),
         ),
     ] = DEFAULT_MODE,
@@ -1506,35 +1552,58 @@ def search_decisions(
 
     with connection.cursor() as cursor:
         publicado = _published(cursor)
+        vetor = _query_vector(q, mode, publicado)
         broad = _broad_term(
             cursor, parameters, filters, order, offset, page_size, publicado.ranking
         )
+        lexema = str(broad["lexema"]) if broad is not None else ""
+        parameters["lexema"] = lexema
 
         if broad is not None:
-            # Both the page and the total are read, not computed. The total is
-            # the exact number of decisions carrying the term, counted once
-            # when the base was built.
+            # The total is read, not computed: the exact number of decisions
+            # carrying the term, counted once when the base was built.
             total = int(broad["decisoes"])
-            cursor.execute(
-                _broad_page_sql(publicado.shared),
-                {**parameters, "lexema": broad["lexema"]},
-            )
-            rows = cursor.fetchall()
         else:
             cursor.execute(_count_sql(filters), parameters)
             total = int((cursor.fetchone() or {"total": 0})["total"])
 
-            if offset < total:
+        def por_palavra(deslocamento: int) -> list[DictRow]:
+            if deslocamento >= total:
+                return []
+            cursor.execute(
+                _broad_page_sql(publicado.shared)
+                if broad is not None
+                else _page_sql(filters, ORDERINGS[order], publicado.shared),
+                {**parameters, "offset": deslocamento},
+            )
+            return cursor.fetchall()
+
+        if vetor is None:
+            rows = por_palavra(offset)
+        else:
+            parameters["vetor"] = vetor
+            # Sem isto o índice devolve os 40 vizinhos padrão, e medido sobre
+            # o acervo inteiro nenhum deles sobrevive ao piso: a busca por
+            # sentido viria vazia sem nenhum erro.
+            cursor.execute(SUBJECT_SEARCH_DEPTH)
+            cursor.execute(
+                _rerank_counts_sql(filters, ORDERINGS[order], lexema), parameters
+            )
+            contagem = cursor.fetchone() or {}
+            mantidas = int(contagem.get("lexicas") or 0)
+            total += int(contagem.get("extras") or 0)
+
+            if offset < RERANK_WINDOW:
                 cursor.execute(
-                    _page_sql(filters, ORDERINGS[order], publicado.shared),
+                    _reranked_sql(filters, ORDERINGS[order], publicado.shared, lexema),
                     parameters,
                 )
                 rows = cursor.fetchall()
-
-        # After the page and never before it: the search by word answers on
-        # its own, and whatever happens here cannot change what it answered.
-        vetor = _query_vector(q, mode, publicado)
-        subject_rows = _subject_rows(cursor, vetor, filters, parameters, page, publicado)
+            else:
+                # Depois da janela a ordem volta a ser a da palavra, e recomeça
+                # onde a janela parou de consumi-la: as que o reordenamento
+                # empurrou para fora dela aparecem aqui, em vez de sumirem.
+                rows = por_palavra(mantidas + offset - RERANK_WINDOW)
 
     return SearchResults(
         total=total,
@@ -1543,7 +1612,6 @@ def search_decisions(
         range_from=offset + 1 if rows else None,
         range_to=offset + len(rows) if rows else None,
         results=[_match(row, q) for row in rows],
-        subject_matches=[_match(row, q) for row in subject_rows],
     )
 
 

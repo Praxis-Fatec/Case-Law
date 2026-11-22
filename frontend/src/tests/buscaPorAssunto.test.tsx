@@ -9,7 +9,7 @@ vi.mock('../api/client', () => ({
   assertApiConfiguration: () => undefined,
 }));
 
-function decision(identifier: string, snippet: string) {
+function decision(identifier: string, snippet: string, extra: object = {}) {
   return {
     source: 'tjdft-jurisdf',
     identifier,
@@ -22,15 +22,16 @@ function decision(identifier: string, snippet: string) {
     source_url: `https://jurisdf.tjdft.jus.br/detalhes/${identifier}`,
     source_url_reachable: true,
     snippet,
+    ...extra,
   };
 }
 
-// Sem proximidade: a API só rotula o bloco por assunto, porque uma decisão
-// achada pelas palavras pode estar a qualquer distância de sentido.
 const POR_PALAVRA = [decision('1', 'Demora no voo e dano moral.')];
-const POR_ASSUNTO = [
-  { ...decision('9', 'TRANSPORTE AÉREO. OVERBOOKING.'), proximity: 'high' },
-  { ...decision('8', 'TRANSPORTE AÉREO. CANCELAMENTO DO VOO.'), proximity: 'low' },
+
+const REORDENADA = [
+  decision('9', 'TRANSPORTE AÉREO. OVERBOOKING.', { by_subject: true, proximity: 'high' }),
+  decision('1', 'Demora no voo e dano moral.', { by_subject: false, proximity: 'medium' }),
+  decision('8', 'TRANSPORTE AÉREO. CANCELAMENTO.', { by_subject: true, proximity: 'low' }),
 ];
 
 function json(body: unknown, status = 200): Response {
@@ -40,7 +41,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function installApi(subjectMatches = POR_ASSUNTO) {
+function installApi() {
   const sent: URL[] = [];
   vi.stubGlobal(
     'fetch',
@@ -50,12 +51,12 @@ function installApi(subjectMatches = POR_ASSUNTO) {
         return json({ detail: 'Decision not found.' }, 404);
       }
       sent.push(url);
+      const exatas = url.searchParams.get('mode') === 'exact';
       return json({
-        total: 1,
+        total: exatas ? 1 : 3,
         page: 1,
         page_size: 20,
-        results: POR_PALAVRA,
-        subject_matches: url.searchParams.get('mode') === 'exact' ? [] : subjectMatches,
+        results: exatas ? POR_PALAVRA : REORDENADA,
       });
     }),
   );
@@ -70,7 +71,7 @@ async function pesquisar() {
   return user;
 }
 
-const bloco = () => screen.queryByRole('region', { name: 'Também sobre o mesmo assunto' });
+const cartoes = () => screen.getAllByRole('article');
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -95,7 +96,7 @@ describe('o leitor escolhe como pesquisar', () => {
     expect(api.last().searchParams.has('mode')).toBe(false);
   });
 
-  it('manda mode=exact quando o leitor pede palavras exatas', async () => {
+  it('manda mode=exact quando o leitor pede só as suas palavras', async () => {
     const api = installApi();
     const user = await pesquisar();
 
@@ -106,45 +107,37 @@ describe('o leitor escolhe como pesquisar', () => {
   });
 });
 
-describe('o bloco de decisões por assunto', () => {
-  it('aparece abaixo dos resultados, com a explicação em uma linha', async () => {
+describe('a lista reordenada por sentido', () => {
+  it('mostra as decisões na ordem que a API mandou, sem separar em blocos', async () => {
     installApi();
     await pesquisar();
 
-    const secao = bloco();
-    expect(secao).not.toBeNull();
-    expect(
-      within(secao!).getByText(/não aparecem na busca pelas palavras que você escreveu/i),
-    ).toBeInTheDocument();
+    expect(cartoes()).toHaveLength(3);
+    expect(cartoes()[0]).toHaveTextContent('OVERBOOKING');
   });
 
-  it('marca cada decisão como achada por assunto', async () => {
+  it('marca só as que a busca por palavra não encontrou', async () => {
     installApi();
     await pesquisar();
 
-    const cartoes = within(bloco()!).getAllByRole('article');
+    const marcadas = cartoes().map(
+      (cartao) => within(cartao).queryByText('assunto parecido') !== null,
+    );
 
-    expect(cartoes).toHaveLength(2);
-    for (const cartao of cartoes) {
-      expect(within(cartao).getByText('assunto parecido')).toBeInTheDocument();
-    }
+    expect(marcadas).toEqual([true, false, true]);
   });
 
-  it('não marca as decisões achadas pelas palavras digitadas', async () => {
+  it('diz a proximidade em palavras que o leitor entende, não em porcentagem', async () => {
     installApi();
     await pesquisar();
 
-    const porPalavra = screen
-      .getAllByRole('article')
-      .filter((cartao) => !bloco()!.contains(cartao));
-
-    expect(porPalavra.length).toBeGreaterThan(0);
-    for (const cartao of porPalavra) {
-      expect(within(cartao).queryByText('assunto parecido')).toBeNull();
-    }
+    expect(within(cartoes()[0]).getByText('muito próximo')).toBeInTheDocument();
+    expect(within(cartoes()[1]).getByText('próximo')).toBeInTheDocument();
+    expect(within(cartoes()[2]).getByText('relacionado')).toBeInTheDocument();
+    expect(screen.queryByText(/%/)).toBeNull();
   });
 
-  it('some quando o leitor pede palavras exatas', async () => {
+  it('não marca nem rotula nada quando o leitor pede só as suas palavras', async () => {
     installApi();
     const user = await pesquisar();
 
@@ -152,18 +145,11 @@ describe('o bloco de decisões por assunto', () => {
     await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
     await screen.findAllByRole('article');
 
-    expect(bloco()).toBeNull();
-  });
-
-  it('não aparece quando nada no acervo está perto o bastante', async () => {
-    installApi([]);
-    await pesquisar();
-
-    expect(bloco()).toBeNull();
+    expect(screen.queryByText('assunto parecido')).toBeNull();
+    expect(screen.queryByText('muito próximo')).toBeNull();
   });
 
   it('não quebra contra uma API publicada antes da funcionalidade', async () => {
-    const sent: URL[] = [];
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -171,51 +157,12 @@ describe('o bloco de decisões por assunto', () => {
         if (url.pathname !== '/decisions') {
           return json({ detail: 'Decision not found.' }, 404);
         }
-        sent.push(url);
         return json({ total: 1, page: 1, page_size: 20, results: POR_PALAVRA });
       }),
     );
     await pesquisar();
 
-    expect(bloco()).toBeNull();
-    expect(screen.getAllByRole('article').length).toBeGreaterThan(0);
-  });
-});
-
-describe('a proximidade do que foi digitado', () => {
-  it('aparece em palavras que o leitor entende, não em porcentagem', async () => {
-    installApi();
-    await pesquisar();
-
-    expect(within(bloco()!).getByText('muito próximo')).toBeInTheDocument();
-    expect(within(bloco()!).getByText('relacionado')).toBeInTheDocument();
-    expect(screen.queryByText(/%/)).toBeNull();
-  });
-
-  it('não aparece nas decisões achadas pelas palavras digitadas', async () => {
-    installApi();
-    await pesquisar();
-
-    const porPalavra = screen
-      .getAllByRole('article')
-      .filter((cartao) => !bloco()!.contains(cartao));
-
-    expect(porPalavra.length).toBeGreaterThan(0);
-    for (const cartao of porPalavra) {
-      expect(
-        within(cartao).queryByText(/muito próximo|^próximo$|relacionado/),
-      ).toBeNull();
-    }
-  });
-
-  it('não aparece na busca por palavras exatas, que não calcula sentido', async () => {
-    installApi();
-    const user = await pesquisar();
-
-    await user.click(screen.getByRole('radio', { name: 'Só as minhas palavras' }));
-    await user.click(screen.getByRole('button', { name: 'Pesquisar' }));
-    await screen.findAllByRole('article');
-
-    expect(screen.queryByText('muito próximo')).toBeNull();
+    expect(cartoes().length).toBeGreaterThan(0);
+    expect(screen.queryByText('assunto parecido')).toBeNull();
   });
 });
