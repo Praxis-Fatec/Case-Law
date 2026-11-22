@@ -228,3 +228,24 @@ def test_sem_a_tabela_de_vetores_a_busca_responde_por_palavra(
     corpo = procurar(client)
 
     assert corpo["subject_matches"] == []
+
+
+def test_a_faixa_nao_passa_do_piso() -> None:
+    """
+    Além de 0,42 não há o que afirmar.
+
+    Uma decisão achada pelas palavras pode estar a qualquer distância: a
+    primeira página de `recurso` mede de 0,483 a 0,640, e as seis estão além
+    do piso. Rotulá-las `relacionado` seria dizer que têm relação de sentido
+    com a consulta quando, medido, elas não estão mais perto do que um par
+    tirado ao acaso.
+    """
+    assert decisions._band(0.200) == "high"
+    assert decisions._band(0.272) == "high"
+    assert decisions._band(0.300) == "medium"
+    assert decisions._band(0.326) == "medium"
+    assert decisions._band(0.400) == "low"
+    assert decisions._band(0.420) == "low"
+    assert decisions._band(0.421) is None
+    assert decisions._band(0.640) is None
+    assert decisions._band(None) is None

@@ -25,9 +25,11 @@ function decision(identifier: string, snippet: string) {
   };
 }
 
-const POR_PALAVRA = [{ ...decision('1', 'Demora no voo e dano moral.'), proximity: 'high' }];
+// Sem proximidade: a API só rotula o bloco por assunto, porque uma decisão
+// achada pelas palavras pode estar a qualquer distância de sentido.
+const POR_PALAVRA = [decision('1', 'Demora no voo e dano moral.')];
 const POR_ASSUNTO = [
-  { ...decision('9', 'TRANSPORTE AÉREO. OVERBOOKING.'), proximity: 'medium' },
+  { ...decision('9', 'TRANSPORTE AÉREO. OVERBOOKING.'), proximity: 'high' },
   { ...decision('8', 'TRANSPORTE AÉREO. CANCELAMENTO DO VOO.'), proximity: 'low' },
 ];
 
@@ -54,9 +56,6 @@ function installApi(subjectMatches = POR_ASSUNTO) {
         page_size: 20,
         results: POR_PALAVRA,
         subject_matches: url.searchParams.get('mode') === 'exact' ? [] : subjectMatches,
-        ...(url.searchParams.get('mode') === 'exact'
-          ? { results: POR_PALAVRA.map(({ proximity: _p, ...resto }) => resto) }
-          : {}),
       });
     }),
   );
@@ -188,10 +187,25 @@ describe('a proximidade do que foi digitado', () => {
     installApi();
     await pesquisar();
 
-    expect(screen.getAllByText('muito próximo').length).toBeGreaterThan(0);
-    expect(within(bloco()!).getByText('próximo')).toBeInTheDocument();
+    expect(within(bloco()!).getByText('muito próximo')).toBeInTheDocument();
     expect(within(bloco()!).getByText('relacionado')).toBeInTheDocument();
     expect(screen.queryByText(/%/)).toBeNull();
+  });
+
+  it('não aparece nas decisões achadas pelas palavras digitadas', async () => {
+    installApi();
+    await pesquisar();
+
+    const porPalavra = screen
+      .getAllByRole('article')
+      .filter((cartao) => !bloco()!.contains(cartao));
+
+    expect(porPalavra.length).toBeGreaterThan(0);
+    for (const cartao of porPalavra) {
+      expect(
+        within(cartao).queryByText(/muito próximo|^próximo$|relacionado/),
+      ).toBeNull();
+    }
   });
 
   it('não aparece na busca por palavras exatas, que não calcula sentido', async () => {

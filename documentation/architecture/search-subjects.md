@@ -238,9 +238,16 @@ the label rarely separates one result from its neighbour; what it separates is
 one search from another. That is the useful reading: it says how well the
 collection covers the question, decision by decision.
 
-The label is read in its own statement, keyed by the page's decisions, so
-`_page_sql` is untouched and the page the search builds is byte for byte the
-page it always built.
+**Only the block carries it, and the first attempt did not.** A decision found
+by its words can sit any distance away, because nothing filtered it by
+distance: measured on the first page of three searches, `recurso` ranges from
+0,483 to 0,640 and `dano moral` from 0,540 to 0,632 — every one of the twelve
+past the 0,42 floor. Labelling them `relacionado` claimed a kinship the
+measurement denies. The deeper reason is that a short query is far from
+everything: two words against a whole ementa produce a large distance whatever
+the result is, so on that list the label would report how short the question
+was rather than how close the answer is. Past the floor `_band` returns
+nothing, and `test_busca_por_assunto.py` pins the boundary.
 
 Each decision in the block also carries a **`assunto parecido`** tag in its header,
 and the block itself carries the one-line explanation the story asks for:

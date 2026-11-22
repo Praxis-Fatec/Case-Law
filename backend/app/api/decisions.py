@@ -470,29 +470,20 @@ Proximity = Literal["high", "medium", "low"]
 
 PROXIMITY_BANDS: tuple[tuple[float, Proximity], ...] = ((0.272, "high"), (0.326, "medium"))
 
-PROXIMITY_SQL = f"""
-SELECT
-    fonte_codigo,
-    identificador_fonte,
-    vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia
-FROM core.decisao_vetor
-WHERE (fonte_codigo, identificador_fonte) IN (
-    SELECT * FROM UNNEST(%(fontes)s::text[], %(identificadores)s::varchar[])
-)
-"""
-
-
 def _band(distancia: float | None) -> Proximity | None:
     """
-    Which third of the kept range a distance falls in.
+    Which third of the kept range a distance falls in, for what is inside it.
 
     The thirds are measured, not chosen: over ten real legal queries, the 100
     results the floor keeps split at 0,272 and 0,326. The spread is between
-    queries rather than within one, so a search whose subject the collection
-    covers well tends to read `high` throughout and one it covers poorly reads
-    `low` throughout — which is the useful thing to say.
+    queries rather than within one, so a search the collection covers well
+    reads `high` throughout and one it covers poorly reads `low` throughout —
+    which is the useful thing to say.
+
+    Past `SUBJECT_MAX_DISTANCE` there is nothing to say, and saying `low`
+    there would be a claim rather than a measurement.
     """
-    if distancia is None:
+    if distancia is None or distancia > float(SUBJECT_MAX_DISTANCE):
         return None
     for limite, faixa in PROXIMITY_BANDS:
         if distancia <= limite:
@@ -714,10 +705,12 @@ class DecisionMatch(DecisionBase):
         default=None,
         description=(
             "How close this decision is, in meaning, to what was typed: "
-            "`high`, `medium` or `low`. The three are thirds of the range the "
-            "search keeps, measured over real queries. Null in `mode=exact`, "
-            "which never computes meaning, and for a decision the collection "
-            "holds no vector for."
+            "`high`, `medium` or `low`, which are thirds of the range the "
+            "search keeps, measured over real queries. Carried only by "
+            "`subject_matches`: a decision found by its words can sit any "
+            "distance away — the first page of `recurso` measures 0,483 to "
+            "0,640 — and a label there would be reporting how short the "
+            "query was, not how close the answer is."
         ),
         examples=["high"],
     )
@@ -1023,33 +1016,6 @@ def _match(row: DictRow, q: str, distancia: float | None = None) -> DecisionMatc
         snippet=_safe_snippet(row.get("snippet"), row.get("ementa"), q),
         proximity=_band(distancia if distancia is not None else row.get("distancia")),
     )
-
-
-def _proximities(
-    cursor: Any, vetor: str | None, rows: list[DictRow]
-) -> dict[tuple[str, str], float]:
-    """
-    How close each decision of the page is to the query.
-
-    Read by key, in its own statement, so the page that `_page_sql` built is
-    the page the search always built — byte for byte, in content and in order.
-    What this returns only labels it.
-    """
-    if vetor is None or not rows:
-        return {}
-
-    cursor.execute(
-        PROXIMITY_SQL,
-        {
-            "vetor": vetor,
-            "fontes": [row["fonte_codigo"] for row in rows],
-            "identificadores": [row["identificador_fonte"] for row in rows],
-        },
-    )
-    return {
-        (linha["fonte_codigo"], linha["identificador_fonte"]): float(linha["distancia"])
-        for linha in cursor.fetchall()
-    }
 
 
 def _query_vector(q: str, mode: SearchMode, published: Published) -> str | None:
@@ -1569,7 +1535,6 @@ def search_decisions(
         # its own, and whatever happens here cannot change what it answered.
         vetor = _query_vector(q, mode, publicado)
         subject_rows = _subject_rows(cursor, vetor, filters, parameters, page, publicado)
-        proximidades = _proximities(cursor, vetor, rows)
 
     return SearchResults(
         total=total,
@@ -1577,14 +1542,7 @@ def search_decisions(
         page_size=page_size,
         range_from=offset + 1 if rows else None,
         range_to=offset + len(rows) if rows else None,
-        results=[
-            _match(
-                row,
-                q,
-                proximidades.get((row["fonte_codigo"], row["identificador_fonte"])),
-            )
-            for row in rows
-        ],
+        results=[_match(row, q) for row in rows],
         subject_matches=[_match(row, q) for row in subject_rows],
     )
 
