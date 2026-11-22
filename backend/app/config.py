@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/caselaw"
     environment: str = "development"
     root_path: str = ""
-    database_pool_size: int = 10
+    # Ten ran out: at 50 simultaneous requests, 300 of 1,000 waited over 30s
+    # for a connection and answered 503. Fifteen per worker, two workers, is
+    # 30 — against the 100 PostgreSQL accepts.
+    database_pool_size: int = 15
     search_max_page_size: int = 100
     # Signs the session tokens. Empty is allowed only while developing: an
     # environment that serves real accounts with a default secret is one where
