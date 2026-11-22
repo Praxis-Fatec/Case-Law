@@ -245,3 +245,34 @@ def test_passado_o_piso_a_ordem_volta_a_ser_a_da_palavra(
     assert achadas(corpo) == achadas(procurar(cliente, mode="exact"))
     assert all(m["proximity"] is None for m in corpo["results"])
     assert all(m["by_subject"] is False for m in corpo["results"])
+
+
+def test_a_que_tem_as_palavras_tambem_entra_pela_proximidade(
+    cliente: TestClient,
+) -> None:
+    """
+    A fase por sentido não exclui quem a palavra também acharia.
+
+    `com-palavra` casa com tudo o que foi digitado e está a 0,12. Ela aparece
+    entre as próximas, no lugar que a distância lhe dá — e sem o selo, porque
+    a busca por palavra a traria de qualquer forma.
+    """
+    corpo = procurar(cliente)
+    posicao = achadas(corpo).index("com-palavra")
+
+    assert posicao == 1
+    assert corpo["results"][posicao]["by_subject"] is False
+    assert corpo["results"][posicao]["proximity"] == "high"
+
+
+def test_uma_pagina_nao_repete_o_que_a_outra_mostrou(cliente: TestClient) -> None:
+    """
+    A emenda entre as duas fases é onde uma decisão apareceria duas vezes.
+
+    A fase por palavra pula o que a por sentido já serviu, e a página que cai
+    em cima da emenda é completada com a fase seguinte em vez de chegar curta.
+    """
+    primeira = achadas(procurar(cliente, page=1))
+    segunda = achadas(procurar(cliente, page=2))
+
+    assert set(primeira) & set(segunda) == set()

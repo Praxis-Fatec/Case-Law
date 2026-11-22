@@ -459,17 +459,14 @@ PAGE_SQL = _page_sql()
 
 VECTOR_DIMENSIONS = embeddings.DIM
 
-SUBJECT_DEPTH = 500
-SUBJECT_LIMIT = 10
-
-# Quantas decisões da busca por palavra são reordenadas por sentido. Cinco
-# telas: além disso ninguém pagina, e ordenar o acervo inteiro por sentido
-# custa 720 ms numa busca de trinta mil resultados.
-RERANK_WINDOW = 100
+# Quantas vizinhas o índice devolve antes dos dois pisos. Vinte e cinco telas
+# de resultado, bem além do que alguém pagina, e o teto que `hnsw.ef_search`
+# aceita é 1000.
+SEMANTIC_DEPTH = 500
 SUBJECT_MAX_DISTANCE = "0.42"
 SUBJECT_MIN_EMENTA = 120
 
-SUBJECT_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SUBJECT_DEPTH}"
+SEMANTIC_SEARCH_DEPTH = f"SET LOCAL hnsw.ef_search = {SEMANTIC_DEPTH}"
 
 Proximity = Literal["high", "medium", "low"]
 
@@ -496,117 +493,77 @@ def _band(distancia: float | None) -> Proximity | None:
     return "low"
 
 
-BROAD_LEXICAL = f"""
-    SELECT fonte_codigo, identificador_fonte
-    FROM core.busca_ampla
-    WHERE lexema = %(lexema)s
-    ORDER BY rank DESC, data_referencia DESC, fonte_codigo DESC, identificador_fonte DESC
-    LIMIT {RERANK_WINDOW}
-"""
-
-
-def _rerank_ctes(filters: str, ordering: str, lexema: str = "") -> str:
-    """
-    A janela da frente: as primeiras da busca por palavra mais as vizinhas em
-    sentido que ela não traz, cada uma com a sua distância e a sua posição na
-    ordem por sentido.
-
-    O sentido só reordena onde ele significa alguma coisa. Passado o piso, as
-    distâncias são indistinguíveis de pares ao acaso — a primeira página de
-    `recurso` mede de 0,483 a 0,640 —, então ali a ordem volta a ser a da
-    palavra. Sem isso, uma busca ampla teria a ordem que a US A construiu
-    embaralhada por ruído.
-
-    Uma decisão sem vetor cai no fim e não some: `LEFT JOIN` e `NULLS LAST`.
-
-    Quando o termo tem ranking guardado, a janela vem dele. Ordenar por
-    `ts_rank` o que `core.busca_ampla` já ordenou traria de volta os 95
-    segundos que a US A gastou consertando.
-    """
-    lexicas = BROAD_LEXICAL if lexema else f"""
-    SELECT fonte_codigo, identificador_fonte
-    FROM core.decisao
-    WHERE {MATCH}{filters}
-    {ordering}
-    LIMIT {RERANK_WINDOW}
-"""
-    return f"""
-WITH lexicas AS (
-    SELECT fonte_codigo, identificador_fonte, ROW_NUMBER() OVER () AS ordem
-    FROM ({lexicas}) AS pela_palavra
-),
-candidatas AS (
+SEMANTIC_CTE_TEMPLATE = """
+WITH candidatas AS (
     SELECT fonte_codigo, identificador_fonte, vetor
     FROM core.decisao_vetor
-    ORDER BY binary_quantize(vetor)::bit({VECTOR_DIMENSIONS})
-             <~> binary_quantize(%(vetor)s::halfvec({VECTOR_DIMENSIONS}))::bit({VECTOR_DIMENSIONS})
-    LIMIT {SUBJECT_DEPTH}
+    ORDER BY binary_quantize(vetor)::bit({dim})
+             <~> binary_quantize(%(vetor)s::halfvec({dim}))::bit({dim})
+    LIMIT {depth}
 ),
-extras AS (
-    SELECT c.fonte_codigo, c.identificador_fonte
+proximas AS (
+    SELECT
+        c.fonte_codigo,
+        c.identificador_fonte,
+        c.vetor <=> %(vetor)s::halfvec({dim}) AS distancia,
+        decisao.{match} AS pela_palavra
     FROM candidatas AS c
     JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte)
-    WHERE NOT (decisao.{MATCH})
-      AND LENGTH(BTRIM(decisao.ementa)) >= {SUBJECT_MIN_EMENTA}
-      AND c.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) <= {SUBJECT_MAX_DISTANCE}{filters}
-    ORDER BY c.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
-    LIMIT {SUBJECT_LIMIT}
-),
-juntas AS (
-    SELECT fonte_codigo, identificador_fonte, ordem, FALSE AS por_assunto FROM lexicas
-    UNION ALL
-    SELECT fonte_codigo, identificador_fonte, NULL, TRUE FROM extras
-),
-ordenada AS (
-    SELECT
-        j.fonte_codigo,
-        j.identificador_fonte,
-        j.por_assunto,
-        v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS}) AS distancia,
-        ROW_NUMBER() OVER (
-            ORDER BY
-                CASE
-                    WHEN v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
-                         <= {SUBJECT_MAX_DISTANCE}
-                    THEN v.vetor <=> %(vetor)s::halfvec({VECTOR_DIMENSIONS})
-                END NULLS LAST,
-                j.ordem NULLS LAST,
-                j.fonte_codigo,
-                j.identificador_fonte
-        ) AS posicao
-    FROM juntas AS j
-    LEFT JOIN core.decisao_vetor AS v USING (fonte_codigo, identificador_fonte)
-)"""
-
-
-def _rerank_counts_sql(filters: str = "", ordering: str = "", lexema: str = "") -> str:
-    """
-    Quantas da busca por palavra sobraram na janela, e quantas entraram por
-    sentido.
-
-    A primeira diz por onde a página seguinte recomeça: sem ela, as que o
-    reordenamento empurrou para fora da janela sumiriam da busca inteira — nem
-    na janela, nem depois dela. A segunda entra no total.
-    """
-    ordering = ordering or ORDERINGS[DEFAULT_ORDER]
-    return _rerank_ctes(filters, ordering, lexema) + f"""
-SELECT
-    COUNT(*) FILTER (WHERE NOT por_assunto AND posicao <= {RERANK_WINDOW}) AS lexicas,
-    COUNT(*) FILTER (WHERE por_assunto) AS extras
-FROM ordenada
+    WHERE c.vetor <=> %(vetor)s::halfvec({dim}) <= {floor}
+      AND LENGTH(BTRIM(decisao.ementa)) >= {minima}{filters}
+)
 """
 
 
-def _reranked_sql(
-    filters: str = "", ordering: str = "", published: bool = True, lexema: str = ""
-) -> str:
-    """A janela servida como página, ordenada por sentido em vez de palavra."""
-    ordering = ordering or ORDERINGS[DEFAULT_ORDER]
+def _semantic_ctes(filters: str = "") -> str:
+    """
+    As decisões próximas em sentido, de qualquer origem.
+
+    Não há exclusão por palavra aqui: uma decisão que casa com o que foi
+    digitado e está perto em sentido entra como qualquer outra, e `pela_palavra`
+    só registra de onde ela também poderia ter vindo.
+
+    Dois pisos a estreitam, e os dois são medidos em search-subjects.md: o de
+    distância, porque a busca vetorial sempre tem um vizinho mais próximo
+    mesmo quando nada no acervo trata do assunto; e o de tamanho de ementa,
+    porque um texto de três palavras carrega o sentido de uma só.
+    """
+    return SEMANTIC_CTE_TEMPLATE.format(
+        dim=VECTOR_DIMENSIONS,
+        depth=SEMANTIC_DEPTH,
+        match=MATCH,
+        floor=SUBJECT_MAX_DISTANCE,
+        minima=SUBJECT_MIN_EMENTA,
+        filters=filters,
+    )
+
+
+def _semantic_counts_sql(filters: str = "") -> str:
+    """
+    Quantas decisões o sentido traz, e quantas delas a palavra também traria.
+
+    A segunda é o que a lista por palavra deixa de repetir, e sem ela o total
+    contaria a mesma decisão duas vezes.
+    """
+    return (
+        _semantic_ctes(filters)
+        + """
+SELECT COUNT(*) AS proximas, COUNT(*) FILTER (WHERE pela_palavra) AS repetidas
+FROM proximas
+"""
+    )
+
+
+def _semantic_page_sql(filters: str = "", published: bool = True) -> str:
+    """A primeira parte da lista: por sentido, da mais próxima para a menos."""
     shared, join = _shared(published)
-    return _rerank_ctes(filters, ordering, lexema) + f""",
+    return (
+        _semantic_ctes(filters)
+        + f""",
 pagina AS (
-    SELECT * FROM ordenada WHERE posicao <= {RERANK_WINDOW}
-    ORDER BY posicao LIMIT %(limit)s OFFSET %(offset)s
+    SELECT * FROM proximas
+    ORDER BY distancia, fonte_codigo, identificador_fonte
+    LIMIT %(limit)s OFFSET %(offset)s
 )
 SELECT
     decisao.fonte_codigo,
@@ -625,13 +582,68 @@ SELECT
     decisao.tese,
     {SNIPPET} AS snippet,
     pagina.distancia,
-    pagina.por_assunto
+    NOT pagina.pela_palavra AS por_assunto
 FROM pagina
 JOIN core.decisao AS decisao USING (fonte_codigo, identificador_fonte){join}
-ORDER BY pagina.posicao
+ORDER BY pagina.distancia, pagina.fonte_codigo, pagina.identificador_fonte
 """
+    )
 
 
+def _ja_mostrada(tabela: str) -> str:
+    """O que a fase por sentido já serviu, para a fase por palavra não repetir."""
+    return f"""
+  AND NOT EXISTS (
+      SELECT 1 FROM proximas AS p
+      WHERE p.fonte_codigo = {tabela}.fonte_codigo
+        AND p.identificador_fonte = {tabela}.identificador_fonte
+  )"""
+
+
+def _word_page_sql(
+    filters: str = "",
+    ordering: str = "",
+    published: bool = True,
+    lexema: str = "",
+    excluding: bool = False,
+) -> str:
+    """
+    A segunda fase: por palavra, pulando o que o sentido já mostrou.
+
+    Sem `excluding` é exatamente a consulta que a busca sempre fez — a mesma
+    que `mode=exact` serve, palavra por palavra.
+    """
+    if not excluding:
+        return _broad_page_sql(published) if lexema else _page_sql(filters, ordering, published)
+
+    base = _broad_page_sql(published) if lexema else _page_sql(filters, ordering, published)
+    tabela = "core.busca_ampla" if lexema else "core.decisao"
+    alvo = (
+        "WHERE lexema = %(lexema)s"
+        if lexema
+        else f"WHERE {MATCH}{filters}"
+    )
+    return _semantic_ctes(filters) + "," + base.replace(
+        "WITH pagina AS (", "pagina AS (", 1
+    ).replace(alvo, alvo + _ja_mostrada(tabela), 1)
+
+
+# Which of the tables the search reads are in front of this server yet.
+#
+# A deploy can land before the base that goes with it — it happened once this
+# sprint already. Without this check a search would name a table that does not
+# exist and answer 500 instead of answering slowly, or without the warning
+# about a shared link. Both are right answers while the data is on its way; an
+# error page is not.
+#
+# Two tables, one statement. They are published by the same run and can still
+# be absent one without the other, and asking twice would double a probe that
+# exists precisely because it is cheap.
+#
+# Asked every time rather than remembered. The statement reads two catalog rows
+# and costs a tenth of a millisecond against a page that costs thirty-six, and
+# a server that started before the base was published starts using it the
+# moment it appears, with nobody having to restart anything.
 def _detail_sql(published: bool) -> str:
     shared, join = _shared(published)
     return f"""
@@ -1567,43 +1579,54 @@ def search_decisions(
             cursor.execute(_count_sql(filters), parameters)
             total = int((cursor.fetchone() or {"total": 0})["total"])
 
-        def por_palavra(deslocamento: int) -> list[DictRow]:
-            if deslocamento >= total:
-                return []
+        def por_palavra(
+            deslocamento: int, excluindo: bool = False, quantas: int | None = None
+        ) -> list[DictRow]:
             cursor.execute(
-                _broad_page_sql(publicado.shared)
-                if broad is not None
-                else _page_sql(filters, ORDERINGS[order], publicado.shared),
-                {**parameters, "offset": deslocamento},
+                _word_page_sql(
+                    filters, ORDERINGS[order], publicado.shared, lexema, excluindo
+                ),
+                {
+                    **parameters,
+                    "offset": deslocamento,
+                    "limit": quantas or page_size,
+                },
             )
             return cursor.fetchall()
 
         if vetor is None:
-            rows = por_palavra(offset)
+            rows = por_palavra(offset) if offset < total else []
         else:
             parameters["vetor"] = vetor
             # Sem isto o índice devolve os 40 vizinhos padrão, e medido sobre
             # o acervo inteiro nenhum deles sobrevive ao piso: a busca por
             # sentido viria vazia sem nenhum erro.
-            cursor.execute(SUBJECT_SEARCH_DEPTH)
-            cursor.execute(
-                _rerank_counts_sql(filters, ORDERINGS[order], lexema), parameters
-            )
+            cursor.execute(SEMANTIC_SEARCH_DEPTH)
+            cursor.execute(_semantic_counts_sql(filters), parameters)
             contagem = cursor.fetchone() or {}
-            mantidas = int(contagem.get("lexicas") or 0)
-            total += int(contagem.get("extras") or 0)
+            proximas = int(contagem.get("proximas") or 0)
+            repetidas = int(contagem.get("repetidas") or 0)
+            total += proximas - repetidas
 
-            if offset < RERANK_WINDOW:
+            if offset < proximas:
                 cursor.execute(
-                    _reranked_sql(filters, ORDERINGS[order], publicado.shared, lexema),
-                    parameters,
+                    _semantic_page_sql(filters, publicado.shared),
+                    {**parameters, "limit": min(page_size, proximas - offset)},
                 )
                 rows = cursor.fetchall()
+                # A emenda entre as duas fases cai no meio de uma página tantas
+                # vezes quantas forem as buscas: sem completar aqui, essa
+                # página chega curta e a seguinte começa torta.
+                faltam = page_size - len(rows)
+                if faltam > 0:
+                    rows += por_palavra(0, excluindo=proximas > 0, quantas=faltam)
+            elif offset < total:
+                # Acabaram as que passam do corte de proximidade. Daqui em
+                # diante é a busca por palavra, pulando as que a primeira fase
+                # já serviu.
+                rows = por_palavra(offset - proximas, excluindo=proximas > 0)
             else:
-                # Depois da janela a ordem volta a ser a da palavra, e recomeça
-                # onde a janela parou de consumi-la: as que o reordenamento
-                # empurrou para fora dela aparecem aqui, em vez de sumirem.
-                rows = por_palavra(mantidas + offset - RERANK_WINDOW)
+                rows = []
 
     return SearchResults(
         total=total,

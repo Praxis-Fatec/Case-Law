@@ -49,40 +49,48 @@ underneath reads as "less relevant", and a `muito próximo` sitting below a
 list that is not ordered by proximity at all invites exactly the wrong
 inference.
 
-### Meaning only reorders where meaning says something
+### Two phases, and the second never repeats the first
 
-The reordering covers the first `RERANK_WINDOW = 100` of the word search plus
-the subject neighbours — five screens, which is further than anyone pages, and
-far cheaper than ordering the whole collection by meaning. **Past the floor
-the word order is kept**, and that is not a detail: measured on the first page
-of three searches, `recurso` sits between 0,483 and 0,640 and `dano moral`
-between 0,540 and 0,632, every one of them beyond 0,42. Reordering those by
-distance would reshuffle the order **SCRUM-210** built, using a signal that
-cannot tell them from decisions drawn at random.
+```
+1.  as mais próximas em sentido        ← ordered by distance, any origin
+2.  o resto, pela palavra              ← skipping everything phase 1 served
+```
+
+**Phase one is every decision within the floor**, whether or not it carries
+the words typed. A decision the word search also finds is not excluded from
+it — it takes the place its distance earns, and simply carries no
+`by_subject`. Phase two is the search as it always was, minus what phase one
+already served.
+
+The depth is `SEMANTIC_DEPTH = 500` neighbours before the two floors, which is
+twenty-five screens and further than anyone pages; `hnsw.ef_search` caps at
+1000 in any case.
+
+**The boundary between the phases falls inside a page as often as not.** A
+page that starts in phase one and runs out of close decisions is filled from
+phase two rather than arriving short, and phase two's offset counts from the
+first decision phase one did not serve. Without both, a page comes back with
+two results and the next one starts crooked — which is exactly what the first
+attempt did on `recurso`.
 
 Measured over the whole collection:
 
-| Query | Order equals the word search | Total |
-|---|---|---:|
-| `recurso` | **yes** — nothing within the floor | 967.143 |
-| `dano moral` | **yes** | 30.799 |
-| `demora no voo` | no, reordered | 127 → 137 |
-| `dano moral por inscrição indevida` | no, reordered | 2.230 → 2.240 |
+| Query | By word | Widened | Phase one |
+|---|---:|---:|---:|
+| `recurso` | 967.143 | 967.143 | 2 |
+| `dano moral` | 30.799 | 30.799 | 0 |
+| `demora no voo` | 127 | 233 | 106 |
+| `dano moral por inscrição indevida` | 2.230 | 2.351 | 121 |
 
 **A short query is far from everything.** Two words against a whole ementa
-produce a large distance whatever the result is, which is why `dano moral`
-has not one decision within the floor while `dano moral por inscrição
-indevida` has 6.215. The rule turns that into a feature: the more the reader
-says, the more meaning has to work with, and the less they say the more the
-search behaves exactly as it always did.
+produce a large distance whatever the result is, which is why `dano moral` has
+not one decision within the floor and falls back to the word search entirely,
+while `dano moral por inscrição indevida` has 6.215. The rule turns that into
+a feature: the more the reader says, the more meaning has to work with, and
+the less they say the more the search behaves exactly as it always did.
 
-### Nothing is lost at the window's edge
-
-Reordering pushes some of the first hundred past position 100. If the next
-page simply resumed at word-offset 100 they would vanish from the search
-altogether — neither inside the window nor after it. So the count of word
-results that survived inside the window is read with the page, and page six
-resumes from there.
+Four pages of each of those four searches were read back: eighty distinct
+decisions every time, none repeated.
 
 ---
 
