@@ -1133,44 +1133,46 @@ function HomePage({
                   })}
                 </ul>
               )}
+
+              {/* Abaixo da lista e dentro da área que rola com ela: como
+                    irmão da seção, a altura natural deste bloco esmagaria a
+                    lista, que é `flex: 1` numa coluna com `overflow: hidden`. são decisões que a busca por
+                  palavra não encontrou, e misturá-las ao que ela encontrou
+                  tiraria do leitor a chance de saber a diferença. */}
+              {!isLoading && subjectMatches.length > 0 && (
+                <section className="subject-results" aria-labelledby="subject-results-title">
+                  <h2 id="subject-results-title" className="subject-results__title">
+                    Também sobre o mesmo assunto
+                  </h2>
+                  <p className="subject-results__explanation">
+                    Estas decisões não aparecem na busca pelas palavras que você escreveu, mas
+                    tratam do mesmo tema.
+                  </p>
+                  <ul className="result-list">
+                    {subjectMatches.map((result) => {
+                      const decision = { source: result.source, identifier: result.identifier };
+                      const selected =
+                        openDecision !== null && keyOf(openDecision) === keyOf(decision);
+
+                      return (
+                        <li key={`assunto-${result.source}-${result.identifier}`} className="result-item">
+                          <DecisionResultCard
+                            decision={result}
+                            to={{ pathname: detailPath(decision), search: location.search }}
+                            replace={chosenDecision !== null}
+                            state={{ fromResults: true }}
+                            onOpen={openDetail}
+                            openButtonId={openButtonId(decision)}
+                            selected={selected}
+                            bySubject
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
             </section>
-
-            {/* Abaixo da lista e fora dela: são decisões que a busca por
-                palavra não encontrou, e misturá-las ao que ela encontrou
-                tiraria do leitor a chance de saber a diferença. */}
-            {!isLoading && subjectMatches.length > 0 && (
-              <section className="subject-results" aria-labelledby="subject-results-title">
-                <h2 id="subject-results-title" className="subject-results__title">
-                  Também sobre o mesmo assunto
-                </h2>
-                <p className="subject-results__explanation">
-                  Estas decisões não aparecem na busca pelas palavras que você escreveu, mas
-                  tratam do mesmo tema.
-                </p>
-                <ul className="result-list">
-                  {subjectMatches.map((result) => {
-                    const decision = { source: result.source, identifier: result.identifier };
-                    const selected =
-                      openDecision !== null && keyOf(openDecision) === keyOf(decision);
-
-                    return (
-                      <li key={`assunto-${result.source}-${result.identifier}`} className="result-item">
-                        <DecisionResultCard
-                          decision={result}
-                          to={{ pathname: detailPath(decision), search: location.search }}
-                          replace={chosenDecision !== null}
-                          state={{ fromResults: true }}
-                          onOpen={openDetail}
-                          openButtonId={openButtonId(decision)}
-                          selected={selected}
-                          bySubject
-                        />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            )}
 
             {/* Under the list. Up while a later page loads, to say which, but
                 never with a range before the API has answered one; gone when
