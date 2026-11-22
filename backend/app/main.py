@@ -8,6 +8,7 @@ from app import embeddings, errors
 from app.api import (
     courts,
     decisions,
+    divergence,
     doctrine,
     exports,
     filters,
@@ -124,6 +125,7 @@ errors.register(app)
 app.include_router(health.router)
 app.include_router(saved_decisions.router)
 app.include_router(decisions.router)
+app.include_router(divergence.router)
 app.include_router(courts.router)
 app.include_router(filters.router)
 app.include_router(indicators.router)

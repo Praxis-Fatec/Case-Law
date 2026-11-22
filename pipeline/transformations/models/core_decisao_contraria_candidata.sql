@@ -46,11 +46,12 @@ MODEL (
   nunca foi o problema. Lendo uma tabela com estatística real, o cosseno escolhe
   joins de hash e busca por índice: 145,5 s aqui e 19min31s lá.
 
-  Esta tabela tem 411 MB e vai para a dev e para a produção sem que nenhuma tela
-  a leia, porque `publish.py` copia todo modelo do `core` e `test_publicacao`
-  exige isso nas duas direções — a regra existe porque `core.precedente` e
-  `core.doutrina` ficaram prontos no código e ausentes dos ambientes. O caminho
-  que pouparia os 411 MB é uma tabela temporária na sessão do build, e ele custa
+  Esta tabela ocupa 461 MB — 437 MB de dados e 24 MB do índice de leitura — e
+  vai para a dev e para a produção sem que nenhuma tela a leia, porque
+  `publish.py` copia todo modelo do `core` e `test_publicacao` exige isso nas
+  duas direções — a regra existe porque `core.precedente` e `core.doutrina`
+  ficaram prontos no código e ausentes dos ambientes. O caminho que pouparia os
+  461 MB é uma tabela temporária na sessão do build, e ele custa
   mais do que economiza: o `depends_on` do SQLMesh não lê pre-statements, então
   a ordem de construção passaria a depender de uma lista de dependências escrita
   à mão, sem teste que a cobrisse. Preferiu-se o espaço.
