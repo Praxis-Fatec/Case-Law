@@ -323,3 +323,25 @@ def test_ordenar_por_data_nao_e_reordenado_por_sentido(cliente: TestClient) -> N
 
     assert datas == sorted(datas, reverse=True)
     assert achadas(corpo) == achadas(procurar(cliente, order="date", mode="exact"))
+
+
+def test_o_modelo_sobe_com_o_servidor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Quem paga os 2,9 s de carga é a subida, não o primeiro leitor.
+
+    Sem isto a primeira busca depois de cada deploy levava 3.188 ms — acima
+    do teto de 2 s da US A, e com a busca inteira custando 95 ms assim que o
+    modelo está de pé.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import embeddings
+    from app.main import app
+
+    chamadas: list[bool] = []
+    monkeypatch.setattr(embeddings, "warm", lambda: chamadas.append(True))
+
+    with TestClient(app):
+        pass
+
+    assert chamadas == [True]
