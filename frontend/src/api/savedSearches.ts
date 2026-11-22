@@ -21,7 +21,9 @@ export class SavedSearchError extends Error {
 }
 
 export function savedSearchParams(params: SearchParams): SavedSearchParams {
-  const { page: _page, page_size: _size, highlight: _highlight, ...cut } = params;
+  // `mode` fica de fora junto com a página: uma busca salva guarda o recorte,
+  // e como pesquisá-lo é escolha de quem a retoma.
+  const { page: _page, page_size: _size, highlight: _highlight, mode: _mode, ...cut } = params;
   return cut;
 }
 

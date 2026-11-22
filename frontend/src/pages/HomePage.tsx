@@ -10,9 +10,11 @@ import {
   ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
+  DEFAULT_MODE,
   DEFAULT_ORDER,
   SearchRequestError,
   type SearchDecisionMatch,
+  type SearchMode,
   type SearchOrder,
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
@@ -137,6 +139,7 @@ type AppliedSearch = {
   q: string;
   filters: SearchFilterValues;
   order: SearchOrder;
+  mode: SearchMode;
   page: number;
   extraFilters?: AdditionalSavedFilters;
 };
@@ -155,6 +158,7 @@ const requestFor = (search: AppliedSearch) => ({
   ...toSearchParams(search.q, search.filters),
   page: search.page,
   order: search.order,
+  mode: search.mode,
 });
 
 // The cut the panorama counts: the applied expression and filters, built by the
@@ -236,6 +240,7 @@ function HomePage({
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  const [modeDraft, setModeDraft] = useSessionState<SearchMode>('mode', DEFAULT_MODE);
   // Which view of the applied search is up. In the session, so it is still the
   // one chosen after a decision or the coverage page is left.
   const [view, setView] = useSessionState<ResultsView>('view', 'documents');
@@ -263,14 +268,22 @@ function HomePage({
         ? document.activeElement
         : null,
     );
-    const selection = selectIndicator(requestFor(applied), point, {
+    // Sem o bloco por assunto: a gaveta lista os documentos por trás de um
+    // número e nunca o mostra, então pedi-lo custaria uma consulta vetorial
+    // por abertura para jogar o resultado fora.
+    const selection = selectIndicator({ ...requestFor(applied), mode: 'exact' }, point, {
       total: totalResults ?? 0,
       filterCount: countFilters(applied.filters) + additionalFilterCount(applied),
     });
     // The comparison's court selector replaces only the court dimension.
     // Keep the original search intact for the drawer's remove-selection action.
     if (compareCourt && point.kind === 'court') {
-      selection.params = { ...requestFor(applied), tribunal: [point.court], page: 1 };
+      selection.params = {
+        ...requestFor(applied),
+        mode: 'exact',
+        tribunal: [point.court],
+        page: 1,
+      };
     }
     setIndicatorSelection(selection);
     navigate(
@@ -527,6 +540,7 @@ function HomePage({
       filters: filterDraft,
       extraFilters: applied?.extraFilters,
       order: applied?.order ?? DEFAULT_ORDER,
+      mode: modeDraft,
       page: 1,
     });
   };
@@ -555,7 +569,9 @@ function HomePage({
     setView('documents');
     resetBuffer();
     navigate('/', { replace: true });
-    void runSearch(search);
+    // Uma busca salva guarda o recorte — expressão, filtros e ordem —, não o
+    // modo de pesquisar, que é escolha do leitor agora.
+    void runSearch({ ...search, mode: modeDraft });
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -856,13 +872,42 @@ function HomePage({
             type="search"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Pesquise um assunto ou fundamento"
+            placeholder="Descreva o caso em uma frase"
             autoComplete="off"
             disabled={isLoading}
           />
         </div>
 
         <div className="legal-search__actions">
+          <fieldset className="search-mode" disabled={isLoading}>
+            <legend className="sr-only">Como pesquisar</legend>
+            {(
+              [
+                [
+                  'exact',
+                  'Só as minhas palavras',
+                  'Só decisões que contêm o que você escreveu. As aspas continuam valendo aqui.',
+                ],
+                [
+                  'subjects',
+                  'Palavras e assuntos parecidos',
+                  'Também decisões sobre o mesmo assunto, escritas com outras palavras.',
+                ],
+              ] as const
+            ).map(([valor, rotulo, explicacao]) => (
+              <label key={valor} className="search-mode__option" title={explicacao}>
+                <input
+                  type="radio"
+                  name="search-mode"
+                  value={valor}
+                  checked={modeDraft === valor}
+                  onChange={() => setModeDraft(valor)}
+                />
+                <span>{rotulo}</span>
+              </label>
+            ))}
+          </fieldset>
+
           <button
             type="button"
             className="filter-button"
@@ -1104,6 +1149,7 @@ function HomePage({
                           openButtonId={openButtonId(decision)}
                           selected={selected}
                           rank={firstRank + index}
+                          bySubject={result.by_subject}
                         />
                       </li>
                     );

@@ -464,6 +464,7 @@ it('keeps visited pages and prefetched blocks without showing loading again insi
     {
       ...toSearchParams('prescrição intercorrente em execução fiscal', NO_FILTERS),
       order: 'relevance',
+      mode: 'exact',
     },
     { kind: 'court', court: 'STJ', count: 31 },
   ).params!;
