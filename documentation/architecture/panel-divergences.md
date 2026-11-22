@@ -12,7 +12,8 @@ outcomes alone do not establish opposing legal understandings.
 The thresholds below are explicit initial product choices. The mathematical
 examples are synthetic checks, not measurements of the published collection,
 empirical calibration, or evidence of approval by a legal specialist. The
-endpoint, interface and automated regression tests belong to subsequent tasks.
+endpoint and rule tests are implemented by SCRUM-282 as described below;
+the Panorama interface and document-opening flow belong to subsequent tasks.
 
 ## The comparison unit and its scope
 
@@ -257,3 +258,71 @@ function is `erfc(sqrt(X² / 2))`. These identities permit reproducing the
 listed values independently of a future API implementation. Synthetic checks
 validate the arithmetic and gates; they do not calibrate false signals or
 power under real litigation dependence and classification error.
+
+## SCRUM-282: HTTP contract and competence catalogue
+
+`GET /indicators/divergence?q=...` is behind the same authentication gate as
+the existing indicators. It accepts the search's court, judging-body, reporting
+judge, CNJ class, outcome, judgment/reference-date and publication-date
+filters, including judging-body and judge exclusions. It uses the search's
+own narrowing builder and full-text expression. It aggregates the complete
+matching cut, not one results page. Invalid or inverted dates are rejected.
+
+The response contains:
+
+- `rule_version: RF22-v1`, the thresholds and `catalogue_version`.
+- `cut`, retaining the applied filters for subsequent evidence navigation.
+- `documents` and `panels`, partitioned by court, exact class and original
+  judging-body name. These are descriptive document counts, including
+  unclassified outcomes, missing class/body fields and non-validated bodies.
+  A body name does not by itself assert that the body is a comparable panel.
+- `pairs`, comparing distinct named bodies only within the same court and
+  non-null class. Each has its own process samples, unknown and excluded
+  counts, classification coverage, reason code and `signal`.
+- `outcome_order`, defining the order of each sample's `shares`: denied,
+  granted, partially granted. These and `coverage` are fractions from 0 to 1,
+  not percentages; `effect: 0.15` means 15 percentage points. Unknown
+  percentages are `null`.
+- Raw and adjusted p-values only for tests that passed every pre-test gate,
+  and `tested_pairs` for the single Holm family. An insufficient sample does
+  not carry a misleading p-value. `signal` is false unless every gate passes.
+- `interpretation`, explaining the distinction from a legal finding, and
+  `evidence_scope`, stating the representative-selection invariant.
+
+`publication_reference` is currently `null`: this endpoint cannot identify a
+specific publication from the available metadata and does not substitute the
+request time or a collection-attempt timestamp. Single-statement SQL keeps
+descriptive and inferential aggregates in the same database snapshot.
+
+Process keys are normalised to uppercase ASCII letters/digits, removing
+formatting separators. A missing number, a value without digits, or one
+without any nonzero digit is excluded from the inferential sample. This is
+a textual identity rule, not a CNJ check-digit validator. Known legacy
+ambiguities still require resolution before approving the associated scope.
+If any document in a pair's cut falls outside the group's approved interval,
+the pair stays descriptive; the API never silently trims a historical cut to
+make an approval fit.
+
+The versioned, deployment-owned catalogue is
+[`backend/app/panel_groups.json`](../../backend/app/panel_groups.json).
+Each entry requires `id`, `court`, exact `panels`, allowed CNJ `classes`,
+inclusive `valid_from` / `valid_to`, `evidence_url`, `validated_by` and
+`validated_on`. Request parameters cannot approve a group or change the
+thresholds. A missing/invalid catalogue returns 503, rather than an empty
+successful analysis. Overlapping approvals for a pair produce
+`ambiguous_group`, with no test.
+
+**The initial catalogue is deliberately empty.** No competence scope has
+been approved in this task; tests use explicitly fictional approvals.
+Real responses provide counts and `unvalidated_group`, without a signal,
+until a reviewed catalogue entry is committed. Populate it only after
+validating the court, class and historical competence scope against the
+recorded source. Installing the endpoint does not itself complete this
+legal-validation prerequisite of SCRUM-204.
+
+Tests cover the documented numeric examples, threshold boundaries, sparse
+categories, unknown classifications, deterministic latest representatives,
+cross-panel process exclusions, historical scopes, a global Holm family,
+search-filter agreement and authentication. The document-list interface and
+representative-sample retrieval remain the following RF12 tasks; no new
+evidence-opening route is claimed here.
