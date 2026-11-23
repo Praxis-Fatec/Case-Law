@@ -1,4 +1,4 @@
-import { CheckCircle, Prohibit, Question, WarningCircle } from '@phosphor-icons/react';
+import { Archive, CheckCircle, Question, WarningCircle } from '@phosphor-icons/react';
 
 import type { SourceStatus } from '../api/indicators';
 import { formatCount, formatDateTime, NOT_INFORMED } from './coverageFormat';
@@ -16,7 +16,7 @@ const COLUMNS = ['Fonte', 'Conteúdo', 'Itens', 'Período coberto', 'Última col
 const ICONS: Record<SourceReading, typeof CheckCircle> = {
   coletando: CheckCircle,
   falhando: WarningCircle,
-  bloqueada: Prohibit,
+  bloqueada: Archive,
   nunca: Question,
   desconhecida: Question,
 };

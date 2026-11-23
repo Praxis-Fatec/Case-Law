@@ -1,4 +1,10 @@
-"""Download a complete PDF only after collection and rendering succeed."""
+"""Download a complete PDF only after collection and rendering succeed.
+
+The collection runs on a connection of its own. The gate re-reads the account
+on the request's shared connection before any endpoint is reached, so that
+connection arrives inside a read committed transaction — and a cut counted
+there cannot be read back from the snapshot it was counted in.
+"""
 
 import hashlib
 import json
@@ -17,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
 from app.api.decisions import DEFAULT_ORDER, SEARCH_RESPONSES, Order
-from app.db import get_connection
+from app.db import get_own_connection
 from app.export import ExportRefused, collect_export
 from app.export_document import render_export_pdf
 
@@ -78,7 +84,7 @@ def export_filename(params: ExportRequest, generated_at: datetime) -> str:
 async def export_pdf(
     params: ExportRequest,
     request: Request,
-    connection: Annotated[Connection[DictRow], Depends(get_connection)],
+    connection: Annotated[Connection[DictRow], Depends(get_own_connection)],
 ) -> Response:
     try:
         data = await run_in_threadpool(

@@ -245,7 +245,7 @@ describe('a source the court has blocked', () => {
     await openCoverage();
     const row = await rowFor('BDJur');
 
-    expect(within(row).getByText('Coleta bloqueada pela fonte')).toBeInTheDocument();
+    expect(within(row).getByText('Acervo fechado')).toBeInTheDocument();
     expect(within(row).getByText('797')).toBeInTheDocument();
   });
 
