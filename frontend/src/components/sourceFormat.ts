@@ -41,7 +41,7 @@ export function readingOf(source: SourceStatus): SourceReading {
 export const READING_LABELS: Record<SourceReading, string> = {
   coletando: 'Coletando',
   falhando: 'Última tentativa falhou',
-  bloqueada: 'Coleta bloqueada pela fonte',
+  bloqueada: 'Acervo fechado',
   nunca: 'Nunca coletada',
   desconhecida: 'Estado não informado',
 };

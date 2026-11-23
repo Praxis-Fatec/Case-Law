@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow, dict_row
 
-from app.db import get_connection
+from app.db import get_connection, get_own_connection
 from app.main import app
 from app.sessions import gate
 
@@ -80,6 +80,11 @@ def db_rolled_back(
 
 @pytest.fixture
 def client(db_rolled_back: psycopg.Connection[DictRow]) -> Iterator[TestClient]:
+    # The rows a test sets up exist only inside its own transaction, so the
+    # endpoints that ask for a connection of their own are served the same one
+    # here. What that separation buys is tested where it belongs, in
+    # `test_export.py`, which lets the real gate run against the real pool.
     app.dependency_overrides[get_connection] = lambda: db_rolled_back
+    app.dependency_overrides[get_own_connection] = lambda: db_rolled_back
     yield TestClient(app)
     app.dependency_overrides.clear()
