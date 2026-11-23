@@ -467,8 +467,7 @@ def test_the_door_reading_the_account_still_leaves_the_export_a_snapshot(
     # The gate's reading is left as the gate left it: the export owns a
     # transaction of its own instead of ending somebody else's.
     assert (
-        db_rolled_back.info.transaction_status
-        == psycopg.pq.TransactionStatus.INTRANS
+        db_rolled_back.info.transaction_status == psycopg.pq.TransactionStatus.INTRANS
     )
 
 
