@@ -6,6 +6,7 @@
   <a href="#challenge">Challenge</a> •
   <a href="#solution">Solution</a> •
   <a href="#architecture">Architecture</a> •
+  <a href="#operation">Operation</a> •
   <a href="#backlog">Product Backlog</a> •
   <a href="#sprints">Sprint Schedule</a> •
   <a href="#sprintdor">DoR and DoD</a> •
@@ -81,6 +82,19 @@ it arrives.
 | [ETL](documentation/architecture/etl.md) | The layers, the three sources, which columns are derived rather than collected, the audits that guard them, and how publication swaps a dataset without a half-loaded state |
 | [Data warehouse model](documentation/architecture/case_law.dbml) | The star schema as a `dbdiagram.io` file: the fact table, its dimensions and the keys between them |
 | [Data dictionary](documentation/architecture/data-dictionary.md) | Every table and column in `core`, with types, value domains and how full each column actually is |
+
+---
+
+## Operation <a id="operation"></a>
+
+For whoever runs the service and for the firm that uses it. Both written in
+Portuguese, the language of the people who read them.
+
+| Document | What it answers |
+|---|---|
+| [Manual do gerente](documentation/manual-do-gerente.md) | How a firm's manager registers someone, sees who has access and revokes it — written for the manager, not for a developer |
+| [Capacidade e dimensionamento](documentation/capacidade-e-dimensionamento.md) | How much memory the server needs for each number of users, measured on production: sustainable users, requests per second, average and worst response times |
+| [Testes e integração contínua](documentation/testes-e-integracao-continua.md) | How a developer writes and runs the tests, and where CI runs them again on a clean machine — what each pass catches and what gates a merge |
 
 ---
 
