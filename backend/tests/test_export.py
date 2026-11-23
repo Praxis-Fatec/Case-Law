@@ -11,7 +11,8 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from psycopg import IsolationLevel
-from psycopg.rows import DictRow
+from psycopg.rows import DictRow, dict_row
+from psycopg_pool import ConnectionPool
 from pypdf import PdfReader
 
 from app.export import ExportRefused, collect_export
@@ -415,6 +416,60 @@ def test_active_read_committed_transaction_cannot_mix_two_snapshots(
     db_rolled_back.execute("SELECT 1")
     with pytest.raises(ValueError, match="repeatable snapshot"):
         collect_export(db_rolled_back, "dano moral")
+
+
+def test_the_door_reading_the_account_still_leaves_the_export_a_snapshot(
+    db_rolled_back: psycopg.Connection[DictRow],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    The two guarantees have to hold at the same time.
+
+    Revocation takes effect at once only because `sessions.gate` re-reads the
+    account on every request, and the export only agrees with the search
+    because it counts and reads inside one snapshot. They used to meet on the
+    request's single connection: FastAPI resolves `get_connection` once per
+    request, so the collection arrived inside the read committed transaction
+    the gate's reading had already opened, and every export answered 500.
+
+    The door is the real one here, and the pool is real, so what is exercised
+    is the wiring rather than an override.
+    """
+    from app import db as database
+    from app.db import get_connection
+    from app.main import app
+    from app.sessions import gate
+    from tests.test_contas import header, manager
+
+    person = manager(db_rolled_back, email="exportadora@almeidacosta.com.br")
+    app.dependency_overrides.pop(gate, None)
+    app.dependency_overrides[get_connection] = lambda: db_rolled_back
+    with ConnectionPool(
+        conninfo=TEST_DATABASE_URL,
+        min_size=1,
+        kwargs={"row_factory": dict_row},
+        open=False,
+    ) as served:
+        monkeypatch.setattr(database, "pool", served)
+        client = TestClient(app)
+        try:
+            anonymous = client.post("/exports/pdf", json={"q": "dano moral"})
+            response = client.post(
+                "/exports/pdf", json={"q": "dano moral"}, headers=header(person)
+            )
+        finally:
+            app.dependency_overrides.clear()
+    assert anonymous.status_code == 401
+    assert response.status_code == 200, response.text[:300]
+    assert response.headers["content-type"] == "application/pdf"
+    text = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+    assert "Decisões neste documento:" in text
+    # The gate's reading is left as the gate left it: the export owns a
+    # transaction of its own instead of ending somebody else's.
+    assert (
+        db_rolled_back.info.transaction_status
+        == psycopg.pq.TransactionStatus.INTRANS
+    )
 
 
 def test_concurrent_publication_cannot_change_the_counted_set(
