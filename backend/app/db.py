@@ -25,3 +25,19 @@ def connection() -> Iterator[Connection[DictRow]]:
 def get_connection() -> Iterator[Connection[DictRow]]:
     with connection() as conn:
         yield conn
+
+
+def get_own_connection() -> Iterator[Connection[DictRow]]:
+    """
+    A connection that nothing else in the same request has used.
+
+    FastAPI resolves a dependency once per request, so every caller of
+    `get_connection` shares one connection — the gate included, and the gate
+    re-reads the account before any endpoint runs. Whoever asks for that
+    shared connection therefore receives it already inside the gate's read
+    committed transaction. Work that has to own its transaction asks for this
+    one instead and holds a second connection for as long as the request
+    lasts, which is why it is not the default.
+    """
+    with connection() as conn:
+        yield conn

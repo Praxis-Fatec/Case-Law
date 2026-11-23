@@ -1,22 +1,30 @@
 import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
-import { Database, SignOut, UsersThree } from '@phosphor-icons/react';
+import { BookmarkSimple, Database, Flag, SignOut, UsersThree } from '@phosphor-icons/react';
+import { SAVED_SEARCHES_PATH, SAVED_SEARCHES_TRIGGER } from '../search/savedSearches';
+import { useSavedDecisions } from '../search/savedDecisionsContext';
 
 import { COVERAGE_PATH, type CoverageEntry } from '../pages/CoveragePage';
+import { REPORTS_PATH } from '../pages/ReportsPage';
 import { TEAM_PATH } from '../pages/TeamPage';
 import { useSession } from '../session/sessionContext';
 
 type AppHeaderProps = {
   // Given the place where a screen may put its search, empty on the others.
   searchSlotRef?: (element: HTMLElement | null) => void;
+  savedSearchCount?: number | null;
 };
 
-function AppHeader({ searchSlotRef }: AppHeaderProps) {
+function AppHeader({ searchSlotRef, savedSearchCount }: AppHeaderProps) {
+  const bookmarks = useSavedDecisions();
+  const savedItemsCount =
+    savedSearchCount == null ? null : savedSearchCount + (bookmarks?.items.length ?? 0);
   const location = useLocation();
   const onCoverage = useMatch(COVERAGE_PATH) !== null;
   const onTeam = useMatch(TEAM_PATH) !== null;
+  const onReports = useMatch(REPORTS_PATH) !== null;
   // The search and a decision read inside it are the same screen: the list
   // stays mounted while the address changes.
-  const onSearch = !onCoverage && !onTeam;
+  const onSearch = !onCoverage && !onTeam && !onReports;
   const session = useSession();
   const person = session.status === 'signed in' ? session.person : null;
 
@@ -56,6 +64,26 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
             </span>
           </NavLink>
 
+          <Link
+            id={SAVED_SEARCHES_TRIGGER}
+            to={SAVED_SEARCHES_PATH}
+            replace={location.pathname === SAVED_SEARCHES_PATH}
+            state={{ savedSearchesEntry: true }}
+            className="app-header__link"
+            aria-haspopup="dialog"
+          >
+            <BookmarkSimple size={15} weight="fill" aria-hidden="true" />
+            <span className="app-header__title">Itens salvos</span>
+            {savedItemsCount != null && (
+              <span
+                className="saved-items__badge"
+                aria-label={`${savedItemsCount} ${savedItemsCount === 1 ? 'item salvo' : 'itens salvos'}`}
+              >
+                {savedItemsCount}
+              </span>
+            )}
+          </Link>
+
           {/* Only a manager administers, so only a manager is offered the way
               there. The API refuses the rest regardless; this keeps the bar
               from showing a door that would close in their face. */}
@@ -65,6 +93,16 @@ function AppHeader({ searchSlotRef }: AppHeaderProps) {
               <span className="app-header__text">
                 <span className="app-header__title">Usuários</span>
                 <span className="app-header__subtitle">Quem tem acesso</span>
+              </span>
+            </NavLink>
+          )}
+
+          {person?.role === 'gerente' && (
+            <NavLink to={REPORTS_PATH} replace={onReports} className="app-header__link">
+              <Flag size={14} aria-hidden="true" className="app-header__icon" />
+              <span className="app-header__text">
+                <span className="app-header__title">Reportes</span>
+                <span className="app-header__subtitle">Classificações contestadas</span>
               </span>
             </NavLink>
           )}

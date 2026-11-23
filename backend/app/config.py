@@ -3,6 +3,8 @@ from typing import Annotated
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -10,7 +12,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://postgres:postgres@localhost:5432/caselaw"
     environment: str = "development"
     root_path: str = ""
-    database_pool_size: int = 10
+    # Ten ran out: at 50 simultaneous requests, 300 of 1,000 waited over 30s
+    # for a connection and answered 503. Fifteen per worker, two workers, is
+    # 30 — against the 100 PostgreSQL accepts.
+    database_pool_size: int = 15
     search_max_page_size: int = 100
     # Signs the session tokens. Empty is allowed only while developing: an
     # environment that serves real accounts with a default secret is one where
@@ -18,7 +23,42 @@ class Settings(BaseSettings):
     # start instead.
     session_secret: str = ""
     session_hours: int = 12
+    # Reads a thesis out of a decision the court wrote none for. Empty turns
+    # the feature off everywhere rather than failing per request: without a
+    # key there is nothing to ask, and the screen says so instead of offering
+    # a button that cannot work.
+    google_api_key: str = ""
+    # Flash Lite, and the choice is about quota rather than quality. The
+    # free tier allows 20 requests a day on the Flash models and 500 on
+    # this one: a single afternoon of use exhausts the first. Pulling one
+    # sentence out of a short ementa is work it does well, and a reading
+    # it gets wrong is caught by `tese.confere` and never shown.
+    #
+    # A name, never an alias like `gemini-flash-latest`: an alias moves
+    # under the readings already stored against it.
+    gemini_model: str = DEFAULT_MODEL
+    # Turns the search by subject on. Empty leaves every search answering by
+    # word alone, which is what it did before the feature existed — the same
+    # bargain as `google_api_key` above, and for the same reason: a model that
+    # is not there is not an error per request.
+    embedding_model_path: str = ""
+    embedding_threads: int = 2
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
+
+    @field_validator("gemini_model", mode="before")
+    @classmethod
+    def fall_back_when_blank(cls, value: object) -> object:
+        """
+        An empty value means the default, not an empty model name.
+
+        A compose file written as `${GEMINI_MODEL:-}` passes an empty
+        string rather than nothing at all, which would otherwise override
+        the default with a name the API cannot use — and the failure would
+        arrive as a model error on the first reading, nowhere near here.
+        """
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_MODEL
+        return value
 
     @field_validator("cors_origins", mode="before")
     @classmethod

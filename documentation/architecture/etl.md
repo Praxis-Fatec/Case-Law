@@ -42,9 +42,9 @@ Two tools, two jobs:
 
 | Layer | What lives there | Rows today |
 |---|---|---|
-| `raw` | the source's own response, field names and all | 2.4 M across 6 tables |
-| `sqlmesh__core` | the physical, fingerprinted tables SQLMesh builds | 83 indexes |
-| `core` | **views** over the above — the public contract | 1.37 M across 7 tables |
+| `raw` | the source's own response, field names and all | 5.07 M across 13 tables |
+| `sqlmesh__core` | the physical, fingerprinted tables SQLMesh builds | 103 indexes |
+| `core` | **views** over the above — the public contract | 20 views; `core.decisao` alone is 1.36 M rows |
 | published | a materialised copy on each server | `core_publicacao` |
 
 `core` being views matters operationally: `pg_dump --schema core` produces
@@ -54,7 +54,7 @@ definitions and no rows. Publication materialises them first — see §6.
 
 ## 2. Extraction
 
-Three connectors in [`pipeline/sources/`](../../pipeline/sources/), each landing
+Five connectors in [`pipeline/sources/`](../../pipeline/sources/), each landing
 its own table. None of them transforms anything.
 
 ### 2.1 TJDFT — JurisDF
@@ -99,7 +99,35 @@ both `temas.csv` and `dicionario-temas.csv`, and matching on the suffix
 The run loaded 21 rows in place of 2,403 and reported success. The resource
 match is now anchored on `/temas.csv`.
 
-### 2.4 Seeds
+### 2.4 STF — pesquisa de jurisprudência
+
+| | |
+|---|---|
+| Protocol | Elasticsearch behind the court's own search page, **undocumented** |
+| Lands in | `raw.acordao_stf` — **373,178** rows |
+| Child tables | `documental_legislacao_citada_texto` 677,943 · `ministro_facet` 382,423 |
+| Write mode | `merge` on `_id` |
+| Pacing | one request per 1 s, 100 records per request |
+| Stops on | 401, 403 or 429 — the court has declined, and the load ends |
+
+**The STF publishes no open data.** Corte Aberta is statistics, the MNI points
+the other way and is gated by an agreement, the court is absent from DataJud,
+and there is no `openapi.json` anywhere on its hosts. What exists is the private
+backend of its own search page, and the survey that established that — every
+host, every route, every alternative — is in
+[`stf-source.md`](stf-source.md). The connector therefore identifies itself,
+never pretends to be a browser, and treats a refusal as a refusal.
+
+Two things about the contract are worth recording here, because both fail
+quietly. The service wraps the Elasticsearch answer in a `result` envelope
+beside a search id of its own: read as plain Elasticsearch, **every load reports
+zero documents and succeeds**. And the index advertises a `tiebreaker_sort`
+field that does not exist, so Elasticsearch answers `Long.MAX` for every
+document; paging by `search_after` over it means "after this date", and every
+other decision judged that day is skipped. Measured over 2026 before the fix:
+3,593 of 11,568. The sort is `(julgamento_data, id)` now, and a test asserts it.
+
+### 2.5 Seeds
 
 Three CSVs in [`pipeline/transformations/seeds/`](../../pipeline/transformations/seeds/)
 carry what no API returns:
@@ -114,7 +142,7 @@ carry what no API returns:
 APIs do not return one, so `core.decisao` builds it by substituting the record's
 identifier into `url_documento_template`.
 
-### 2.5 Link verification
+### 2.6 Link verification
 
 A separate step, [`verify_links.py`](../../pipeline/verify_links.py), asks each
 source whether a document is still reachable and writes the answer to
@@ -130,18 +158,20 @@ the rest invalid.
 
 ## 3. Transformation
 
-Seven models in [`pipeline/transformations/models/`](../../pipeline/transformations/models/).
-Three are thin reads of the seeds; four carry rules.
+Twenty models in [`pipeline/transformations/models/`](../../pipeline/transformations/models/).
+Three are thin reads of the seeds; the rest carry rules. The seven below are the
+ones this document follows end to end; the full catalogue, column by column, is
+the [data dictionary](data-dictionary.md).
 
 | Model | Kind | Rows | What it is |
 |---|---|---|---|
-| `core.decisao` | FULL | **991,163** | one row per decision, both courts unioned |
-| `core.decisao_precedente` | FULL | **375,189** | which precedent each decision cited |
-| `core.precedente` | FULL | **1,482** | what the higher courts settled |
-| `core.carga` | FULL | 145 | one row per extraction run |
+| `core.decisao` | incremental by date | **1,360,708** | one row per decision, the three courts unioned |
+| `core.decisao_precedente` | incremental by date | **459,800** | which precedent each decision cited |
+| `core.precedente` | FULL | **1,525** | what the higher courts settled |
+| `core.carga` | FULL | 25 | one row per extraction run |
 | `core.classe_processual` | seed | 847 | CNJ class table |
-| `core.fonte` | seed | 3 | sources |
-| `core.tribunal` | seed | 2 | courts |
+| `core.fonte` | seed | 5 | sources |
+| `core.tribunal` | seed | 3 | courts |
 
 ### 3.1 What is collected vs. derived
 
@@ -324,6 +354,7 @@ Things a reader of this data should know before drawing a conclusion from it.
 | Extract TJDFT | `uv run python -m sources.tjdft` | `pipeline/` |
 | Extract STJ | `uv run python -m sources.stj` | `pipeline/` |
 | Extract precedents | `uv run python -m sources.precedente` | `pipeline/` |
+| Extract STF | `uv run python -m sources.stf` | `pipeline/` |
 | Verify links | `uv run python verify_links.py` | `pipeline/` |
 | Preview changes | `uv run sqlmesh plan` | `pipeline/transformations/` |
 | Run audits | `uv run sqlmesh audit` | `pipeline/transformations/` |
@@ -331,7 +362,15 @@ Things a reader of this data should know before drawing a conclusion from it.
 
 `plan` is the one that matters: it reports what changed and what would be
 rebuilt, and waits for confirmation. Comments and audit bodies are metadata, so
-editing them produces a **virtual update** — no rebuild of 991,163 rows.
+editing them produces a **virtual update** — no rebuild of 1,360,708 rows.
+
+`plan` and `run` are not interchangeable, and one detail cost a rebuild to
+learn: **`plan` against production does not move the window forward**. It
+reconstructs over the intervals the previous snapshot already had, and it
+refuses `--end` outright (*"the start and end dates can't be set for a
+production plan without restatements"*). Advancing to data collected since the
+last build is `run`'s job. A collection can therefore be fully rebuilt and
+still end two months before its newest record, with nothing reporting it.
 
 Measured publication time for 107,828 decisions over the private network: 56 s
 to the development server, 73 s to production.

@@ -3,6 +3,9 @@ import { Link, type To } from 'react-router-dom';
 import { ArrowRight, ArrowSquareOut } from '@phosphor-icons/react';
 
 import { readThesis } from '../api/decisions';
+import IdentifiedThesis from './IdentifiedThesis';
+import SaveDecisionButton from './SaveDecisionButton';
+import ReportClassification from './ReportClassification';
 import type { Highlight, SearchDecisionMatch } from '../api/search';
 import {
   DELIBERATION_LABELS,
@@ -26,8 +29,14 @@ type DecisionCardData = Pick<
   | 'deliberation'
   | 'snippet'
   | 'thesis'
+  | 'proximity'
 > & {
   published_on?: string | null;
+  // Where the decision lives, which is how the API is asked about it: for the
+  // thesis, and for a report about what was inferred. Optional because a card
+  // can be drawn from less than a search match, and then neither is offered.
+  source?: string;
+  identifier?: string;
 };
 
 type DecisionResultCardProps = {
@@ -51,7 +60,19 @@ type DecisionResultCardProps = {
   selected?: boolean;
   // Its place in the whole result, counting from 1 across pages.
   rank?: number;
+  // Achada por assunto e não pelas palavras digitadas. O leitor confia de um
+  // jeito diferente em cada uma das duas, então a diferença aparece no card.
+  bySubject?: boolean;
 };
+
+const ENCONTRADA_POR_SENTIDO =
+  'Encontrada pelo assunto: a busca pelas palavras escritas não traz esta decisão.';
+
+const PROXIMIDADE = {
+  high: { rotulo: 'muito próximo', explicacao: 'Entre as mais próximas do que você escreveu.' },
+  medium: { rotulo: 'próximo', explicacao: 'Trata do mesmo assunto que você escreveu.' },
+  low: { rotulo: 'relacionado', explicacao: 'Tem relação com o que você escreveu, mais de longe.' },
+} as const;
 
 function renderSafeSnippet(value: string | null | undefined): ReactNode[] {
   const normalized = normalizeText(value);
@@ -113,6 +134,7 @@ function DecisionResultCard({
   openButtonId,
   selected = false,
   rank,
+  bySubject = false,
 }: DecisionResultCardProps) {
   const officialUrl = normalizeOfficialUrl(decision.source_url);
   const linkIsUnavailable = !officialUrl || decision.source_url_reachable === false;
@@ -138,9 +160,14 @@ function DecisionResultCard({
 
   return (
     <article
-      className={
-        selected ? 'decision-result-card decision-result-card--selected' : 'decision-result-card'
-      }
+      className={[
+        'decision-result-card',
+        selected && 'decision-result-card--selected',
+        bySubject && 'decision-result-card--by-subject',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      title={bySubject ? ENCONTRADA_POR_SENTIDO : undefined}
       aria-label={`Decisão ${decision.case_number ?? 'sem processo'}`}
     >
       {/* The whole card opens the decision, as in the reference. A real link
@@ -164,6 +191,8 @@ function DecisionResultCard({
         </Link>
       )}
 
+      {bySubject && <span className="sr-only">{ENCONTRADA_POR_SENTIDO}</span>}
+
       {rank !== undefined && (
         <span className="decision-result-card__rank" aria-hidden="true">
           {String(rank).padStart(2, '0')}
@@ -178,7 +207,17 @@ function DecisionResultCard({
               {getDisplayValue(decision.case_number)}
             </span>
           </div>
-          {decided && <span className="decision-result-card__date">{decided}</span>}
+          <div className="decision-result-card__flags">
+            {decision.proximity && (
+              <span
+                className={`decision-result-card__proximity decision-result-card__proximity--${decision.proximity}`}
+                title={PROXIMIDADE[decision.proximity].explicacao}
+              >
+                {PROXIMIDADE[decision.proximity].rotulo}
+              </span>
+            )}
+            {decided && <span className="decision-result-card__date">{decided}</span>}
+          </div>
         </header>
 
         <p className="decision-result-card__snippet">{renderSafeSnippet(decision.snippet)}</p>
@@ -203,10 +242,19 @@ function DecisionResultCard({
               /* No thesis written, so the evidence is the snippet above —
                  which this list cut around the dispositive or the citation,
                  not around what was typed. */
-              <p className="decision-result-card__thesis-origin">
-                O tribunal não escreveu tese. O trecho acima é a passagem que produziu a
-                classificação.
-              </p>
+              <>
+                <p className="decision-result-card__thesis-origin">
+                  O tribunal não escreveu tese. O trecho acima é a passagem que produziu a
+                  classificação.
+                </p>
+                {/* The court wrote none, so the reader may ask this tool to
+                    read one out of the ementa. Behind a press, never on
+                    render: the call costs money and most cards are scrolled
+                    past. */}
+                {decision.source && decision.identifier && (
+                  <IdentifiedThesis source={decision.source} identifier={decision.identifier} />
+                )}
+              </>
             ) : (
               <p className="decision-result-card__thesis-origin">
                 O tribunal não escreveu tese nem dispositivo para esta decisão.
@@ -217,6 +265,14 @@ function DecisionResultCard({
                 ? 'O resultado é leitura automática desta ferramenta, a partir do texto acima.'
                 : 'A aderência é leitura automática desta ferramenta, a partir do texto acima.'}
             </p>
+            {/* Here, where the tool owns its reading, and nowhere else: this is
+                where disagreeing with it means something. */}
+            {decision.source && decision.identifier && (
+              <ReportClassification
+                decision={{ source: decision.source, identifier: decision.identifier }}
+                contested={justifies}
+              />
+            )}
           </details>
         )}
 
@@ -232,6 +288,9 @@ function DecisionResultCard({
         </dl>
 
         <div className="decision-result-card__actions" aria-live="polite">
+          {decision.source && decision.identifier && (
+            <SaveDecisionButton source={decision.source} identifier={decision.identifier} />
+          )}
           {onSelect && (
             <button type="button" className="indicator-document__open" onClick={onSelect}>
               Abrir decisão

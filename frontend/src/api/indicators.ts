@@ -33,7 +33,107 @@ export type Coverage = {
   // When the most recent successful load finished, in UTC: the collection's
   // date, not a decision's.
   updated_at: string | null;
+  // When the doctrine vocabulary was last recalculated. It has a monthly
+  // schedule of its own, so being older than `updated_at` is expected.
+  vocabulary_updated_at: string | null;
 };
+
+// What `/indicators/sources` answers: one entry per source in the catalogue,
+// whatever it has delivered. Asked apart from the coverage so the two fail
+// apart — an environment serving an older publication can still report its
+// scope while this list cannot be read.
+export type SourcePrecision = 'dia' | 'ano' | 'nenhuma';
+
+export type SourceAvailability = 'ativa' | 'bloqueada';
+
+export type SourceStatus = {
+  code: string;
+  name: string | null;
+  // `decisao`, `precedente` or `doutrina`. The period counts items of this
+  // kind, so the two are read together.
+  content: string | null;
+  // Whether collection is possible at all. `bloqueada` is the source's
+  // decision, not a fault of ours, and it keeps what it already delivered.
+  availability: SourceAvailability | null;
+  state: LoadState | null;
+  // When the last collection that finished for this source finished, in UTC.
+  // Never borrowed from another source or from an attempt that failed.
+  last_collection: string | null;
+  // The most recent attempt, whatever its outcome. Later than
+  // `last_collection` when that attempt failed.
+  last_attempt: string | null;
+  last_attempt_failed: boolean;
+  items: number | null;
+  // How many of them carry no date. The period is computed over the dated
+  // ones, so a collection half undated would otherwise look complete.
+  undated_items: number | null;
+  first: string | null;
+  last: string | null;
+  // The granularity the source's own data supports. `ano` means the day in
+  // `first` and `last` is padding and must not be shown.
+  precision: SourcePrecision | null;
+};
+
+const PRECISIONS: readonly string[] = ['dia', 'ano', 'nenhuma'];
+
+const AVAILABILITIES: readonly string[] = ['ativa', 'bloqueada'];
+
+function readSource(value: unknown): SourceStatus | null {
+  const source = (value ?? {}) as Record<string, unknown>;
+  const code = text(source.code);
+
+  // An entry with no source to name is no entry at all.
+  if (!code) {
+    return null;
+  }
+
+  const state = text(source.state);
+  const availability = text(source.availability);
+  const precision = text(source.precision);
+
+  return {
+    code,
+    name: text(source.name),
+    content: text(source.content),
+    availability:
+      availability && AVAILABILITIES.includes(availability)
+        ? (availability as SourceAvailability)
+        : null,
+    state: state && LOAD_STATES.includes(state) ? (state as LoadState) : null,
+    last_collection: text(source.last_collection),
+    last_attempt: text(source.last_attempt),
+    last_attempt_failed: source.last_attempt_failed === true,
+    items: count(source.items),
+    undated_items: count(source.undated_items),
+    first: text(source.first),
+    last: text(source.last),
+    precision: precision && PRECISIONS.includes(precision) ? (precision as SourcePrecision) : null,
+  };
+}
+
+export function readSources(body: unknown): SourceStatus[] {
+  return Array.isArray(body)
+    ? body.map(readSource).filter((source): source is SourceStatus => source !== null)
+    : [];
+}
+
+export async function getSources(options: { signal?: AbortSignal } = {}): Promise<SourceStatus[]> {
+  assertApiConfiguration();
+
+  const url = new URL(`${apiBaseUrl}/indicators/sources`, window.location.origin);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: apiHeaders(),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new IndicatorRequestError('Sources', response.status);
+  }
+
+  return readSources(await response.json());
+}
 
 // What `/indicators/volume-by-court` answers: the search's own cut, counted by
 // court. It takes the search's expression and filters, never its order or
@@ -96,6 +196,36 @@ export type OutcomeShare = {
   outcomes: OutcomeCount[];
 };
 
+// What `/indicators/concentration` answers: the same cut, counted by judging
+// body and by reporting judge. Each `name` is the value exactly as the source
+// wrote it — the value the search's own filter takes — so it is never trimmed
+// or normalised here. `other` folds every group past `limit`, and the
+// decisions with no value recorded, into one slice.
+export type ConcentrationGroup = {
+  name: string;
+  decisions: number | null;
+  share: number | null;
+};
+
+export type ConcentrationOther = {
+  groups: number | null;
+  decisions: number | null;
+  share: number | null;
+};
+
+export type ConcentrationDimension = {
+  groups: ConcentrationGroup[];
+  other: ConcentrationOther | null;
+  missing: number | null;
+};
+
+export type Concentration = {
+  total: number | null;
+  limit: number | null;
+  judging_bodies: ConcentrationDimension;
+  reporting_judges: ConcentrationDimension;
+};
+
 // An indicator that takes no search parameter failed: the coverage, or the
 // freshness. Only the status is kept; there is no filter to point back to.
 export class IndicatorRequestError extends Error {
@@ -148,6 +278,7 @@ export function readCoverage(body: unknown): Coverage {
       : [],
     state: state && LOAD_STATES.includes(state) ? (state as LoadState) : null,
     updated_at: text(raw.updated_at),
+    vocabulary_updated_at: text(raw.vocabulary_updated_at),
   };
 }
 
@@ -180,6 +311,9 @@ export type VolumeParams = Pick<
   | 'orgao_julgador'
   | 'relator'
   | 'classe_cnj'
+  | 'resultado'
+  | 'orgao_julgador_excluido'
+  | 'relator_excluido'
   | 'date_from'
   | 'date_to'
   | 'published_from'
@@ -193,7 +327,15 @@ export function cutUrl(path: string, params: VolumeParams): URL {
   const url = new URL(`${apiBaseUrl}${path}`, window.location.origin);
   url.searchParams.set('q', params.q);
 
-  for (const name of ['tribunal', 'orgao_julgador', 'relator', 'classe_cnj'] as const) {
+  for (const name of [
+    'tribunal',
+    'orgao_julgador',
+    'relator',
+    'classe_cnj',
+    'resultado',
+    'orgao_julgador_excluido',
+    'relator_excluido',
+  ] as const) {
     for (const value of params[name] ?? []) {
       url.searchParams.append(name, String(value));
     }
@@ -346,6 +488,78 @@ export async function getOutcomeShare(
   return readOutcomeShare(await response.json());
 }
 
+// Kept exactly as sent, spaces included: a trimmed name would no longer be the
+// value the filter compares, and its slice would open onto nothing.
+const exactName = (value: unknown) => (typeof value === 'string' && value.trim() ? value : null);
+
+function readConcentrationGroup(value: unknown): ConcentrationGroup | null {
+  const row = (value ?? {}) as Record<string, unknown>;
+  const name = exactName(row.name);
+
+  if (!name) {
+    return null;
+  }
+
+  return { name, decisions: count(row.decisions), share: count(row.share) };
+}
+
+function readConcentrationDimension(value: unknown): ConcentrationDimension {
+  const raw = (value ?? {}) as Record<string, unknown>;
+  const other =
+    raw.other && typeof raw.other === 'object' ? (raw.other as Record<string, unknown>) : null;
+
+  return {
+    groups: Array.isArray(raw.groups)
+      ? raw.groups
+          .map(readConcentrationGroup)
+          .filter((row): row is ConcentrationGroup => row !== null)
+      : [],
+    other: other
+      ? {
+          groups: count(other.groups),
+          decisions: count(other.decisions),
+          share: count(other.share),
+        }
+      : null,
+    missing: count(raw.missing),
+  };
+}
+
+export function readConcentration(body: unknown): Concentration {
+  const raw = (body ?? {}) as Record<string, unknown>;
+
+  return {
+    total: count(raw.total),
+    limit: count(raw.limit),
+    judging_bodies: readConcentrationDimension(raw.judging_bodies),
+    reporting_judges: readConcentrationDimension(raw.reporting_judges),
+  };
+}
+
+export async function getConcentration(
+  params: VolumeParams,
+  options: { limit?: number; signal?: AbortSignal } = {},
+): Promise<Concentration> {
+  assertApiConfiguration();
+
+  const url = cutUrl('/indicators/concentration', params);
+  if (options.limit) {
+    url.searchParams.set('limit', String(options.limit));
+  }
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: apiHeaders(),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    throw new SearchRequestError(response.status, await readDetail(response));
+  }
+
+  return readConcentration(await response.json());
+}
+
 export function readLastUpdate(body: unknown): LastUpdate {
   const raw = (body ?? {}) as Record<string, unknown>;
   const state = text(raw.state);
@@ -374,4 +588,68 @@ export async function getLastUpdate(options: { signal?: AbortSignal } = {}): Pro
   }
 
   return readLastUpdate(await response.json());
+}
+
+export type ComparisonCount = {
+  value: string | null;
+  decisions: number | null;
+  share: number | null;
+};
+export type CourtComparison = {
+  abbreviation: string;
+  name: string | null;
+  total: number | null;
+  outcomes: ComparisonCount[];
+  deliberations: ComparisonCount[];
+  adherences: ComparisonCount[];
+};
+export type CourtComparisons = { total: number | null; courts: CourtComparison[] };
+
+function readComparisonCounts(value: unknown): ComparisonCount[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item: unknown) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    if (row.value !== null && typeof row.value !== 'string') return [];
+    return [{ value: row.value, decisions: count(row.decisions), share: count(row.share) }];
+  });
+}
+
+export function readComparison(body: unknown): CourtComparisons {
+  const raw = (body ?? {}) as Record<string, unknown>;
+  return {
+    total: count(raw.total),
+    courts: Array.isArray(raw.courts)
+      ? raw.courts.flatMap((value: unknown) => {
+          const row = (value ?? {}) as Record<string, unknown>;
+          const abbreviation = text(row.abbreviation);
+          return abbreviation
+            ? [
+                {
+                  abbreviation,
+                  name: text(row.name),
+                  total: count(row.total),
+                  outcomes: readComparisonCounts(row.outcomes),
+                  deliberations: readComparisonCounts(row.deliberations),
+                  adherences: readComparisonCounts(row.adherences),
+                },
+              ]
+            : [];
+        })
+      : [],
+  };
+}
+
+export async function getComparison(
+  params: VolumeParams,
+  options: { signal?: AbortSignal } = {},
+): Promise<CourtComparisons> {
+  assertApiConfiguration();
+  const response = await fetch(cutUrl('/indicators/comparison', params).toString(), {
+    method: 'GET',
+    headers: apiHeaders(),
+    signal: options.signal,
+  });
+  if (!response.ok) throw new SearchRequestError(response.status, await readDetail(response));
+  return readComparison(await response.json());
 }

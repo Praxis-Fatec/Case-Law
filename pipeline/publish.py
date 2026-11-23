@@ -19,15 +19,28 @@ TABLES = (
     "fonte",
     "classe_processual",
     "carga",
+    "cobertura_fonte",
     "decisao",
+    "url_compartilhada",
     "termo_frequente",
+    "termo_judicial",
+    "precedente_judicial",
+    "decisao_norma",
+    "decisao_contraria_candidata",
+    "decisao_contraria",
     "busca_ampla",
     "precedente",
     "decisao_precedente",
+    "referencia_legislativa",
     "doutrina",
     "doutrina_termo",
     "decisao_doutrina",
+    "decisao_vetor",
 )
+
+ORIGENS = {"decisao_vetor": "vetor.decisao"}
+
+COLUNAS = {"decisao_vetor": "fonte_codigo, identificador_fonte, modelo, revisao, vetor"}
 
 INDEXES = (
     (
@@ -44,6 +57,10 @@ INDEXES = (
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (tribunal_sigla, relator)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (processo)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao (classe_cnj)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.url_compartilhada "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The first page of a broad search is served from here and nowhere else, so
     # this index is the story: it carries every column the page asks for, in
     # the order it asks for them, which is what turns 95 seconds into a single
@@ -58,6 +75,14 @@ INDEXES = (
         "(lexema, fonte_codigo, identificador_fonte)"
     ),
     f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_frequente (lexema)",
+    # O vocabulário é lido por termo, uma vez por termo da decisão aberta;
+    # a norma, uma vez por candidato. Sem estes dois a sugestão de decisões
+    # próximas varre as duas tabelas inteiras a cada leitura.
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.termo_judicial (termo)",
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_norma "
+        "(fonte_codigo, identificador_fonte)"
+    ),
     # The copy is a plain SELECT, so no index comes with it. These mirror what
     # the models declare: without them the detail screen reads 28 thousand
     # suggestions sequentially on every decision opened.
@@ -69,6 +94,19 @@ INDEXES = (
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (corte, tipo, numero)",
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_precedente (resolvida)",
+    # The legislation block reads by the decision and nothing else, and the
+    # unique key already starts with that pair. The partial index is for the
+    # minority the audit counts — 0,61% of 1,59 million rows — so that reading
+    # what the court wrote in a form this parser does not know is a lookup
+    # rather than a scan of the whole table.
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte, ordem, sequencia)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.referencia_legislativa "
+        "(fonte_codigo, identificador_fonte) WHERE NOT reconhecida"
+    ),
     (
         f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.doutrina "
         "(repositorio, identificador_oai)"
@@ -89,10 +127,38 @@ INDEXES = (
         "(fonte_codigo, identificador_fonte, nota DESC)"
     ),
     f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_doutrina (repositorio, identificador_oai)",
+    f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.cobertura_fonte (fonte_codigo)",
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria "
+        "(fonte_codigo, identificador_fonte, semelhanca DESC)"
+    ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.precedente_judicial "
+        "(corte, tipo, numero)"
+    ),
+    (
+        f"CREATE INDEX ON {STAGING_SCHEMA}.decisao_contraria_candidata "
+        "(fonte_codigo, identificador_fonte)"
+    ),
+    (
+        f"CREATE UNIQUE INDEX ON {STAGING_SCHEMA}.decisao_vetor "
+        "(fonte_codigo, identificador_fonte)"
+    ),
 )
+
+VETOR_DIMENSOES = 1024
+
+VETOR_INDICE = f"""
+SET maintenance_work_mem = '2GB';
+SET max_parallel_maintenance_workers = 0;
+CREATE INDEX ON {STAGING_SCHEMA}.decisao_vetor
+  USING hnsw ((binary_quantize(vetor)::bit({VETOR_DIMENSOES})) bit_hamming_ops);
+ANALYZE {STAGING_SCHEMA}.decisao_vetor;
+"""
 
 SEARCH_CONFIGURATION = """
 CREATE EXTENSION IF NOT EXISTS unaccent;
+CREATE EXTENSION IF NOT EXISTS vector;
 DO $do$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'portugues_sem_acento')
@@ -210,12 +276,14 @@ def stage() -> int:
     _local_psql(["-c", f"CREATE SCHEMA {STAGING_SCHEMA}"])
 
     for table in TABLES:
+        origem = ORIGENS.get(table, f"{PUBLISHED_SCHEMA}.{table}")
+        colunas = COLUNAS.get(table, "*")
         _local_psql(
             [
                 "-c",
                 (
                     f"CREATE TABLE {STAGING_SCHEMA}.{table} AS "
-                    f"SELECT * FROM {PUBLISHED_SCHEMA}.{table}"
+                    f"SELECT {colunas} FROM {origem}"
                 ),
             ]
         )
@@ -223,7 +291,13 @@ def stage() -> int:
     for statement in INDEXES:
         _local_psql(["-c", statement])
 
-    _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.decisao"])
+    # Era só `decisao`, e isso bastava enquanto só ela era grande. A cópia é um
+    # `CREATE TABLE AS`, então toda tabela encenada chega sem estatística: a
+    # primeira leitura de cada tela planeja contra a estimativa padrão e pode
+    # varrer 411 MB de `decisao_contraria` por índice que existe. Analisar
+    # todas custa segundos e tira a lista de manutenção manual do caminho.
+    for table in TABLES:
+        _local_psql(["-c", f"ANALYZE {STAGING_SCHEMA}.{table}"])
 
     return int(
         _local_psql(["-tA", "-c", f"SELECT COUNT(*) FROM {STAGING_SCHEMA}.decisao"])
@@ -250,7 +324,7 @@ def transfer(target: Target) -> None:
             "--format",
             "custom",
             "--compress",
-            "6",
+            "zstd:6",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
@@ -299,6 +373,9 @@ def publish(name: str) -> None:
 
     print(f"transferring to {target.name}", flush=True)
     transfer(target)
+
+    print(f"building the vector index on {target.name}", flush=True)
+    _remote_psql(target, VETOR_INDICE, [])
 
     print("swapping the schema", flush=True)
     _remote_psql(target, SWAP, [])

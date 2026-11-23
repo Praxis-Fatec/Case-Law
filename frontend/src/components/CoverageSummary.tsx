@@ -56,6 +56,13 @@ function updatedOf(coverage: Coverage): string {
     : NOT_INFORMED;
 }
 
+// The vocabulary runs on its own monthly schedule, so it is normally older
+// than the collection. Said plainly, because a reader who sees two different
+// dates on one screen and no explanation assumes one of them is broken.
+function vocabularyOf(coverage: Coverage): string {
+  return formatDateTime(coverage.vocabulary_updated_at) ?? 'Ainda não calculado';
+}
+
 // The courts are counted from the rows. No rows while documents exist, or
 // while their number is unknown, is a list that did not come — not no courts.
 function courtsOf(coverage: Coverage): string {
@@ -139,6 +146,9 @@ function CoverageSummary({ state }: { state: CoverageState }) {
           ) : (
             <Value text={NOT_INFORMED} />
           )}
+        </Field>
+        <Field label="Vocabulário da doutrina">
+          {coverage ? <Value text={vocabularyOf(coverage)} /> : pending}
         </Field>
       </dl>
     </section>

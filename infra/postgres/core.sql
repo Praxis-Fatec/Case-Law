@@ -93,9 +93,16 @@ CREATE TABLE core.fonte (
     url_base text NOT NULL,
     url_documento_template text NOT NULL,
     status core.status_fonte DEFAULT 'ativa'::core.status_fonte NOT NULL,
+    observacoes text
+);
+CREATE TABLE core.cobertura_fonte (
+    fonte_codigo text NOT NULL,
+    conteudo text NOT NULL,
+    itens bigint NOT NULL,
+    itens_sem_data bigint NOT NULL,
     cobertura_inicio date,
     cobertura_fim date,
-    observacoes text
+    precisao text NOT NULL
 );
 CREATE TABLE core.tribunal (
     sigla text NOT NULL,

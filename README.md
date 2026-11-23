@@ -6,6 +6,7 @@
   <a href="#challenge">Challenge</a> •
   <a href="#solution">Solution</a> •
   <a href="#architecture">Architecture</a> •
+  <a href="#operation">Operation</a> •
   <a href="#backlog">Product Backlog</a> •
   <a href="#sprints">Sprint Schedule</a> •
   <a href="#sprintdor">DoR and DoD</a> •
@@ -48,7 +49,7 @@ keeps the address of its own document on the court's site.
 
 | | |
 |---|---|
-| **One search, many courts** | 984,824 decisions from the STJ and the TJDFT, searched together |
+| **One search, many courts** | 1,360,708 decisions from the STF, the STJ and the TJDFT, searched together |
 | **Full-text in Portuguese** | accents and word endings do not matter: *acao* finds *ação*, *usucapiao* finds *usucapião* |
 | **The terms, highlighted** | the excerpt shows why the decision matched |
 | **Always the official source** | every result links to the document on the court's own site, and the screen says that the original prevails |
@@ -60,8 +61,14 @@ The reach today:
 | Court | Decisions | Coverage |
 |---|---|---|
 | **STJ** — Superior Tribunal de Justiça | 876,996 | 19/02/1989 – 26/08/2026 |
-| **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 107,828 | 17/09/2025 – 17/09/2026 |
-| **Total** | **984,824** | **19/02/1989 – 17/09/2026** |
+| **STF** — Supremo Tribunal Federal | 369,545 | 27/04/1892 – 16/11/2026 |
+| **TJDFT** — Tribunal de Justiça do Distrito Federal e dos Territórios | 114,167 | 17/09/2025 – 17/09/2026 |
+| **Total** | **1,360,708** | **27/04/1892 – 16/11/2026** |
+
+The STF publishes no open data, so its decisions are read from the private
+backend of the court's own search page — identified, paced, and stopping on
+refusal. What that means, and everything else that was checked first, is in
+[STF as a source](documentation/architecture/stf-source.md).
 
 ---
 
@@ -75,6 +82,19 @@ it arrives.
 | [ETL](documentation/architecture/etl.md) | The layers, the three sources, which columns are derived rather than collected, the audits that guard them, and how publication swaps a dataset without a half-loaded state |
 | [Data warehouse model](documentation/architecture/case_law.dbml) | The star schema as a `dbdiagram.io` file: the fact table, its dimensions and the keys between them |
 | [Data dictionary](documentation/architecture/data-dictionary.md) | Every table and column in `core`, with types, value domains and how full each column actually is |
+
+---
+
+## Operation <a id="operation"></a>
+
+For whoever runs the service and for the firm that uses it. Both written in
+Portuguese, the language of the people who read them.
+
+| Document | What it answers |
+|---|---|
+| [Manual do gerente](documentation/manual-do-gerente.md) | How a firm's manager registers someone, sees who has access and revokes it — written for the manager, not for a developer |
+| [Capacidade e dimensionamento](documentation/capacidade-e-dimensionamento.md) | How much memory the server needs for each number of users, measured on production: sustainable users, requests per second, average and worst response times |
+| [Testes e integração contínua](documentation/testes-e-integracao-continua.md) | How a developer writes and runs the tests, and where CI runs them again on a clean machine — what each pass catches and what gates a merge |
 
 ---
 

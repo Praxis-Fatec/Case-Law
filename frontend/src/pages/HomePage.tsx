@@ -7,25 +7,43 @@ import {
   FileMagnifyingGlass,
   MagnifyingGlass,
   SlidersHorizontal,
+  ArrowsLeftRight,
 } from '@phosphor-icons/react';
 import {
+  DEFAULT_MODE,
   DEFAULT_ORDER,
   SearchRequestError,
   type SearchDecisionMatch,
+  type SearchMode,
   type SearchOrder,
 } from '../api/search';
 import DecisionDetail from '../components/DecisionDetail';
+import { DETAIL_ROUTE, detailPath } from '../components/decisionAddress';
 import DecisionResultCard from '../components/DecisionResultCard';
 import ResultsPagination from '../components/ResultsPagination';
 import ResultsSort from '../components/ResultsSort';
 import ExportAction from '../components/ExportAction';
 import { exportParams } from '../api/exports';
 import CourtVolumePanel from '../components/CourtVolumePanel';
+import SaveSearchAction from '../components/SaveSearchAction';
+import SavedSearchesDrawer from '../components/SavedSearchesDrawer';
+import { savedSearchParams } from '../api/savedSearches';
+import {
+  SAVED_SEARCHES_PATH,
+  type ResumedSearch,
+  type AdditionalSavedFilters,
+} from '../search/savedSearches';
+import CourtComparisonPanel from '../components/CourtComparisonPanel';
 import AdherencePanel from '../components/AdherencePanel';
 import OutcomeSharePanel from '../components/OutcomeSharePanel';
 import TimelineVolumePanel, { type TimelineState } from '../components/TimelineVolumePanel';
 import IndicatorDocumentsDrawer from '../components/IndicatorDocumentsDrawer';
 import PanoramaLayout from '../components/PanoramaLayout';
+import ConcentrationPanel from '../components/ConcentrationPanel';
+import DivergencePanel from '../components/DivergencePanel';
+import type { DivergenceState } from '../components/divergenceFormat';
+import { getDivergence } from '../api/divergence';
+import { CONCENTRATION_LIMIT, type ConcentrationState } from '../components/concentrationFormat';
 import {
   selectIndicator,
   type IndicatorPoint,
@@ -34,11 +52,12 @@ import {
 import ResultsTabs from '../components/ResultsTabs';
 import { panelId, tabId, type ResultsView } from '../components/resultsView';
 import SearchFilters from '../components/SearchFilters';
-import type { OutcomeState } from '../components/outcomeFormat';
+import { outcomeLabel, type OutcomeState } from '../components/outcomeFormat';
 import type { AdherenceState, MostCitedState } from '../components/precedentFormat';
 import { getAdherence, getMostCited } from '../api/precedents';
 import type { LastUpdateState, VolumeState } from '../components/volumeFormat';
 import {
+  getConcentration,
   getLastUpdate,
   getOutcomeShare,
   getVolumeByCourt,
@@ -66,6 +85,11 @@ import { useFilterOptions } from '../search/useFilterOptions';
 import { useSearchSession, useSessionState } from '../search/session';
 
 const FILTERS_PANEL_ID = 'search-filters';
+
+// The search already reads quotation marks as one phrase. What the box
+// accepts is only discoverable if the screen says so, and an example says it
+// shorter than a sentence about syntax.
+const EXACT_PHRASE_EXAMPLE = '"prescrição intercorrente"';
 
 const DATE_INPUTS: Record<DateGroup, string[]> = {
   judged: [`${FILTERS_PANEL_ID}-judged-from`, `${FILTERS_PANEL_ID}-judged-to`],
@@ -98,13 +122,6 @@ type OpenDecision = { source: string; identifier: string };
 
 const keyOf = (decision: OpenDecision) => `${decision.source}/${decision.identifier}`;
 
-// The address of a decision: the same two identifiers the detail endpoint
-// takes, so a copied link reopens exactly this decision.
-export const DETAIL_ROUTE = '/decisoes/:source/:identifier';
-
-const detailPath = (decision: OpenDecision) =>
-  `/decisoes/${encodeURIComponent(decision.source)}/${encodeURIComponent(decision.identifier)}`;
-
 const openButtonId = (decision: OpenDecision) =>
   `open-${keyOf(decision).replace(/[^A-Za-z0-9_-]/g, '-')}`;
 
@@ -122,16 +139,26 @@ type AppliedSearch = {
   q: string;
   filters: SearchFilterValues;
   order: SearchOrder;
+  mode: SearchMode;
   page: number;
+  extraFilters?: AdditionalSavedFilters;
 };
+
+const additionalFilterCount = (search: AppliedSearch | null) =>
+  Object.values(search?.extraFilters ?? {}).reduce(
+    (total, values) => total + (values?.length ?? 0),
+    0,
+  );
 
 // The one place a request is built from the applied search. Another page is
 // another page of this same search — same expression, filters, order and page
 // size — so a page can never be read in a different cut than the first.
 const requestFor = (search: AppliedSearch) => ({
+  ...search.extraFilters,
   ...toSearchParams(search.q, search.filters),
   page: search.page,
   order: search.order,
+  mode: search.mode,
 });
 
 // The cut the panorama counts: the applied expression and filters, built by the
@@ -145,6 +172,9 @@ const volumeFor = (search: AppliedSearch): VolumeParams => {
     orgao_julgador: params.orgao_julgador,
     relator: params.relator,
     classe_cnj: params.classe_cnj,
+    resultado: params.resultado,
+    orgao_julgador_excluido: params.orgao_julgador_excluido,
+    relator_excluido: params.relator_excluido,
     date_from: params.date_from,
     date_to: params.date_to,
     published_from: params.published_from,
@@ -159,12 +189,15 @@ const volumeKey = (params: VolumeParams) =>
 
 // A counted cut, kept under the key of the cut it counts.
 type PanoramaCache = {
+  divergence?: DivergenceState;
   key: string;
   volume: VolumeState;
   outcome: OutcomeState;
   adherence: AdherenceState;
   mostCited: MostCitedState;
   timeline: TimelineState;
+  // Absent from a panorama cached before this indicator existed.
+  concentration?: ConcentrationState;
 } | null;
 
 function volumeFailure(error: unknown): string {
@@ -179,7 +212,18 @@ function volumeFailure(error: unknown): string {
   return 'Não foi possível carregar o volume por tribunal. Tente novamente.';
 }
 
-function HomePage() {
+const ignoreSavedSearchCount = (_count: number) => undefined;
+const ignoreSearchSaved = () => undefined;
+
+function HomePage({
+  onSavedSearchCount = ignoreSavedSearchCount,
+  onSearchSaved = ignoreSearchSaved,
+}: {
+  onSavedSearchCount?: (count: number) => void;
+  onSearchSaved?: () => void;
+} = {}) {
+  const savedSearchesOpen = useMatch(SAVED_SEARCHES_PATH) !== null;
+  const [removedSavedSearch, setRemovedSavedSearch] = useState<string | null>(null);
   // Everything the reader would lose by leaving and coming back lives in the
   // search session, above the routes: the list can unmount and still come back
   // as it was, with no new request. Only what belongs to this one render — the
@@ -196,6 +240,7 @@ function HomePage() {
   // Backwards ranges are also found live, from the draft itself.
   const [submitErrors, setSubmitErrors] = useSessionState<FilterErrors>('submitErrors', {});
   const [filtersOpen, setFiltersOpen] = useSessionState('filtersOpen', false);
+  const [modeDraft, setModeDraft] = useSessionState<SearchMode>('mode', DEFAULT_MODE);
   // Which view of the applied search is up. In the session, so it is still the
   // one chosen after a decision or the coverage page is left.
   const [view, setView] = useSessionState<ResultsView>('view', 'documents');
@@ -207,12 +252,15 @@ function HomePage() {
   // while a page loads or after one failed: no range is shown that was not read.
   const [pageInfo, setPageInfo] = useSessionState<PageInfo | null>('pageInfo', null);
   const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [comparisonTrigger, setComparisonTrigger] = useState<HTMLElement | null>(null);
   const [indicatorSelection, setIndicatorSelection] = useSessionState<IndicatorSelection | null>(
     'indicatorSelection',
     null,
   );
   const [indicatorTrigger, setIndicatorTrigger] = useState<HTMLElement | SVGElement | null>(null);
-  const openIndicator = (point: IndicatorPoint) => {
+  const openIndicator = (point: IndicatorPoint, compareCourt = false) => {
     if (!applied || indicatorOpen || isLoading) return;
     resetBuffer();
     setIndicatorTrigger(
@@ -220,12 +268,24 @@ function HomePage() {
         ? document.activeElement
         : null,
     );
-    setIndicatorSelection(
-      selectIndicator(requestFor(applied), point, {
-        total: totalResults ?? 0,
-        filterCount: countFilters(applied.filters),
-      }),
-    );
+    // Sem o bloco por assunto: a gaveta lista os documentos por trás de um
+    // número e nunca o mostra, então pedi-lo custaria uma consulta vetorial
+    // por abertura para jogar o resultado fora.
+    const selection = selectIndicator({ ...requestFor(applied), mode: 'exact' }, point, {
+      total: totalResults ?? 0,
+      filterCount: countFilters(applied.filters) + additionalFilterCount(applied),
+    });
+    // The comparison's court selector replaces only the court dimension.
+    // Keep the original search intact for the drawer's remove-selection action.
+    if (compareCourt && point.kind === 'court') {
+      selection.params = {
+        ...requestFor(applied),
+        mode: 'exact',
+        tribunal: [point.court],
+        page: 1,
+      };
+    }
+    setIndicatorSelection(selection);
     navigate(
       { pathname: location.pathname, search: location.search },
       { state: { ...location.state, indicatorDocuments: true } },
@@ -308,6 +368,7 @@ function HomePage() {
   };
   const appliedCount =
     (appliedFilters ? countFilters(appliedFilters) : 0) +
+    additionalFilterCount(applied) +
     (indicatorOpen && indicatorSelection?.contextActive ? 1 : 0);
   const hasPendingFilters = appliedFilters !== null && !sameFilters(filterDraft, appliedFilters);
 
@@ -477,7 +538,9 @@ function HomePage() {
     void runSearch({
       q: trimmedValue,
       filters: filterDraft,
+      extraFilters: applied?.extraFilters,
       order: applied?.order ?? DEFAULT_ORDER,
+      mode: modeDraft,
       page: 1,
     });
   };
@@ -491,6 +554,25 @@ function HomePage() {
     // Another order is another list: it starts on its first page.
     resetBuffer();
     void runSearch({ ...applied, order, page: 1 }, 'Não foi possível reordenar os resultados.');
+  };
+
+  const closeSavedSearches = () => {
+    if ((location.state as { savedSearchesEntry?: boolean } | null)?.savedSearchesEntry)
+      navigate(-1);
+    else navigate('/', { replace: true });
+  };
+  const resumeSearch = (search: ResumedSearch) => {
+    setValue(search.q);
+    setFilterDraft(search.filters);
+    setSubmitErrors({});
+    setFiltersOpen(false);
+    setView('documents');
+    resetBuffer();
+    navigate('/', { replace: true });
+    // Uma busca salva guarda o recorte — expressão, filtros e ordem —, não o
+    // modo de pesquisar, que é escolha do leitor agora.
+    void runSearch({ ...search, mode: modeDraft });
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   // Once another page arrives, the reader is taken to its first result, not
@@ -526,7 +608,8 @@ function HomePage() {
   const [panorama, setPanorama] = useSessionState<PanoramaCache>('panorama', null);
   const [lastUpdate, setLastUpdate] = useSessionState<LastUpdateState | null>('lastUpdate', null);
   const cutKey = applied ? volumeKey(volumeFor(applied)) : null;
-  const panoramaKey = panorama?.timeline ? panorama.key : null;
+  const panoramaKey =
+    panorama?.timeline && panorama.concentration && panorama.divergence ? panorama.key : null;
 
   // Asked when the panorama is up and what it holds is not this cut: a new
   // expression or new filters, applied while it was up or before it opened.
@@ -548,6 +631,10 @@ function HomePage() {
       setPanorama((current) => (current?.key === key ? { ...current, mostCited } : current));
     const settleTimeline = (timeline: TimelineState) =>
       setPanorama((current) => (current?.key === key ? { ...current, timeline } : current));
+    const settleConcentration = (concentration: ConcentrationState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, concentration } : current));
+    const settleDivergence = (divergence: DivergenceState) =>
+      setPanorama((current) => (current?.key === key ? { ...current, divergence } : current));
 
     setPanorama({
       key,
@@ -556,10 +643,20 @@ function HomePage() {
       timeline: { status: 'loading' },
       adherence: { status: 'loading' },
       mostCited: { status: 'loading' },
+      concentration: { status: 'loading' },
+      divergence: { status: 'loading' },
     });
     getVolumeByPeriod(volumeFor(applied)).then(
       (volume) => settleTimeline({ status: 'loaded', volume }),
       () => settleTimeline({ status: 'failed' }),
+    );
+    getDivergence(volumeFor(applied)).then(
+      (divergence) => settleDivergence({ status: 'loaded', divergence }),
+      () =>
+        settleDivergence({
+          status: 'failed',
+          message: 'Não foi possível carregar a comparação entre turmas. Tente novamente.',
+        }),
     );
     getVolumeByCourt(volumeFor(applied)).then(
       (volume) => settleVolume({ status: 'loaded', volume }),
@@ -576,6 +673,11 @@ function HomePage() {
     getAdherence(volumeFor(applied)).then(
       (adherence) => settleAdherence({ status: 'loaded', adherence }),
       (error: unknown) => settleAdherence({ status: 'failed', message: volumeFailure(error) }),
+    );
+
+    getConcentration(volumeFor(applied), { limit: CONCENTRATION_LIMIT }).then(
+      (concentration) => settleConcentration({ status: 'loaded', concentration }),
+      (error: unknown) => settleConcentration({ status: 'failed', message: volumeFailure(error) }),
     );
 
     getMostCited(volumeFor(applied), { limit: 8 }).then(
@@ -628,7 +730,19 @@ function HomePage() {
       : panorama?.key === cutKey
         ? panorama.mostCited
         : { status: 'loading' };
+  const concentrationState: ConcentrationState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.concentration
+        ? panorama.concentration
+        : { status: 'loading' };
   const lastUpdateState: LastUpdateState = lastUpdate ?? { status: 'loading' };
+  const divergenceState: DivergenceState =
+    cutKey === null
+      ? { status: 'idle' }
+      : panorama?.key === cutKey && panorama.divergence
+        ? panorama.divergence
+        : { status: 'loading' };
   const timelineState: TimelineState =
     cutKey === null
       ? { status: 'idle' }
@@ -682,10 +796,42 @@ function HomePage() {
           value,
           label: `Classe processual: ${activeOptions?.procedural_classes.find((option) => option.value === value)?.label ?? value}`,
         })),
+        ...(applied.extraFilters?.resultado ?? []).map((value) => ({
+          field: 'resultado',
+          value,
+          label: `Resultado: ${outcomeLabel(value)}`,
+        })),
+        ...(applied.extraFilters?.orgao_julgador_excluido ?? []).map((value) => ({
+          field: 'orgao_julgador_excluido',
+          value,
+          label: `Excluir órgão julgador: ${value}`,
+        })),
+        ...(applied.extraFilters?.relator_excluido ?? []).map((value) => ({
+          field: 'relator_excluido',
+          value,
+          label: `Excluir relator: ${value}`,
+        })),
       ]
     : [];
   const removeActiveFilter = (field: string, value: string | number) => {
     if (!applied) return;
+    if (
+      field === 'resultado' ||
+      field === 'orgao_julgador_excluido' ||
+      field === 'relator_excluido'
+    ) {
+      const remaining = applied.extraFilters?.[field]?.filter((item) => item !== value);
+      resetBuffer();
+      void runSearch({
+        ...applied,
+        extraFilters: {
+          ...applied.extraFilters,
+          [field]: remaining?.length ? remaining : undefined,
+        },
+        page: 1,
+      });
+      return;
+    }
     const remove = (filters: SearchFilterValues): SearchFilterValues => ({
       ...filters,
       judgingBodies: filters.judgingBodies.filter(
@@ -702,6 +848,14 @@ function HomePage() {
     resetBuffer();
     void runSearch({ ...applied, filters: remove(applied.filters), page: 1 });
   };
+  // The example fills the box and leaves the reader in it: they see where the
+  // quotation marks go, then search it or type over it. It does not search on
+  // its own, so a click never replaces results somebody else asked for.
+  const fillWithExactPhrase = () => {
+    setValue(EXACT_PHRASE_EXAMPLE);
+    inputRef.current?.focus();
+  };
+
   const searchForm = (
     <form ref={formRef} className="search-form" onSubmit={handleSubmit} noValidate>
       <div className="legal-search">
@@ -714,16 +868,46 @@ function HomePage() {
 
           <input
             id="legal-search-input"
+            ref={inputRef}
             type="search"
             value={value}
             onChange={(event) => setValue(event.target.value)}
-            placeholder="Pesquise um assunto ou fundamento"
+            placeholder="Descreva o caso em uma frase"
             autoComplete="off"
             disabled={isLoading}
           />
         </div>
 
         <div className="legal-search__actions">
+          <fieldset className="search-mode" disabled={isLoading}>
+            <legend className="sr-only">Como pesquisar</legend>
+            {(
+              [
+                [
+                  'exact',
+                  'Só as minhas palavras',
+                  'Só decisões que contêm o que você escreveu. As aspas continuam valendo aqui.',
+                ],
+                [
+                  'subjects',
+                  'Palavras e assuntos parecidos',
+                  'Também decisões sobre o mesmo assunto, escritas com outras palavras.',
+                ],
+              ] as const
+            ).map(([valor, rotulo, explicacao]) => (
+              <label key={valor} className="search-mode__option" title={explicacao}>
+                <input
+                  type="radio"
+                  name="search-mode"
+                  value={valor}
+                  checked={modeDraft === valor}
+                  onChange={() => setModeDraft(valor)}
+                />
+                <span>{rotulo}</span>
+              </label>
+            ))}
+          </fieldset>
+
           <button
             type="button"
             className="filter-button"
@@ -748,6 +932,21 @@ function HomePage() {
           </button>
         </div>
       </div>
+
+      {/* One muted line under the bar, always there and never in the way: it
+          takes a row of the band, steals no focus and searches nothing by
+          itself. Whoever already knows the syntax reads past it. */}
+      <p className="search-syntax">
+        <span>Use aspas para pesquisar a frase exata.</span>
+        <button
+          type="button"
+          className="search-syntax__example"
+          onClick={fillWithExactPhrase}
+          disabled={isLoading}
+        >
+          Exemplo: {EXACT_PHRASE_EXAMPLE}
+        </button>
+      </p>
 
       {/* Below the bar, over the screen, so opening them takes nothing
           from the list. */}
@@ -805,6 +1004,59 @@ function HomePage() {
           </div>
         </section>
       )}
+      {applied && hasSearch && (
+        <div className="comparison-context-bar">
+          <div className="comparison-context-bar__summary">
+            <strong>Resultado para “{applied.q}”</strong>
+            <span className="comparison-context-bar__tag">
+              {applied.q.includes('"') ? 'Frase exata' : 'Termo livre'}
+            </span>
+            {applied.filters.courts.length > 0 && (
+              <span className="comparison-context-bar__tag">
+                {applied.filters.courts.join(', ')}
+              </span>
+            )}
+            {(applied.filters.dateFrom || applied.filters.dateTo) && (
+              <span className="comparison-context-bar__tag">
+                Julgamento: {applied.filters.dateFrom || 'início aberto'} a{' '}
+                {applied.filters.dateTo || 'fim aberto'}
+              </span>
+            )}
+            {totalResults !== null && !isLoading && (
+              <span className="comparison-context-bar__tag">
+                {totalResults.toLocaleString('pt-BR')} {totalResults === 1 ? 'decisão' : 'decisões'}
+              </span>
+            )}
+          </div>
+          <div className="comparison-context-bar__actions">
+            <SaveSearchAction
+              key={`saved-search:${JSON.stringify(savedSearchParams(requestFor(applied)))}`}
+              params={savedSearchParams(requestFor(applied))}
+              disabled={isLoading || Boolean(errorMessage)}
+              removedSearchId={removedSavedSearch}
+              onSaved={onSearchSaved}
+            />
+            <button
+              type="button"
+              className="comparison-context-bar__button"
+              disabled={isLoading || Boolean(errorMessage)}
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                setComparisonTrigger(event.currentTarget);
+                setComparisonOpen(true);
+              }}
+            >
+              <ArrowsLeftRight size={18} aria-hidden="true" /> Comparar tribunais
+            </button>
+            <ExportAction
+              key={JSON.stringify(exportParams(requestFor(applied)))}
+              params={exportParams(requestFor(applied))}
+              total={totalResults}
+              disabled={isLoading || Boolean(errorMessage)}
+            />
+          </div>
+        </div>
+      )}
       {(hasSearch || chosenDecision) && <ResultsTabs value={view} onChange={setView} />}
       {activeTags.length > 0 && (
         <div className="filter-tags applied-filter-tags" aria-label="Filtros aplicados">
@@ -853,12 +1105,6 @@ function HomePage() {
                   )}
                 </h2>
                 <ResultsSort value={applied.order} onChange={changeOrder} disabled={isLoading} />
-                <ExportAction
-                  key={JSON.stringify(exportParams(requestFor(applied)))}
-                  params={exportParams(requestFor(applied))}
-                  total={totalResults}
-                  disabled={isLoading || Boolean(errorMessage)}
-                />
               </div>
             )}
 
@@ -903,6 +1149,7 @@ function HomePage() {
                           openButtonId={openButtonId(decision)}
                           selected={selected}
                           rank={firstRank + index}
+                          bySubject={result.by_subject}
                         />
                       </li>
                     );
@@ -964,6 +1211,14 @@ function HomePage() {
           tabIndex={0}
         >
           <PanoramaLayout
+            divergence={
+              <DivergencePanel
+                divergence={divergenceState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelect={(selection) => openIndicator({ kind: 'divergence', ...selection })}
+              />
+            }
             courts={
               <CourtVolumePanel
                 compact
@@ -1002,9 +1257,39 @@ function HomePage() {
                 }
               />
             }
+            concentration={
+              <ConcentrationPanel
+                concentration={concentrationState}
+                onRetry={retryPanorama}
+                selectionDisabled={isLoading || indicatorOpen}
+                onSelect={(selection) => openIndicator({ kind: 'concentration', ...selection })}
+              />
+            }
           />
         </div>
       </div>
+      {comparisonOpen && applied && (
+        <CourtComparisonPanel
+          key={JSON.stringify(volumeFor(applied))}
+          params={volumeFor(applied)}
+          courts={courts.state.status === 'loaded' ? courts.state.courts : []}
+          returnFocus={comparisonTrigger}
+          onClose={() => setComparisonOpen(false)}
+          onDocuments={(court, count) => {
+            setComparisonOpen(false);
+            openIndicator({ kind: 'court', court, count }, true);
+            setIndicatorTrigger(comparisonTrigger);
+          }}
+        />
+      )}
+      {savedSearchesOpen && (
+        <SavedSearchesDrawer
+          onClose={closeSavedSearches}
+          onResume={resumeSearch}
+          onCount={onSavedSearchCount}
+          onRemoved={setRemovedSavedSearch}
+        />
+      )}
       {indicatorOpen && indicatorSelection && (
         <IndicatorDocumentsDrawer
           selection={indicatorSelection}

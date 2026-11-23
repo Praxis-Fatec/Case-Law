@@ -1,6 +1,35 @@
 MODEL (
   name core.decisao,
-  kind FULL,
+  kind INCREMENTAL_BY_TIME_RANGE (
+    time_column data_referencia,
+    -- Sem `batch_size`: todos os intervalos pendentes numa passada só.
+    --
+    -- Com lotes, os índices declarados abaixo são criados no primeiro e
+    -- mantidos pelos outros — e manter um GIN sobre tsvector enquanto 991 mil
+    -- linhas entram em 38 lotes custa mais do que construí-lo uma vez no fim.
+    -- Medido: com `batch_size 365` os lotes iam de 40 s a 124 s e subindo,
+    -- contra 199,7 s para a coleção inteira de uma vez.
+    --
+    -- A reconstrução volta a ser uma passada, como era quando o modelo era
+    -- FULL, e a carga semanal continua pagando só pela semana: o que define o
+    -- trabalho é a janela de datas, não o tamanho do lote.
+    --
+    -- `batch_concurrency 1` fica como guarda para os casos que ainda geram
+    -- vários lotes, como uma restatement de faixa: CREATE INDEX trava a tabela
+    -- inteira mesmo sem criar nada, e dois lotes pedindo índices diferentes da
+    -- mesma tabela se travam em círculo. Medido, com lotes: DeadlockDetected.
+    batch_concurrency 1
+  ),
+  /* 1989 era a data de criação do STJ, e enquanto a coleção eram STJ e TJDFT
+     nada havia antes dela. O acervo do STF começa em 27/04/1892, e 189.435 dos
+     seus 373.178 acórdãos — 50,8% — são anteriores a 1989. Mantida a data, eles
+     entrariam no `raw` e desapareceriam aqui, sem erro e sem aviso: o SQLMesh
+     só processa intervalos a partir do `start`.
+
+     O custo é uma passada mais longa na reconstrução, não 97 anos de lotes
+     vazios: o modelo não declara `batch_size`, então os intervalos pendentes
+     saem numa execução só. */
+  start '1892-01-01',
   grain (fonte_codigo, identificador_fonte),
   audits (
     not_null(columns := (fonte_codigo, identificador_fonte, identificador_documento, tribunal_sigla, ementa, data_referencia, url_fonte)),
@@ -13,17 +42,48 @@ MODEL (
     token_do_documento_por_fonte,
     verdito_de_fonte_conhecida,
     tese_sem_secao_seguinte,
-    tese_com_cobertura,
-    url_aponta_para_um_acordao,
     deliberacao_de_valor_conhecido,
-    deliberacao_com_cobertura,
     resultado_de_valor_conhecido,
-    resultado_com_cobertura,
     resultado_sem_contradicao,
-    classe_de_codigo_conhecido,
-    classe_com_cobertura
+    classe_de_codigo_conhecido
   )
 );
+
+JINJA_STATEMENT_BEGIN;
+/* A janela de datas filtra uma EXPRESSÃO, não uma coluna, e para expressão o
+   Postgres não tem estatística: ele chuta a seletividade padrão. Medido, para
+   a coleção inteira: estimava 4.366 linhas onde havia 876.996, erro de 200x.
+
+   Com essa estimativa o planner trocava o hash join dos órgãos julgadores do
+   STJ por um nested loop cujo predicado é `o.chave = UPPER(UNACCENT(...))` —
+   8,8 milhões de chamadas de UNACCENT sobre 877 mil linhas de texto. Medido:
+   6 horas a 100% de CPU sem gravar uma única linha, contra 150 s depois.
+
+   Enquanto o modelo era FULL o problema não existia, porque sem filtro de data
+   a estimativa saía da estatística da própria tabela.
+
+   Declarar a expressão faz o ANALYZE coletar histograma para ela. As tabelas
+   raw entram por dlt com write_disposition `merge`, então não são recriadas e
+   o objeto sobrevive às cargas; o IF NOT EXISTS cobre o banco novo. */
+CREATE STATISTICS IF NOT EXISTS raw_acordao_tjdft_data_referencia
+  ON (COALESCE("dataJulgamento"::DATE, "dataPublicacao"::DATE))
+  FROM raw.acordao_tjdft;
+
+CREATE STATISTICS IF NOT EXISTS raw_espelho_stj_data_referencia
+  ON (COALESCE(TO_DATE(NULLIF("dataDecisao", ''), 'YYYYMMDD'),
+               TO_DATE((REGEXP_MATCH("dataPublicacao", '(\d{2}/\d{2}/\d{4})'))[1], 'DD/MM/YYYY')))
+  FROM raw.espelho_stj;
+
+CREATE STATISTICS IF NOT EXISTS raw_acordao_stf_data_referencia
+  ON (COALESCE(NULLIF(julgamento_data, '')::DATE, NULLIF(publicacao_data, '')::DATE))
+  FROM raw.acordao_stf;
+
+/* Sem isto a estatística declarada acima fica vazia até o próximo autovacuum,
+   e a primeira execução paga o plano ruim. Custa 1,1 s nas duas tabelas. */
+ANALYZE raw.acordao_tjdft;
+ANALYZE raw.espelho_stj;
+ANALYZE raw.acordao_stf;
+JINJA_END;
 
 /*
   Um acórdão, pronto para consulta.
@@ -62,6 +122,23 @@ classe AS (
   ORDER BY chave, (raiz = 5) DESC, codigo_cnj
 ),
 
+/* O mesmo desempate para o STF, que tem subárvore própria no CNJ: raiz 1310,
+   67 classes. Sem ele "Agravo Regimental" cai na primeira raiz que tiver o
+   nome — o código cível 206, não o 1321 do Supremo. */
+classe_stf AS (
+  SELECT DISTINCT ON (chave) chave, codigo_cnj
+  FROM (
+    SELECT
+      s.codigo_cnj,
+      COALESCE(a.raiz, 0) AS raiz,
+      UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
+      TRANSLATE(s.nome, E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))) AS chave
+    FROM core.classe_processual AS s
+    LEFT JOIN arvore_classe AS a USING (codigo_cnj)
+  ) AS x
+  ORDER BY chave, (raiz = 1310) DESC, codigo_cnj
+),
+
 -- The STJ writes the same organ both with and without accents. Whichever
 -- spelling carries them is the one the screen should show.
 orgao_stj AS (
@@ -75,7 +152,7 @@ orgao_stj AS (
     ("nomeOrgaoJulgador" <> UNACCENT("nomeOrgaoJulgador")) DESC
 ),
 
-bruto AS (
+coletado AS (
   SELECT
     identificador,
     uuid                                 AS identificador_documento,
@@ -128,14 +205,92 @@ bruto AS (
     ON ce.chave = REGEXP_REPLACE(UPPER(UNACCENT(TRIM(REGEXP_REPLACE(
       TRANSLATE(e."descricaoClasse", E'\u00A0\u2007\u202F\u200B', '    '), '\s+', ' ', 'g')))), '\s+(NOS|NAS|NO|NA|EM)\s+.*$', '')
   WHERE COALESCE(TRIM(e.ementa), '') <> ''
+
+  UNION ALL
+
+  /* O STF não publica dado aberto: isto vem do serviço por trás da pesquisa de
+     jurisprudência do próprio Tribunal. O levantamento das alternativas está em
+     `documentation/architecture/stf-source.md`, e a situação da fonte na linha
+     `stf-jurisprudencia` do seed. */
+  SELECT
+    a."_id"                                                  AS identificador,
+    /* O endereço do inteiro teor muda de forma com a época: dos 373.178
+       acórdãos carregados, 68,0% abrem por `numero` e `classe` e 32,0% por
+       `idDocumento`. Nenhum veio sem endereço. Como o nome do parâmetro varia,
+       o token é a query inteira e o template do seed guarda só o caminho. */
+    NULLIF(REGEXP_REPLACE(a.inteiro_teor_url, '^[^?]*\?', ''), '')
+                                                             AS identificador_documento,
+    NULLIF(a.julgamento_data, '')::DATE                      AS data_julgamento,
+    NULLIF(a.publicacao_data, '')::DATE                      AS data_publicacao,
+    NULLIF(TRIM(a.processo_codigo_completo), '')             AS processo,
+    NULLIF(TRIM(a.orgao_julgador), '')                       AS orgao_julgador,
+    COALESCE(
+      NULLIF(TRIM(a.relator_acordao_nome), ''),
+      NULLIF(TRIM(a.relator_processo_nome), '')
+    )                                                        AS relator,
+    cs.codigo_cnj                                            AS classe_cnj,
+    a.ementa_texto                                           AS ementa,
+    NULLIF(TRIM(a.acordao_ata), '')                          AS decisao_texto,
+    FALSE                                                    AS turma_recursal,
+    (a.inteiro_teor_url IS NOT NULL)                          AS possui_inteiro_teor,
+    a._dlt_load_id                                           AS carga_id,
+    'stf-jurisprudencia'                                     AS fonte_codigo
+  FROM raw.acordao_stf AS a
+  /* O STF nomeia a classe pela escada inteira e abreviada: "EMB.DECL.NO
+     AG.REG.NO AGRAVO DE INSTRUMENTO". A classe é a mais externa, como no STJ —
+     os embargos, não o agravo em que foram opostos. Expandir as cinco
+     abreviaturas, tirar o ordinal da frente ("SEGUNDO AGRAVO REGIMENTAL") e
+     cortar no primeiro conectivo casa 369.273 dos 373.178 acórdãos — 98,95%.
+     Os 3.905 restantes são incidentes que o CNJ não classifica — referendo,
+     diligência, repercussão geral — e ficam sem código. */
+  LEFT JOIN classe_stf AS cs
+    ON cs.chave = TRIM(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+         REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(REGEXP_REPLACE(
+         REGEXP_REPLACE(UPPER(UNACCENT(a.processo_classe_processual_unificada_extenso)),
+           'AG\.REG\.\s*',    'AGRAVO REGIMENTAL ',      'g'),
+           'EMB\.DECL\.\s*',  'EMBARGOS DE DECLARACAO ', 'g'),
+           'EMB\.INFR?\.\s*', 'EMBARGOS INFRINGENTES ',  'g'),
+           'EMB\.DIV\.\s*',   'EMBARGOS DIVERGENTES ',   'g'),
+           '\s+', ' ', 'g'),
+         '^(PRIMEIR|SEGUND|TERCEIR|QUART|QUINT|SEXT|SETIM|OITAV|NON|DECIM)[AO]S?\s+', ''),
+         '\s+(NOS|NAS|NO|NA|EM|DOS|DAS|DO|DA)\s+.*$', ''),
+         '\s+$', ''))
+  /* "Acórdão sem ementa." é o texto que a fonte grava quando não tem ementa:
+     3.608 acórdãos, 0,97% do acervo carregado, mais 16 de ementa realmente
+     vazia. Não sendo vazio, `ementa_nao_vazia` deixa passar — mas é um rótulo,
+     não um texto: entraria no índice de busca, casaria com quem procurasse
+     "ementa" e contaria como decisão com conteúdo. */
+  WHERE COALESCE(TRIM(a.ementa_texto), '') <> ''
+    AND UPPER(UNACCENT(TRIM(a.ementa_texto))) !~ '^ACORDAO SEM EMENTA\.?$'
+),
+
+/*
+  A janela que esta execução processa.
+
+  Tudo o que custa neste modelo é por linha — parsear a ementa, achar o
+  dispositivo, extrair a tese, montar o tsvector. Filtrando aqui, antes de
+  qualquer uma dessas passadas, uma execução que traz uma semana paga por uma
+  semana. As CTEs abaixo leem `bruto` e não precisaram mudar.
+
+  A data é a mesma `data_referencia` que o modelo publica, porque o SQLMesh
+  compara o intervalo com a coluna de tempo declarada: filtrar por outra data
+  deixaria linhas fora da janela que ele apagaria em seguida.
+*/
+bruto AS (
+  SELECT *
+  FROM coletado
+  WHERE COALESCE(data_julgamento, data_publicacao)
+        BETWEEN @start_ds::DATE AND @end_ds::DATE
 ),
 
 /*
   A tese que o próprio tribunal escreveu, quando escreveu.
 
   Desde 2024 o CNJ pede uma ementa em quatro seções, e a quarta é "DISPOSITIVO
-  E TESE". Dentro dela o relator rotula o que firmou. 54.918 decisões trazem o
-  rótulo — 34,5% do TJDFT e 2,0% do STJ, que tem acervo desde 1989.
+  E TESE". Dentro dela o relator rotula o que firmou. 58.202 decisões trazem o
+  rótulo — 34,7% do TJDFT, 2,0% do STJ e 0,2% do STF. A proporção acompanha a
+  idade do acervo, não a qualidade da fonte: o padrão é de 2024, o STJ tem
+  acervo desde 1989 e o do STF começa em 1892.
 
   Os dois-pontos são obrigatórios: sem eles o padrão pega prosa, como em "tese
   de julgamento extra petita", e contamina 3.925 decisões do STJ.
@@ -277,9 +432,7 @@ julgamento AS (
         THEN 'provido'
     END AS resultado
   FROM dispositivo
-),
-
-montado AS (
+)
 
 SELECT
   b.fonte_codigo                                        AS fonte_codigo,
@@ -345,33 +498,42 @@ LEFT JOIN julgamento AS j
   ON j.fonte_codigo = b.fonte_codigo
  AND j.identificador = b.identificador
 
-)
-
-SELECT
-  m.*,
-  -- Quando o link ainda alcança mais de uma decisão nossa, a tela precisa
-  -- dizer isso: o leitor cai numa lista e tem de reconhecer a dele pela data,
-  -- pelo órgão e pela classe. Calculado aqui porque é uma propriedade da
-  -- coleção inteira, que nenhuma linha sabe sozinha.
-  COUNT(*) OVER (PARTITION BY m.url_fonte) > 1           AS url_compartilhada
-FROM montado AS m
-
 ;
 
 JINJA_STATEMENT_BEGIN;
 /*
-  Sem nome fixo de propósito. O SQLMesh cria uma tabela física nova a cada
-  mudança do modelo, e no Postgres o nome do índice é único por SCHEMA, não por
-  tabela: com nome fixo, o IF NOT EXISTS encontrava o índice preso à tabela
-  anterior e pulava a criação, deixando a tabela em uso sem índice nenhum.
-  Sem nome, o Postgres gera um por tabela e a colisão deixa de existir.
+  O nome do índice sai do nome da tabela física, e com IF NOT EXISTS.
+
+  No Postgres o nome do índice é único por SCHEMA, não por tabela. Um nome
+  fixo com IF NOT EXISTS encontrava o índice preso à tabela ANTERIOR e pulava
+  a criação, deixando a tabela em uso sem índice nenhum — por isso estes
+  índices nasceram sem nome, deixando o Postgres gerar um.
+
+  Sem nome deixou de servir quando o modelo passou a ser construído por faixa
+  de data: estes comandos rodam depois de CADA lote, e sem nome o Postgres
+  gera um novo a cada rodada em vez de reconhecer o que já existe. Medido numa
+  tentativa de reconstrução: 32 índices depois de quatro lotes, quatro deles
+  GIN sobre o mesmo tsvector, e os lotes seguintes serializados esperando o
+  ACCESS EXCLUSIVE de cada CREATE INDEX. Trinta e oito lotes dariam 304.
+
+  O nome da tabela física já carrega a versão do modelo
+  (`core__decisao__902209874`), então derivá-lo dele resolve as duas coisas de
+  uma vez: muda quando o modelo muda, e não muda entre os lotes de uma mesma
+  construção. IF NOT EXISTS volta a significar "já criei este".
 */
-CREATE UNIQUE INDEX ON {{ this_model }} (fonte_codigo, identificador_fonte);
-CREATE INDEX ON {{ this_model }} USING gin (ementa_busca);
-CREATE INDEX ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, orgao_julgador);
-CREATE INDEX ON {{ this_model }} (tribunal_sigla, relator);
-CREATE INDEX ON {{ this_model }} (processo);
-CREATE INDEX ON {{ this_model }} (classe_cnj);
+{% set tabela = this_model.split('.')[-1] | replace('"', '') %}
+CREATE UNIQUE INDEX IF NOT EXISTS "{{ tabela }}_chave" ON {{ this_model }} (fonte_codigo, identificador_fonte);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_busca" ON {{ this_model }} USING gin (ementa_busca);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_data" ON {{ this_model }} (data_referencia DESC, fonte_codigo, identificador_fonte);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_data" ON {{ this_model }} (tribunal_sigla, data_referencia DESC);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_orgao" ON {{ this_model }} (tribunal_sigla, orgao_julgador);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_tribunal_relator" ON {{ this_model }} (tribunal_sigla, relator);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_processo" ON {{ this_model }} (processo);
+CREATE INDEX IF NOT EXISTS "{{ tabela }}_classe" ON {{ this_model }} (classe_cnj);
+
+/* Tabela recém-escrita não tem estatística até o autovacuum passar, e quatro
+   modelos leem esta aqui logo em seguida, na mesma execução. Sem isto eles
+   planejam contra a estimativa padrão — o mesmo erro que custou 6 horas na
+   leitura das tabelas raw. */
+ANALYZE {{ this_model }};
 JINJA_END;

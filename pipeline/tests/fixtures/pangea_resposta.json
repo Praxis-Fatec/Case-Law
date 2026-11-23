@@ -1,0 +1,207 @@
+{
+  "STF/SUM": {
+    "total": 734,
+    "resultados": [
+      {
+        "highlight": {
+          "tese": "não informado",
+          "tese_snippet": "não informado"
+        },
+        "id": "stf-sum-1",
+        "nr": 1,
+        "orgao": "STF",
+        "questao": "É vedada a expulsão de estrangeiro casado com Brasileira, ou que tenha filho Brasileiro, dependente da economia paterna. ",
+        "situacao": "APROVADO",
+        "tese": "não informado",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "22/05/2025"
+      },
+      {
+        "alertaSituacao": "cancelado",
+        "highlight": {
+          "tese": "não informado",
+          "tese_snippet": "não informado"
+        },
+        "id": "stf-sum-619",
+        "nr": 619,
+        "orgao": "STF",
+        "questao": "A prisão do depositário judicial pode ser decretada no próprio processo em que se constituiu o encargo, independentemente da propositura de ação de depósito. (Revogada) ",
+        "situacao": "Cancelado",
+        "tese": "não informado",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "22/05/2025"
+      },
+      {
+        "highlight": {
+          "tese": "não informado",
+          "tese_snippet": "não informado"
+        },
+        "id": "stf-sum-359",
+        "nr": 359,
+        "orgao": "STF",
+        "questao": "Ressalvada a revisão prevista em lei, os proventos da inatividade regulam-se pela lei vigente ao tempo em que o militar, ou o servidor civil, reuniu os requisitos necessários. (Alterada)   ",
+        "situacao": "ALTERADO",
+        "tese": "não informado",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "22/05/2025"
+      },
+      {
+        "highlight": {
+          "tese": "não informado",
+          "tese_snippet": "não informado"
+        },
+        "id": "",
+        "nr": 9999,
+        "orgao": "STF",
+        "questao": "É vedada a expulsão de estrangeiro casado com Brasileira, ou que tenha filho Brasileiro, dependente da economia paterna. ",
+        "situacao": "APROVADO",
+        "tese": "não informado",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "22/05/2025"
+      }
+    ]
+  },
+  "STF/SV": {
+    "total": 62,
+    "resultados": [
+      {
+        "highlight": {
+          "tese": "não informado",
+          "tese_snippet": "não informado"
+        },
+        "id": "stf-sv-1",
+        "nr": 1,
+        "orgao": "STF",
+        "questao": "Ofende a garantia constitucional do ato jurídico perfeito a decisão que, sem ponderar as circunstâncias do caso concreto, desconsidera a validez e a eficácia de acordo constante de termo de adesão instituído pela Lei Complementar nº 110/2001. ",
+        "situacao": "APROVADO",
+        "tese": "não informado",
+        "tipo": "SV",
+        "ultimaAtualizacao": "22/05/2025"
+      }
+    ]
+  },
+  "STF/RG": {
+    "total": 1501,
+    "resultados": [
+      {
+        "highlight": {
+          "tese": "É inconstitucional a parte do art. 7º, I, da Lei 10.865/2004 que acresce à base de cálculo da denominada PIS/COFINS-Importação o valor do ICMS incidente no desembaraço aduaneiro e o valor das próprias contribuições.",
+          "tese_snippet": "É inconstitucional a parte do art. 7º, I, da Lei 10.865/2004 que acresce à base de cálculo da denominada PIS/COFINS-Importação o valor do ICMS incidente no desembaraço aduaneiro e o valor das próprias contribuições."
+        },
+        "id": "stf-rg-1",
+        "nr": 1,
+        "orgao": "STF",
+        "processosParadigma": [
+          {
+            "classe": 1348,
+            "link": "https://portal.stf.jus.br/processos/detalhe.asp?incidente=2549049",
+            "numero": "559937"
+          }
+        ],
+        "questao": "Base de cálculo do PIS e da COFINS sobre a importação.",
+        "situacao": "Há repercussão geral. Leading case: transitado em julgado",
+        "tese": "É inconstitucional a parte do art. 7º, I, da Lei 10.865/2004 que acresce à base de cálculo da denominada PIS/COFINS-Importação o valor do ICMS incidente no desembaraço aduaneiro e o valor das próprias contribuições.",
+        "tipo": "RG",
+        "ultimaAtualizacao": "15/10/2026"
+      },
+      {
+        "alertaSituacao": "cancelado",
+        "highlight": {
+          "tese": "Em duplicidade com o Tema 37 da repercussão geral.",
+          "tese_snippet": "Em duplicidade com o Tema 37 da repercussão geral."
+        },
+        "id": "stf-rg-38",
+        "nr": 38,
+        "orgao": "STF",
+        "processosParadigma": [
+          {
+            "classe": 1348,
+            "link": "https://portal.stf.jus.br/processos/detalhe.asp?incidente=2575630",
+            "numero": "570846"
+          }
+        ],
+        "questao": "Tema cancelado.",
+        "situacao": "Cancelado",
+        "tese": "Em duplicidade com o Tema 37 da repercussão geral.",
+        "tipo": "RG",
+        "ultimaAtualizacao": "15/10/2026"
+      }
+    ]
+  },
+  "STJ/SUM": {
+    "total": 676,
+    "resultados": [
+      {
+        "highlight": {
+          "tese": "<p>O foro do domicílio ou da residência do alimentando é o competente para a ação de investigação de paternidade, quando cumulada com a de alimentos.</p><br>",
+          "tese_snippet": " O foro do domicílio ou da residência do alimentando é o competente para a ação de investigação de paternidade, quando cumulada com a de alimentos. "
+        },
+        "id": "stj-sum-1",
+        "nr": 1,
+        "orgao": "STJ",
+        "situacao": "Vigente",
+        "tese": "<p>O foro do domicílio ou da residência do alimentando é o competente para a ação de investigação de paternidade, quando cumulada com a de alimentos.</p><br>",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "01/04/2025"
+      },
+      {
+        "alertaSituacao": "cancelado",
+        "highlight": {
+          "tese": "<p>A parcela relativa ao ICM inclui-se na base de cálculo do PIS.</p><br>",
+          "tese_snippet": " A parcela relativa ao ICM inclui-se na base de cálculo do PIS. "
+        },
+        "id": "stj-sum-68",
+        "nr": 68,
+        "orgao": "STJ",
+        "situacao": "Cancelado",
+        "tese": "<p>A parcela relativa ao ICM inclui-se na base de cálculo do PIS.</p><br>",
+        "tipo": "SUM",
+        "ultimaAtualizacao": "01/04/2025"
+      }
+    ]
+  },
+  "STJ/RR": {
+    "total": 1484,
+    "resultados": [
+      {
+        "highlight": {
+          "tese": "<p>A remuneração das contas vinculadas ao FGTS tem disciplina própria, ditada por lei, que estabelece a TR como forma de atualização monetária, sendo vedado, portanto, ao Poder Judiciário substituir o mencionado índice.</p>",
+          "tese_snippet": " A remuneração das contas vinculadas ao FGTS tem disciplina própria, ditada por lei, que estabelece a TR como forma de atualização monetária, sendo vedado, portanto, ao Poder Judiciário substituir o mencionado índice. "
+        },
+        "historico": [
+          {
+            "dataCriacao": "2026-06-09T00:00:00.000-03:00",
+            "situacao": "Acórdão Publicado (RE Pendente)"
+          }
+        ],
+        "id": "stj-rr-731",
+        "nr": 731,
+        "orgao": "STJ",
+        "processosParadigma": [
+          {
+            "classe": 30,
+            "link": "https://processo.stj.jus.br/processo/pesquisa/?termo=201301289460&aplicacao=processos.ea&tipoPesquisa=tipoPesquisaGenerica&chkordem=DESC&chkMorto=MORTO",
+            "numero": "00081824220114058300"
+          },
+          {
+            "classe": 30,
+            "link": "https://processo.stj.jus.br/processo/pesquisa/?termo=201601893027&aplicacao=processos.ea&tipoPesquisa=tipoPesquisaGenerica&chkordem=DESC&chkMorto=MORTO",
+            "numero": "50212425520134047200"
+          }
+        ],
+        "questao": "Discute-se a possibilidade, ou não, de a TR ser substituída como índice de correção monetária dos saldos das contas vinculadas ao FGTS.",
+        "situacao": "Acórdão Publicado",
+        "suspensoes": [
+          {
+            "ativa": true,
+            "dataSuspensao": "16/09/2016",
+            "descricao": "Suspensão nacional"
+          }
+        ],
+        "tese": "<p>A remuneração das contas vinculadas ao FGTS tem disciplina própria, ditada por lei, que estabelece a TR como forma de atualização monetária, sendo vedado, portanto, ao Poder Judiciário substituir o mencionado índice.</p>",
+        "tipo": "RR",
+        "ultimaAtualizacao": "26/08/2026"
+      }
+    ]
+  }
+}

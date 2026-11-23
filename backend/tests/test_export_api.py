@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from pypdf import PdfReader
 
 from app.api import exports
-from app.db import get_connection
+from app.db import get_connection, get_own_connection
 from app.export import ExportDataset, ExportRefused
 from app.main import app
 from tests.test_export_document import dataset
@@ -17,6 +17,7 @@ from tests.test_export_document import dataset
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     app.dependency_overrides[get_connection] = lambda: object()
+    app.dependency_overrides[get_own_connection] = lambda: object()
 
     def collect(_: Any, **params: Any) -> ExportDataset:
         assert "page" not in params and "page_size" not in params

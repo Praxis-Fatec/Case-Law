@@ -11,7 +11,7 @@ from pathlib import Path
 
 TRANSFORMACOES = Path(__file__).resolve().parents[1] / "transformations"
 MODELOS = sorted((TRANSFORMACOES / "models").glob("*.sql"))
-REGRAS = TRANSFORMACOES / "audits" / "regras.sql"
+REGRAS = sorted((TRANSFORMACOES / "audits").glob("*.sql"))
 
 # As que o SQLMesh traz prontas; não estão em regras.sql e não precisam estar.
 EMBUTIDAS = {
@@ -23,11 +23,35 @@ EMBUTIDAS = {
 
 
 def declaradas() -> set[str]:
-    return set(
-        re.findall(
-            r"AUDIT \(\s*name\s+([a-z_]+)\s*,", REGRAS.read_text(encoding="utf-8")
+    nomes: set[str] = set()
+    for arquivo in REGRAS:
+        nomes |= set(
+            re.findall(
+                r"AUDIT \(\s*name\s+([a-z_]+)\s*,",
+                arquivo.read_text(encoding="utf-8"),
+            )
         )
-    )
+    return nomes
+
+
+def avulsas() -> set[str]:
+    """
+    As que rodam sozinhas, sem modelo que as cite.
+
+    Uma auditoria de cobertura presa a um modelo construído por faixa de data
+    confere só a janela recém-escrita, onde o piso de cem mil linhas nunca é
+    alcançado — ela passa sem olhar nada. Fora do modelo, lê a tabela inteira.
+    Não aparecer na lista de nenhum modelo é o ponto, não um esquecimento.
+    """
+    nomes: set[str] = set()
+    for arquivo in REGRAS:
+        nomes |= set(
+            re.findall(
+                r"AUDIT \(\s*name\s+([a-z_]+)\s*,\s*standalone\s+true",
+                arquivo.read_text(encoding="utf-8"),
+            )
+        )
+    return nomes
 
 
 def citadas(modelo: Path) -> set[str]:
@@ -60,13 +84,19 @@ def test_nenhuma_auditoria_fica_sem_uso() -> None:
     O contrário também engana: uma regra escrita e nunca citada parece proteger
     e não protege nada.
     """
-    usadas = set().union(*(citadas(modelo) for modelo in MODELOS))
+    usadas = set().union(*(citadas(modelo) for modelo in MODELOS)) | avulsas()
 
     assert not declaradas() - usadas
 
 
 def test_o_link_oficial_tem_auditoria() -> None:
-    """A regra da SCRUM-180, presa ao modelo que ela guarda."""
-    decisao = TRANSFORMACOES / "models" / "core_decisao.sql"
+    """
+    A regra da SCRUM-180, presa ao modelo que ela guarda.
 
-    assert "url_aponta_para_um_acordao" in citadas(decisao)
+    Mudou de modelo quando `url_compartilhada` saiu de `core.decisao`: é lá que
+    a coluna mora agora, e uma auditoria que ficasse para trás apontaria para
+    uma coluna que o modelo não tem mais.
+    """
+    modelo = TRANSFORMACOES / "models" / "core_url_compartilhada.sql"
+
+    assert "url_aponta_para_um_acordao" in citadas(modelo)

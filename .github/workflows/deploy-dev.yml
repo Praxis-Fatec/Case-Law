@@ -1,7 +1,9 @@
 name: Deploy — dev
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [dev]
   workflow_dispatch:
 
@@ -14,6 +16,9 @@ permissions:
   packages: write
 
 env:
+  # `workflow_run` runs in a context of its own, where `github.sha` is the
+  # default branch's head rather than the commit the checks passed on.
+  REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
   IMAGE: ghcr.io/praxis-fatec/case-law-backend
   FRONTEND_IMAGE: ghcr.io/praxis-fatec/case-law-frontend
   REMOTE_DIR: case-law-dev
@@ -22,9 +27,14 @@ jobs:
   deploy:
     name: Build the image and release it to the development server
     runs-on: ubuntu-24.04-arm
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.REVISION }}
 
       - uses: docker/setup-buildx-action@v3
 
@@ -43,7 +53,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:dev
-            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:${{ env.REVISION }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -55,7 +65,7 @@ jobs:
           push: true
           tags: |
             ${{ env.FRONTEND_IMAGE }}:dev
-            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:${{ env.REVISION }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -88,6 +98,9 @@ jobs:
           scp -i ~/.ssh/deploy deploy/release.sh "$PI_USER@$PI_HOST:~/$REMOTE_DIR/release.sh"
           scp -i ~/.ssh/deploy infra/postgres/init.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/init.sql"
           scp -i ~/.ssh/deploy backend/app/identidade.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/identidade.sql"
+          scp -i ~/.ssh/deploy backend/app/leitura.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/leitura.sql"
+          scp -i ~/.ssh/deploy backend/app/qualidade.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/qualidade.sql"
+          scp -i ~/.ssh/deploy backend/app/pesquisa.sql "$PI_USER@$PI_HOST:~/$REMOTE_DIR/pesquisa.sql"
 
       - name: Authenticate the development server against the registry
         env:

@@ -166,6 +166,44 @@ uv run sqlmesh plan      # shows what changed before touching anything
 `plan` is the important one: it reports which models changed and what would be
 rebuilt, and waits for confirmation. Add `--auto-apply` to skip the prompt.
 
+### What gets rebuilt, and when
+
+Not every model is rebuilt on every run, because not every model costs the
+same. A full rebuild of the whole collection measures 14 minutes on the
+development machine, and almost none of it is work a week of new decisions
+needs doing again.
+
+| Model | Built | Why |
+|---|---|---|
+| `core.decisao` | the date range that changed | Its cost is per row — parsing the ementa, reading the dispositivo, building the tsvector. A week of decisions costs a week. |
+| `core.decisao_precedente` | the date range that changed | Same: each acórdão is read on its own for the súmulas and temas it cites. |
+| `core.url_compartilhada` | whole, every run | Whether a link reaches more than one decision is a property of the collection, so it cannot be answered by date range. It is cheap because it reads the key and the address and no text at all. |
+| `core.doutrina_termo` | monthly | Its weight is an IDF over every ementa in the collection. It cannot be built by date range without changing the method, and the number barely moves when the collection grows 0.1% in a week. |
+| everything else | whole, every run | Small, or built from what is already treated. |
+
+Measuring it again after a change:
+
+```bash
+uv run python medir_transformacao.py             # the whole collection
+uv run python medir_transformacao.py --janela 7  # one week of it
+```
+
+Each model is built into a scratch schema, timed, counted and dropped, so the
+numbers come from the same data a real run reads without touching what is
+published.
+
+### Running the tests
+
+```bash
+PIPELINE_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/pipeline_test \
+  uv run pytest
+```
+
+Most of them read the project files and need nothing. The ones that prove the
+date-range build gives what a whole build gives create tables, so they ask for
+a database of their own — the name has to end in `_test`, and they refuse to
+run otherwise. Without the variable they are skipped.
+
 ## Configuration
 
 Everything comes from the environment. Nothing is hardcoded.
@@ -182,6 +220,7 @@ Everything comes from the environment. Nothing is hardcoded.
 | `BDJUR_PAGINAS` | BDJur connector | none — reads the endpoint, same as `--de` |
 | `VERIFY_MAX` | link check | `1000` records per run |
 | `VERIFY_INTERVAL` | link check | `0.5` seconds between requests |
+| `PIPELINE_TEST_DATABASE_URL` | the tests that build models | none — those tests are skipped |
 
 dlt uses its own variable name because that is the convention it reads by
 default. Keeping it avoids a translation layer that would only be one more thing

@@ -20,6 +20,12 @@ export type SearchDecisionMatch = {
   thesis?: string[];
   deliberation: string | null;
   snippet: string;
+  // Quão perto do que foi digitado, em sentido. Ausente na busca por palavras
+  // exatas, que não calcula sentido nenhum, e numa API publicada antes disto.
+  proximity?: 'high' | 'medium' | 'low' | null;
+  // Verdadeiro quando a busca por palavra não traz esta decisão e só o
+  // sentido a encontrou.
+  by_subject?: boolean;
 };
 
 export type SearchDecisionResponse = {
@@ -42,6 +48,12 @@ export type SearchOrder = 'relevance' | 'date';
 
 export const DEFAULT_ORDER: SearchOrder = 'relevance';
 
+// O que o leitor escolhe na barra de busca. `subjects` é o padrão da API, por
+// isso sai da requisição: quem não escolhe nada manda a mesma URL de sempre.
+export type SearchMode = 'exact' | 'subjects';
+
+export const DEFAULT_MODE: SearchMode = 'subjects';
+
 // Which indicator the reader arrived from. The API cuts the snippet around
 // what produced that classification instead of around what was typed; absent,
 // it keeps showing the search terms, which is right in a plain search.
@@ -59,6 +71,10 @@ export type SearchParams = {
   relator?: string[];
   classe_cnj?: number[];
   resultado?: string[];
+  // Exact values to leave out. Only the concentration indicator sends them:
+  // its "other" slice is the cut minus the groups ranked above it.
+  orgao_julgador_excluido?: string[];
+  relator_excluido?: string[];
   highlight?: Highlight;
   // `YYYY-MM-DD`, passed through untouched.
   date_from?: string;
@@ -67,6 +83,7 @@ export type SearchParams = {
   published_to?: string;
   // Applied by the API over every match, before paging — never on the page.
   order?: SearchOrder;
+  mode?: SearchMode;
 };
 
 // A failed search, carrying what the API said so the screen can tell a
@@ -115,6 +132,8 @@ export async function searchDecisions(
     'relator',
     'classe_cnj',
     'resultado',
+    'orgao_julgador_excluido',
+    'relator_excluido',
   ] as const) {
     for (const value of params[name] ?? []) {
       url.searchParams.append(name, String(value));
@@ -134,6 +153,10 @@ export async function searchDecisions(
 
   if (params.highlight) {
     url.searchParams.set('highlight', params.highlight);
+  }
+
+  if (params.mode && params.mode !== DEFAULT_MODE) {
+    url.searchParams.set('mode', params.mode);
   }
 
   const response = await fetch(url.toString(), {

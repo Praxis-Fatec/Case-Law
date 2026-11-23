@@ -7,15 +7,15 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import DictRow, dict_row
 
-from app.db import get_connection
+from app.db import get_connection, get_own_connection
 from app.main import app
 from app.sessions import gate
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-# The accounts schema the server applies, not a copy of it: a second
-# definition here would drift from the real one without a test noticing.
-IDENTITY = Path(__file__).resolve().parents[1] / "app" / "identidade.sql"
+# The schemas the server applies, not copies of them: a second definition
+# here would drift from the real one without a test noticing.
+SCHEMAS = sorted((Path(__file__).resolve().parents[1] / "app").glob("*.sql"))
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
 
@@ -52,7 +52,8 @@ def prepared_database() -> Iterator[str]:
     with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
         for name in ("schema.sql", "decisions.sql"):
             conn.execute((FIXTURES / name).read_text(encoding="utf-8"))
-        conn.execute(IDENTITY.read_text(encoding="utf-8"))
+        for schema in SCHEMAS:
+            conn.execute(schema.read_text(encoding="utf-8"))
     yield TEST_DATABASE_URL
 
 
@@ -79,6 +80,11 @@ def db_rolled_back(
 
 @pytest.fixture
 def client(db_rolled_back: psycopg.Connection[DictRow]) -> Iterator[TestClient]:
+    # The rows a test sets up exist only inside its own transaction, so the
+    # endpoints that ask for a connection of their own are served the same one
+    # here. What that separation buys is tested where it belongs, in
+    # `test_export.py`, which lets the real gate run against the real pool.
     app.dependency_overrides[get_connection] = lambda: db_rolled_back
+    app.dependency_overrides[get_own_connection] = lambda: db_rolled_back
     yield TestClient(app)
     app.dependency_overrides.clear()

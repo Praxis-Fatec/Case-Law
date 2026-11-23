@@ -5,7 +5,24 @@ export type Granularity = 'month' | 'quarter' | 'year';
 export type IndicatorPoint =
   | { kind: 'court'; court: string; count: number }
   | { kind: 'outcome'; outcome: string; count: number }
-  | { kind: 'period'; period: string; granularity: Granularity; count: number };
+  | { kind: 'period'; period: string; granularity: Granularity; count: number }
+  | { kind: 'divergence'; court: string; panel: string; classCode: number; count: number }
+  // `name` null is the folded rest: the cut minus the `ranked` names.
+  | {
+      kind: 'concentration';
+      field: ConcentrationField;
+      name: string | null;
+      ranked: string[];
+      count: number;
+    };
+
+export type ConcentrationField = 'orgao_julgador' | 'relator';
+
+export const CONCENTRATION_LABELS: Record<ConcentrationField, { category: string; rest: string }> =
+  {
+    orgao_julgador: { category: 'Órgão julgador', rest: 'Demais órgãos julgadores' },
+    relator: { category: 'Relator', rest: 'Demais relatores' },
+  };
 
 export type IndicatorSelection = {
   label: string;
@@ -63,6 +80,31 @@ export function selectIndicator(
     // snippet is cut. Court and period are copied fields: no passage to point
     // at, and the reader's own terms stay the right thing to highlight.
     params.highlight = 'resultado' satisfies Highlight;
+  } else if (point.kind === 'divergence') {
+    label = `${point.panel} · ${point.court} · Classe CNJ ${point.classCode}`;
+    compatible =
+      (!params.tribunal?.length || params.tribunal.includes(point.court)) &&
+      (!params.orgao_julgador?.length || params.orgao_julgador.includes(point.panel)) &&
+      (!params.classe_cnj?.length || params.classe_cnj.includes(point.classCode)) &&
+      !params.orgao_julgador_excluido?.includes(point.panel);
+    // Intersect all three dimensions. Same-named panels in other courts or
+    // classes must never widen the documents that produced this card.
+    params.tribunal = [point.court];
+    params.orgao_julgador = [point.panel];
+    params.classe_cnj = [point.classCode];
+  } else if (point.kind === 'concentration') {
+    const field = point.field;
+    if (point.name === null) {
+      label = CONCENTRATION_LABELS[field].rest;
+      // Narrows inside whatever the field was already filtered to: the ranked
+      // names come from that same cut.
+      compatible = true;
+      params[`${field}_excluido`] = point.ranked;
+    } else {
+      label = point.name;
+      compatible = !params[field]?.length || params[field].includes(point.name);
+      params[field] = [point.name];
+    }
   } else {
     label = formatPeriodLabel(point.period, point.granularity);
     const [year, month] = point.period.split('-').map(Number);
@@ -81,7 +123,15 @@ export function selectIndicator(
     compatible = params.date_from <= params.date_to;
   }
   const category =
-    point.kind === 'court' ? 'Tribunal' : point.kind === 'outcome' ? 'Resultado' : 'Período';
+    point.kind === 'court'
+      ? 'Tribunal'
+      : point.kind === 'outcome'
+        ? 'Resultado'
+        : point.kind === 'concentration'
+          ? CONCENTRATION_LABELS[point.field].category
+          : point.kind === 'divergence'
+            ? 'Turma'
+            : 'Período';
   return {
     label,
     count: point.count,

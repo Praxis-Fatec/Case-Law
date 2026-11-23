@@ -15,6 +15,7 @@ import psycopg2
 
 from datetime import date
 
+from sources.stf import document_opens as stf_document_opens
 from sources.stj import document_opens as stj_document_opens
 from sources.tjdft import (
     REQUEST_INTERVAL,
@@ -32,6 +33,7 @@ TABLE = f"{SCHEMA}.link"
 CHECKS: dict[str, Callable[[str, str | None], bool]] = {
     "tjdft-jurisdf": tjdft_document_opens,
     "stj-espelhos": stj_document_opens,
+    "stf-jurisprudencia": stf_document_opens,
 }
 
 # The sweep lists a collection by date window, which only the TJDFT's API does.

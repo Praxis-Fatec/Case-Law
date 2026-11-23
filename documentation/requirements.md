@@ -483,6 +483,10 @@ difference in volume alone does not prove legal divergence.
 **Verification.** Check the cases identified against the decisions that support
 them and against the rule approved for the comparison.
 
+The initial sample, significance and effect thresholds, sparse-sample behaviour
+and numerical validation examples are recorded in
+[the RF22 statistical rule (SCRUM-281)](architecture/panel-divergences.md).
+
 **Deliverables.** No directly matching implementation was identified in the reviewed `dev` history.
 
 **Coverage note.** Volume or outcome differences alone are not an implementation of legal divergence between panels. No matching comparison workflow was identified.

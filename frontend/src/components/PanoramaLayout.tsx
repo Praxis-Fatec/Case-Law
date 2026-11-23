@@ -1,17 +1,21 @@
 import { type ReactNode } from 'react';
 import { useSessionState } from '../search/session';
 import { CaretDown, Info } from '@phosphor-icons/react';
-type Dimension = 'courts' | 'timeline' | 'outcomes' | 'precedents';
+type Dimension = 'courts' | 'timeline' | 'outcomes' | 'precedents' | 'concentration' | 'divergence';
 export default function PanoramaLayout({
   courts,
   temporal,
   outcomes,
   precedents,
+  concentration,
+  divergence,
 }: {
   courts: ReactNode;
   temporal: ReactNode;
   outcomes: ReactNode;
   precedents: ReactNode;
+  concentration: ReactNode;
+  divergence: ReactNode;
 }) {
   const [expanded, setExpanded] = useSessionState<Dimension | null>('panoramaDimension', 'courts');
   const dimensions: {
@@ -43,6 +47,18 @@ export default function PanoramaLayout({
       title: 'Como os precedentes foram usados',
       category: 'Precedentes',
       content: precedents,
+    },
+    {
+      key: 'concentration',
+      title: 'Onde e por quem o tema é decidido',
+      category: 'Órgãos e relatores',
+      content: concentration,
+    },
+    {
+      key: 'divergence',
+      title: 'Como as turmas do mesmo tribunal decidiram',
+      category: 'Diferenças entre turmas',
+      content: divergence,
     },
   ];
   return (

@@ -229,8 +229,17 @@ def test_an_abbreviation_with_no_registered_court_is_not_listed(
 
 
 def test_every_source_points_to_a_registered_court() -> None:
+    """
+    What is forbidden is naming a court the seed does not have.
+
+    Naming none is allowed, and the BNP is why: it is the CNJ's national
+    register, it carries the precedents of both higher courts, and the CNJ is
+    not a court. Empty says the source is nobody's single tribunal, which is
+    true; picking one of the two would be a claim about it that is false.
+    """
     with (SEEDS / "fonte.csv").open(encoding="utf-8") as sources:
         pointed = {row["tribunal_sigla"] for row in csv.DictReader(sources)}
+    pointed.discard("")
     with (SEEDS / "tribunal.csv").open(encoding="utf-8") as courts:
         registered = {row["sigla"] for row in csv.DictReader(courts)}
 

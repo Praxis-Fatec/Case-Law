@@ -4,9 +4,9 @@ from psycopg.rows import DictRow
 
 from app.api.decisions import (
     BROAD_DEPTH,
-    BROAD_PAGE_SQL,
     BROAD_TERM_SQL,
     ORDERINGS,
+    _broad_page_sql,
     _broad_term,
     _page_sql,
 )
@@ -48,7 +48,7 @@ def plan(
 
 def lexeme_of(db: psycopg.Connection[DictRow], term: str) -> DictRow | None:
     with db.cursor() as cursor:
-        return _broad_term(cursor, {"term": term}, "", "relevance", 0, PAGE_SIZE)
+        return _broad_term(cursor, {"term": term}, "", "relevance", 0, PAGE_SIZE, True)
 
 
 def test_a_frequent_term_is_recognised(db: psycopg.Connection[DictRow]) -> None:
@@ -98,6 +98,7 @@ def test_a_filter_sends_the_search_down_the_slow_path(
             "relevance",
             0,
             PAGE_SIZE,
+            True,
         )
 
     assert narrowed is None
@@ -107,7 +108,10 @@ def test_ordering_by_date_sends_the_search_down_the_slow_path(
     db: psycopg.Connection[DictRow],
 ) -> None:
     with db.cursor() as cursor:
-        assert _broad_term(cursor, {"term": FREQUENT}, "", "date", 0, PAGE_SIZE) is None
+        assert (
+            _broad_term(cursor, {"term": FREQUENT}, "", "date", 0, PAGE_SIZE, True)
+            is None
+        )
 
 
 def test_a_page_past_the_stored_depth_sends_the_search_down_the_slow_path(
@@ -125,6 +129,7 @@ def test_a_page_past_the_stored_depth_sends_the_search_down_the_slow_path(
             "relevance",
             BROAD_DEPTH - PAGE_SIZE,
             PAGE_SIZE,
+            True,
         )
         past = _broad_term(
             cursor,
@@ -133,6 +138,7 @@ def test_a_page_past_the_stored_depth_sends_the_search_down_the_slow_path(
             "relevance",
             BROAD_DEPTH - PAGE_SIZE + 1,
             PAGE_SIZE,
+            True,
         )
 
     assert last is not None
@@ -232,7 +238,7 @@ def test_the_fast_page_is_the_same_page_the_slow_path_gives(
             for row in cursor.fetchall()
         ]
 
-        cursor.execute(BROAD_PAGE_SQL, {**parameters, "lexema": "moral"})
+        cursor.execute(_broad_page_sql(True), {**parameters, "lexema": "moral"})
         fast = [
             (row["fonte_codigo"], row["identificador_fonte"])
             for row in cursor.fetchall()
